@@ -1,0 +1,63 @@
+.TH DBCENTRAL.PYC 1 "$Date$" 
+.SH NAME
+dbcentral.pyc \- Python class for resolving dbcentral clusters table entries
+.SH SYNOPSIS
+.nf
+from dbcentral import *
+paths = DbCentral('path/to/database','nickname',include_times=True)
+.fi
+.SH DESCRIPTION
+The Python class dbcentral is useful for any Python script that needs to
+open and resolve database path names in a clusters table.
+
+Once instantiated with the import function, there is just one method 
+called namelist(). This will return a dictionary with key value pairs. 
+If include_times is set to True, the keys are the resolved database 
+table paths and the values are tuples consisting of start time and end 
+time (in epoch seconds). If include_times is set to False, the keys are 
+just iterator integers and the values are the resolved database table paths.
+.SH OPTIONS
+N/A
+.SH FILES
+dbcentral.pyc
+.SH ENVIRONMENT
+python
+.SH PARAMETER FILE
+N/A
+.SH EXAMPLE
+.nf
+% python
+Python 2.6.5 (r265:79063, Apr 19 2010, 12:01:34) [C] on sunos5
+Type "help", "copyright", "credits" or "license" for more information.
+>>> from dbcentral import *
+>>> test = DbCentral('/anf/anfops_rthome/dbcentral','daytest',include_times=True)
+>>> test.namelist()
+{
+    '/anf/anfops_rthome/rob_dbcentral_test/test_2010220.txt': (1281225600.0, 1281311999.0), 
+    '/anf/anfops_rthome/rob_dbcentral_test/test_2010222.txt': (1281398400.0, 1281484799.0), 
+    '/anf/anfops_rthome/rob_dbcentral_test/test_2010224.txt': (1281571200.0, 1281657599.0), 
+    '/anf/anfops_rthome/rob_dbcentral_test/test_2010221.txt': (1281312000.0, 1281398399.0), 
+    '/anf/anfops_rthome/rob_dbcentral_test/test_2010223.txt': (1281484800.0, 1281571199.0)
+}
+>>> 
+.fi
+.SH RETURN VALUES
+If successful, an unsorted Python dictionary. If unsuccessful, an error message.
+.SH LIBRARY
+.SH ATTRIBUTES
+.SH DIAGNOSTICS
+.SH "SEE ALSO"
+.nf
+pythondb(3p), pythonorb(3p), pythonstock(3p)
+.fi
+.SH "BUGS AND CAVEATS"
+Valid CSS3.0 schema dbcentral clusters table.
+Antelope interfaces to Python correctly installed.
+.SH AUTHOR
+.nf
+Rob Newman
+University of California, San Diego
+<rlnewman@ucsd.edu>
+.fi
+# This is just an id line from rcs.
+.\" $Id$
