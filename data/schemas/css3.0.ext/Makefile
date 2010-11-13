@@ -4,6 +4,7 @@ DATA = \
 	dlcmd_cal \
         dlevent \
 	gsnspec \
+	commandqueue \
 	q330_calibration_weblog \
 	qctests \
 	qgrid \

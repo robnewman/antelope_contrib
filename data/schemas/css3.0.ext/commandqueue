@@ -1,0 +1,54 @@
+#   Copyright (c) 2010 UC Regents
+#   All rights reserved. 
+#                                                                     
+#   Written by Dr. Rober Newman, University of California San Diego
+# 
+#   This software may be used freely in any way as long as 
+#   the copyright statement above is not removed. 
+
+Attribute commandline
+	Integer (180)
+	Format ( "%180s" )
+	Null ( "-" )
+	Description ( "Command line" )
+	Detail {
+		Command line of the job that has been queued
+	}
+	;
+
+Attribute pid
+	Integer (6)
+	Format ( "%6d" )
+	Null ( "-1" )
+	Description ( "process id" )
+	;
+
+Attribute commandstatus
+	String (16)
+	Format ( "%16s" )
+	Null ( "-" )
+	Description ( "Status of command process" )
+	Detail {
+		Status of command issued such as success, fail, sleep, waiting, timeout, etc
+	}
+	;
+
+Attribute commandtime
+	Time (17)
+	Format ( "%17.5f" )
+	Null ( "-9999999999.99900" )
+	Units ( "seconds" )
+	Description ( "Time command process sent" )
+	Detail {
+		Start of a command in epoch seconds
+	}
+	;
+
+Relation commandqueue
+	Fields ( commandline time commandtime endtime pid commandstatus lddate )
+	Primary ( time pid )
+	Description ( "Queue or workflow of command line processes" )
+	Detail {
+		Table designed to provide a queue and record of long lived commands to aid in diagnostics and control daemons
+		}
+	;
