@@ -2,7 +2,9 @@
 DATA = \
 	balerlist \
 	dlcmd_cal \
-        dlevent \
+	dlevent \
+	moment_tensor_images \
+	moment_tensor_greensfuncs \
 	gsnspec \
 	commandqueue \
 	q330_calibration_weblog \
