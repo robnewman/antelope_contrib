@@ -1,0 +1,202 @@
+#!/usr/bin/env python
+
+# {{{ HEADERS
+#
+# @author:   Rob Newman <rlnewman@ucsd.edu>, (+1) 858 822 1333
+# @created:  2010-08-11
+# @modified: 2010-08-12
+# @notes:    Open up clusters table, create dictionary, return
+#
+# }}} HEADERS
+
+import sys
+import os
+
+# Load datascope functions
+sys.path.append( os.environ['ANTELOPE'] + '/local/data/python/antelope/' )
+from datascope import *
+from stock import *
+
+
+class DbCentral:
+
+    def __init__(self, path, nickname, include_times=False):
+
+        # {{{ __init__
+        self.path = path
+        self.nickname = nickname
+        self.include_times = include_times
+        # }}} __init__
+
+    def namelist(self):
+
+        # {{{ namelist
+
+        try:
+
+            db = dbopen(self.path,'r')
+
+        except ElogException:
+
+            return "Cannot open cluster database %s" % self.path
+
+        try:
+
+            db.lookup('','clusters','','dbNULL')
+
+            null_time,null_endtime = db.getv('time','endtime')
+
+        except ElogException:
+
+            return "Cannot look up null values in clusters table"
+            
+        db.lookup('','clusters','','')
+        expr = "clustername =='%s'" % self.nickname
+
+        try:
+
+            db.subset(expr)
+
+        except ElogException:
+
+            return "There is no clustername that matches %s" % self.nickname
+
+        db.sort(['time'])
+        nclusters = db.nrecs()
+
+        # Create dictionary to hold all the values
+        namelist = {}
+
+        for i in range(nclusters):
+
+            db[3]=i
+
+            dbname_template = db.extfile()
+
+            volumes,time,endtime = db.getv("volumes","time","endtime")
+
+            if endtime == null_endtime:
+
+                endtime = now()
+
+                if volumes == 'single':
+
+                    # {{{ single
+
+                    if self.include_times:
+
+                        namelist[dbname_template] = (time,endtime)
+
+                    else:
+
+                        namelist[i] = dbname_template ;
+
+                    # }}} single
+
+                elif volumes == 'year':
+
+                    # {{{ year
+
+                    start_year = int(epoch2str(time,"%Y"))
+                    end_year   = int(epoch2str(endtime,"%Y"))
+
+                    for y in range(start_year,end_year):
+
+                       voltime    = str2epoch("1/1/%s 00:00:00" % y)
+                       volendtime = str2epoch("12/31/%s 23:59:59" % y)
+                       dbname     = epoch2str(voltime,dbname_template)
+
+                       if os.path.isfile(dbname):
+
+                           if self.include_times:
+                               namelist[dbname] = (voltime,volendtime);
+                           else:
+                               namelist[i] = dbname ;
+
+                    # }}} year
+
+                elif volumes == 'month':
+
+                    # {{{ month
+
+                    start_month = int(epoch2str(time,"%L"))
+                    start_year  = int(epoch2str(time,"%Y"))
+                    end_month   = int(epoch2str(endtime,"%L"))
+                    end_year    = int(epoch2str(endtime,"%Y"))
+
+                    vol_month   = start_month
+                    vol_year    = start_year
+
+                    # Iterator
+                    i = 0
+
+                    while vol_year < end_year or ( vol_year == end_year and vol_month <= end_month ):
+
+                        voltime           = str2epoch("%d/1/%d" % (vol_month,vol_year) )
+
+                        if vol_month < 12:
+                            temp_vol_endmonth = vol_month + 1
+                            temp_vol_endyear  = vol_year
+                        else:
+                            temp_vol_endmonth = 1
+                            temp_vol_endyear  = vol_year + 1
+
+                        volendtime = str2epoch("%d/1/%d" % (temp_vol_endmonth,temp_vol_endyear) ) - 1
+                        dbname     = epoch2str(int(voltime), dbname_template)
+
+                        if os.path.isfile(dbname):
+
+                            if self.include_times:
+                                namelist[dbname] = (voltime,volendtime)
+                            else:
+                                namelist[i] = dbname
+
+                        if vol_month < 12:
+                            vol_month = vol_month + 1
+                        else:
+                            vol_year = vol_year + 1
+                            vol_month = 1
+
+                        i = i + 1
+
+                    # }}} month
+
+                elif volumes == 'day':
+
+                    # {{{ day
+
+                    start_day = int(yearday(time))
+                    end_day   = int(yearday(endtime))
+
+                    vol_day   = start_day
+
+                    # Iterator
+                    i = 0
+
+                    while vol_day <= end_day:
+
+                        voltime    = epoch(vol_day)
+                        volendtime = voltime + 86399 # one second less than a full day
+                        dbname     = epoch2str(voltime, dbname_template)
+                        
+                        if os.path.isfile(dbname):
+
+                            if self.include_times:
+                                namelist[dbname] = (voltime,volendtime)
+                            else:
+                                namelist[i] = dbname
+
+
+                        vol_day = yearday((epoch(vol_day)+86400))
+
+                        i += 1
+
+                    # }}} day
+
+                else:
+
+                    return "Volumes type '%s' in cluster database not understood" % volumes
+
+        # }}} namelist
+
+        return namelist
