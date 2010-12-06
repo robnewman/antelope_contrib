@@ -1,0 +1,50 @@
+# parameter file for dbmoment
+
+
+# channel to use in MT-inversion, default is LH. If higher sample rate channels are chosen, 
+# the data is downsampled to 1 Hz.
+
+# Use displacement (d) or velocity (v) 
+model_type v
+
+# Turn on distance weighting, 
+distance_weighting off
+
+chan_to_use LH.*
+
+# Maximum number of stations to use in the inversion
+statmax 2 
+
+# Trim value to get rid of edge effects after filtering/decimation 
+trim_value 0.6
+
+# Isoflag, 0 for deviatoric, 1 for isotropic
+isoflag 0
+
+# Event database
+event_db /Users/gvandenhazel/dbwfserver/db/usarray_2009_01
+#event_db demo/de
+
+# Waveform database, defaults to event_db
+wave_db  
+
+# Response database, defaults to event_db
+resp_db demo/resp  
+
+# Green's functions database
+green_db greendb/greendb  
+
+# Defined filters
+filters &Arr{
+    0.02-0.10_BP    'BW 0.02 5 0.10 5'
+    0.02-0.05_BP    'BW 0.02 5 0.05 5'
+    0.01-0.05_BP    'BW 0.01 5 0.05 5'
+}
+
+# magnitude range vs filters
+mag_filters &Tbl{
+#   lowermag    highermag  filter
+    2.0         4.0        BW_0.02_5_0.10_5
+    4.0         5.0        BW_0.02_5_0.05_5
+    5.0                    BW_0.01_5_0.05_5
+}
