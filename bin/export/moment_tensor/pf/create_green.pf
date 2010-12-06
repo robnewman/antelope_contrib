@@ -1,0 +1,11 @@
+# Delta distance in degrees
+ddist 10
+
+# Delta azimuth in degrees
+dazim  100
+
+# Delta depth in km
+ddepth 10
+
+# Delta dip in degrees, between 0 amd 90
+ddip 5
