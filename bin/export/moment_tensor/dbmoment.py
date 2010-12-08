@@ -152,7 +152,7 @@ def choose_chan(wvstadb):
             break
     return channels
 #}}}
-def get_chan_data():
+def get_chan_data(wave_db,evdb):
 #{{{
     wvdb = dbopen(wave_db,'r')
     wvdb = dblookup(wvdb,'','wfdisc','','')
@@ -168,7 +168,7 @@ def get_chan_data():
     counter = 0
     for i in range(evdb.nrecs()):
         evdb[3] = i
-        (sta,at) = dbgetv(evdb,'sta','arrival.time')
+        (sta,at,esaz) = dbgetv(evdb,'sta','arrival.time','esaz')
         st = at - 12 
         et = at + 12
         wvstadb = dbsubset(wvdb,'sta=~/^%s$/' % sta)
@@ -178,16 +178,26 @@ def get_chan_data():
         except:
             logmt(verbose,'No channels found with a sample-rate >= 1 Hz for sta = %s' % sta)
         logmt(debug,'Channels found: %s %s %s' % (chans[0],chans[1],chans[2]))
+        wvstadb.subset('chan =~ /%s|%s|%s/' % (chans[0],chans[1],chans[2]))
+        trace = wvstadb.load_css(st,et)
+        trace.apply_calib()
+        trsplice(trace)
+        trfilter(trace,fstring)
+        rotchan = ('R','T','Z')
+        for j in range(trace.nrecs()):
+            trace[3] = j
+            vang = trace.getv('vang')[0]
+        trace.rotate(esaz,vang,rotchan)
+        trace.subset('chan =~ /R|T|Z/')
         foundchans = []
-        for chan in chans:
+        for j in range(trace.nrecs()):
+            trace[3] = j
+            (sta,chan,ns,sr) = trace.getv('sta','chan','nsamp','samprate')
             stachan = '%s_%s' % (sta,chan)
-            trace = trloadchan(wvstadb,st,et,sta,chan)
-            trsplice(trace)
             ns_tra = 0
             ns_req = 0
-            for j in range(dbquery(trace,'dbRECORD_COUNT')):
-                trace[3] = j
-                (ns,sr) = dbgetv(trace,'nsamp','samprate')
+            samples = trace.data()
+            for k in range(len(samples)):
                 ns_tra += ns
                 ns_req += int((et-st)*sr)
             if not ns_tra == ns_req:
@@ -197,9 +207,7 @@ def get_chan_data():
                         del stachan_traces[delchan]
                         logmt(debug,'Deleting channel %s' % delchan)
                         counter -= 1
-            trapply_calib(trace)
-            trfilter(trace,fstring)
-            stachan_traces[stachan] = trace   
+            stachan_traces[stachan] = samples  
             logmt(debug,'Trace extracted for %s' % stachan)
             foundchans.append(stachan)
             counter += 1
@@ -208,48 +216,30 @@ def get_chan_data():
     return (stachan_traces)
 #}}}
 def construct_matrix(stachan_traces,evdb):
-
+#{{{
     numsta = 0
     numchan = 0
-    for stachan,trace in sorted(stachan_traces.items()):
+    for stachan,tr in sorted(stachan_traces.items()):
         sta,chan = stachan.split('_')
-        trace[3] = 0
-        tr = trdata(trace)
-        test = np.correlate(tr,tr,'full')
-        counter = -len(test)/2 +1
-        maxcoef = 0
-        coef = 0
-        for i in test:
-            if i > maxcoef:
-                maxcoef = i
-                coef = counter
-            counter += 1 
         if dw == True:
             logmt(debug,'Apply distance weighting')
-        
-        staevdb = dbsubset(evdb,'sta =~ /^%s$/' % sta)
-        staevdb[3] = 0
-        azim = dbgetv(evdb,'seaz')
-        if chan[2:] == 'E':
+        if chan == 'R':
             numchan += 1
             for j in range(len(tr)):
-                #sse[numsta][j] = tr[j]
-                s[chan[2:]][numsta][j] = tr[j]
-        if chan[2:] == 'N':
+                s['R'][numsta][j] = tr[j]
+        if chan == 'T':
             numchan += 1
             for j in range(len(tr)):
-                #ssn[numsta][j] = tr[j]
-                s[chan[2:]][numsta][j] = tr[j]
-        if chan[2:] == 'Z':
+                s['T'][numsta][j] = tr[j]
+        if chan == 'Z':
             numchan += 1
             for j in range(len(tr)):
-                #ssz[numsta][j] = tr[j]
-                s[chan[2:]][numsta][j] = tr[j]
+                s['Z'][numsta][j] = tr[j]
         if numchan == 3:
             numchan = 0
             numsta += 1
     return(s)
-
+#}}}
 def cross_cor(a,b):
     #{{{
     xcor  = np.correlate(a.values(),b.values(),'full')
@@ -265,25 +255,14 @@ def cross_cor(a,b):
 
 orid = configure()
 (evdb,evparams) = get_view_from_db(orid)
-stachan_traces = get_chan_data()
+stachan_traces = get_chan_data(wave_db,evdb)
 
-sse = defaultdict(dict) 
-ssn = defaultdict(dict) 
-ssz = defaultdict(dict) 
 s = defaultdict(lambda: defaultdict(defaultdict))
+g = defaultdict(lambda: defaultdict(defaultdict))
 
-(s) = construct_matrix(stachan_traces,evdb)
-
-print s
-
-exit()
+s = construct_matrix(stachan_traces,evdb)
 
 # Declare matrices (data and Green's functions
-
-sst = defaultdict(dict) 
-ssr = defaultdict(dict) 
-ssz = defaultdict(dict) 
-
 def get_greens_functions(evdb):
 #{{{
     tmp = {}
@@ -305,7 +284,6 @@ def get_greens_functions(evdb):
         dazim = float(dazim)
         expr = 'delta > %s && delta <= %s ' % (delta-ddist/2,delta+ddist/2)
         expr += '&& azimuth > %s && azimuth <= %s ' % (seaz-dazim/2,seaz+dazim/2)
-        print expr
         subgdb = dbsubset(gdb,expr)
         try:
             subgdb = dbsubset(gdb,expr)
@@ -323,10 +301,9 @@ green_funcs  = {}
 
 
 W = []
-for i in range(len(sst)):
+for i in range(len(s['T'])):
     W.append(1.0)
 
-# sse contains east, ssn north and ssz vertical component traces
 
 # read the Green's function from database......based on distance and depth.....
 
@@ -344,11 +321,11 @@ for j in range(3):
             samples.append(float(samp))
     data.close()
     for i in range(200):
-        sst[j-1][i] = samples.pop(0)
+        s['T'][j-1][i] = samples.pop(0)
     for i in range(200):
-        ssr[j-1][i] = samples.pop(0)
+        s['R'][j-1][i] = samples.pop(0)
     for i in range(200):
-        ssz[j-1][i] = samples.pop(0)
+        s['Z'][j-1][i] = samples.pop(0)
 
 
 greens = []
@@ -358,7 +335,6 @@ for line in green:
         greens.append(line[j*12:j*12+12]) 
 green.close()
 
-g = defaultdict(lambda: defaultdict(defaultdict))
 for i in range(3):
     for k in range(8):
         for j in range(200):
@@ -379,52 +355,52 @@ for i in range(3):
 
 def get_time_shift():
 #{{{
-    for i in range(len(sst)):
+    for i in range(len(s['T'])):
         shift = 0
         xcor  = 0
-        if cross_cor(sst[i],g[0][i])[0] > xcor:
-            xcor  = cross_cor(sst[i],g[0][i])[0]
-            shift = cross_cor(sst[i],g[0][i])[1]
-        if cross_cor(sst[i],g[1][i])[0] > xcor:
-            xcor = cross_cor(sst[i],g[1][i])[0]
-            shift = cross_cor(sst[i],g[1][i])[1]
-        if cross_cor(ssr[i],g[2][i])[0] > xcor:
-            xcor = cross_cor(ssr[i],g[2][i])[0]
-            shift = cross_cor(ssr[i],g[2][i])[1]
-        if cross_cor(ssr[i],g[3][i])[0] > xcor:
-            xcor = cross_cor(ssr[i],g[3][i])[0]
-            shift = cross_cor(ssr[i],g[3][i])[1]
-        if cross_cor(ssr[i],g[4][i])[0] > xcor:
-            xcor = cross_cor(ssr[i],g[4][i])[0]
-            shift = cross_cor(ssr[i],g[4][i])[1]
-        if cross_cor(ssz[i],g[5][i])[0] > xcor:
-            xcor = cross_cor(ssz[i],g[5][i])[0]
-            shift = cross_cor(ssz[i],g[5][i])[1]
-        if cross_cor(ssz[i],g[6][i])[0] > xcor:
-            xcor = cross_cor(ssz[i],g[6][i])[0]
-            shift = cross_cor(ssz[i],g[6][i])[1]
-        if cross_cor(ssz[i],g[7][i])[0] > xcor:
-            xcor = cross_cor(ssz[i],g[7][i])[0]
-            shift = cross_cor(ssz[i],g[7][i])[1]
+        if cross_cor(s['T'][i],g[0][i])[0] > xcor:
+            xcor  = cross_cor(s['T'][i],g[0][i])[0]
+            shift = cross_cor(s['T'][i],g[0][i])[1]
+        if cross_cor(s['T'][i],g[1][i])[0] > xcor:
+            xcor = cross_cor(s['T'][i],g[1][i])[0]
+            shift = cross_cor(s['T'][i],g[1][i])[1]
+        if cross_cor(s['R'][i],g[2][i])[0] > xcor:
+            xcor = cross_cor(s['R'][i],g[2][i])[0]
+            shift = cross_cor(s['R'][i],g[2][i])[1]
+        if cross_cor(s['R'][i],g[3][i])[0] > xcor:
+            xcor = cross_cor(s['R'][i],g[3][i])[0]
+            shift = cross_cor(s['R'][i],g[3][i])[1]
+        if cross_cor(s['R'][i],g[4][i])[0] > xcor:
+            xcor = cross_cor(s['R'][i],g[4][i])[0]
+            shift = cross_cor(s['R'][i],g[4][i])[1]
+        if cross_cor(s['Z'][i],g[5][i])[0] > xcor:
+            xcor = cross_cor(s['Z'][i],g[5][i])[0]
+            shift = cross_cor(s['Z'][i],g[5][i])[1]
+        if cross_cor(s['Z'][i],g[6][i])[0] > xcor:
+            xcor = cross_cor(s['Z'][i],g[6][i])[0]
+            shift = cross_cor(s['Z'][i],g[6][i])[1]
+        if cross_cor(s['Z'][i],g[7][i])[0] > xcor:
+            xcor = cross_cor(s['Z'][i],g[7][i])[0]
+            shift = cross_cor(s['Z'][i],g[7][i])[1]
         timeshift.append(shift)
     return(timeshift)
 #}}}
 
 timeshift = []
 timeshift = get_time_shift()
-trim = 0
 
 def matrix_AIV_B(g,s):
 #{{{
     AJ = defaultdict(dict) 
+    trim = 0
     cnt1=cnt2=cnt3 = 0
-    trim  = int(len(sst[0])*float(trim_value))
-    for i in range(len(sst)):
+    trim  = int(len(s['T'][0])*float(trim_value))
+    for i in range(len(s['T'])):
         cnt1=cnt2=cnt3
-        cnt2 += len(sst[0])-trim
-        cnt3 += 2*len(sst[0])-2*trim
+        cnt2 += len(s['T'][0])-trim
+        cnt3 += 2*len(s['T'][0])-2*trim
         az[i] *= math.pi/180
-        for j in range(len(sst[0])-trim):
+        for j in range(len(s['T'][0])-trim):
             AJ[0][cnt1] =  math.sin(2*az[i])*g[0][i][j]/2
             AJ[1][cnt1] = -math.sin(2*az[i])*g[0][i][j]/2
             AJ[2][cnt1] = -math.cos(2*az[i])*g[0][i][j]
@@ -466,15 +442,15 @@ def matrix_AIV_B(g,s):
         B[i][0] = 0.0
     cnt1 = cnt2 = cnt3 = 0
     tmp = defaultdict(dict) 
-    for i in range(len(sst)):
+    for i in range(len(s['T'])):
     
         cnt1 = cnt2 = cnt3
-        cnt2 += len(sst[0])-trim
-        cnt3 += 2*(len(sst[0])-trim)
-        for j in range(len(sst[0])-trim):
-            tmp[cnt1] = sst[i][j+timeshift[i]]
-            tmp[cnt2] = ssr[i][j+timeshift[i]]
-            tmp[cnt3] = ssz[i][j+timeshift[i]]
+        cnt2 += len(s['T'][0])-trim
+        cnt3 += 2*(len(s['T'][0])-trim)
+        for j in range(len(s['T'][0])-trim):
+            tmp[cnt1] = s['T'][i][j+timeshift[i]]
+            tmp[cnt2] = s['R'][i][j+timeshift[i]]
+            tmp[cnt3] = s['Z'][i][j+timeshift[i]]
             cnt1 += 1
             cnt2 += 1
             cnt3 += 1
@@ -487,7 +463,7 @@ def matrix_AIV_B(g,s):
 
 AIV = defaultdict(dict)
 B = defaultdict(dict) 
-(AIV,B) = matrix_AIV_B()
+(AIV,B) = matrix_AIV_B(g,s)
 
 def swap(a,b):
 #{{{
@@ -721,10 +697,7 @@ def decompose_moment_tensor(M):
     return (m0,Mw,strike,dip,slip,pcdc,pcclvd,pciso)
 #}}}
 
-#def fitcheck()
 
-
-#fitcheck()
 
 
 strike = []
@@ -732,6 +705,19 @@ dip = []
 rake = []
 (m0,Mw,strike,dip,rake,pcdc,pcclvd,pciso) = decompose_moment_tensor(M)
 
+#def fitcheck(g,s,W,M,m0,isoflag):
+#
+#    for i in range(len(s['T'])):
+#        dpower = 0
+#        e = 0
+#        for j in range(len(s['T'][0])):
+#            etmp = s['T']
+#
+#
+#
+#fitcheck(g,s,W,M,m0,isoflag)
+
+#exit()
 print 'M0      =',m0
 print 'Mw      =',Mw 
 print 'Strike  =',math.degrees(strike[0])

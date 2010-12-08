@@ -13,7 +13,7 @@ distance_weighting off
 chan_to_use LH.*
 
 # Maximum number of stations to use in the inversion
-statmax 2 
+statmax 3
 
 # Trim value to get rid of edge effects after filtering/decimation 
 trim_value 0.6
