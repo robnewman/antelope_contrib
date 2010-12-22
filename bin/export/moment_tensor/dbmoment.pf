@@ -3,6 +3,7 @@
 
 # channel to use in MT-inversion, default is LH. If higher sample rate channels are chosen, 
 # the data is downsampled to 1 Hz.
+chan_to_use LH.*
 
 # Use displacement (d) or velocity (v) 
 model_type v
@@ -10,16 +11,14 @@ model_type v
 # Turn on distance weighting, 
 distance_weighting off
 
-chan_to_use LH.*
-
 # Maximum number of stations to use in the inversion
-statmax 3
+statmax 8
 
 # Trim value to get rid of edge effects after filtering/decimation 
-trim_value 0.6
+trim_value 0.2
 
 # Isoflag, 0 for deviatoric, 1 for isotropic
-isoflag 0
+isoflag 1
 
 # Use incidence angle in rotation, if set to 1, otherwise incidence angle is ignored
 use_inc 0
@@ -35,14 +34,7 @@ wave_db
 resp_db demo/resp  
 
 # Green's functions database
-green_db greendb/greendb  
-
-# Defined filters
-filters &Arr{
-    0.02-0.10_BP    'BW 0.02 5 0.10 5'
-    0.02-0.05_BP    'BW 0.02 5 0.05 5'
-    0.01-0.05_BP    'BW 0.01 5 0.05 5'
-}
+green_db /Users/gvandenhazel/dbwfserver/db/green_db/greendb  
 
 # magnitude range vs filters
 mag_filters &Tbl{

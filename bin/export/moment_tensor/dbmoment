@@ -1,3 +1,10 @@
+#!/opt/antelope/5.0-64/local/bin/python
+
+import sys
+import os
+
+sys.path.append( os.environ['ANTELOPE'] + '/local/data/python' )
+
 import getopt
 import re
 import numpy as np
