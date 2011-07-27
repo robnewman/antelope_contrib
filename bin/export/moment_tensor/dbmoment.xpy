@@ -1,4 +1,4 @@
-import getopt
+from optparse import OptionParser
 import re
 import numpy as np
 import math as math
@@ -7,7 +7,7 @@ from collections import defaultdict
 from time import gmtime
 
 import antelope.stock as stock
-from antelope.datascope import *
+import antelope.datascope as antdb
 
 
 # Set defaults
@@ -33,18 +33,14 @@ debug = False
 flag = 0
 
 def usage():
-#{{{
-#
-# Message printed whenever the command-line input is incorrect
-#
+    """Message printed whenever the command-line input is incorrect
+    """
     print 'Usage: dbmoment [-vV] [-p pfname] orid'
-#}}}
-def logmt(flag,message):
-#{{{
-#
-# Function to handle log output, which depends on the verbosity setting.
-# Prints messages with timestamp. Whenever an error occurs it also exits.
-#
+
+def logmt(flag, message):
+    """Function to handle log output, which depends on the verbosity setting.
+    Prints messages with timestamp. Whenever an error occurs it also exits.
+    """
     from time import time
     curtime = stock.strtime(time())
     if not flag:
@@ -54,32 +50,28 @@ def logmt(flag,message):
     else:
         print curtime,'ERROR:',message,'--> exiting'
         sys.exit(-1)
-#}}}
+
 def configure():
-#{{{
-#
-# Function to configure paramters from command-line and the pf-file
-# Check command line options
-    try:
-        opts,pargs = getopt.getopt(sys.argv[1:],'vVp:')
-    except getopt.GetoptError:
-        usage()
-        sys.exit(-1)
-    if(len(pargs) != 1):
-        usage()
-        sys.exit(-1)
-    else:
-        orid = pargs[0]
-# Get command line options
-    for option, value in opts:
-        if option in ('-v'):
-            globals()['verbose'] = True
-        if option in ('-V'):
-            globals()['verbose'] = True
-            globals()['debug'] = True
-        if option in ('-p'):
-            globals()['pfname'] = value
-# Get parameters from pf-file
+    """Function to configure paramters from command-line and the pf-file
+    Check command line options
+    """
+    parser = OptionParser()
+    parser.add_option("-v", "--verbose", action="store_true", dest="verbose", default="False", help="Verbose output"
+    parser.add_option("-V", "--debug", action="store_true", dest="debug", default="False", help="Debug application"
+    parser.add_option("-p", "--pf", action="store", dest="pf", type="string", help="Parameter file path"
+    (options, args) = parser.parse_args()
+    if options.verbose:
+        globals()['verbose'] = True
+    if options.debug:
+        globals()['verbose'] = True
+        globals()['debug'] = True
+    if options.pf:
+        globals()['pfname'] = options.pf
+        
+    if args.len() > 0:
+        orid = args[0]
+
+    # Get parameters from pf-file
     globals()['chan_to_use'] = stock.pfget_string(pfname,'chan_to_use')
     globals()['trim_value']  = stock.pfget_string(pfname,'trim_value')
     if(stock.pfget_string(pfname,'isoflag') == 1): globals()['isoflag'] = 6
@@ -98,13 +90,11 @@ def configure():
     if not resp_db: globals()['resp_db'] = event_db
 
     return orid
-#}}}
+
 def get_view_from_db(orid):
-#{{{
-#
-# Open event database and get event parameters for given origin-id
-# Returns event parameters or exits when an error occurs
-#
+    """Open event database and get event parameters for given origin-id
+    Returns event parameters or exits when an error occurs
+    """
     if not os.path.isfile(event_db):
         logmt(3,'Database (%s) does not exist' % event_db)
     evdb = dbopen(event_db,'r')
@@ -139,13 +129,11 @@ def get_view_from_db(orid):
             flt = flt.replace('_',' ')
             globals()['fstring'] = flt
     return(evdb,evparams)
-#}}}
+
 def choose_chan(wvstadb):
-#{{{
-#
-# Get all channels for a given station. Returns the channels with 
-# samplerate closest to and bigger than 1
-#
+    """Get all channels for a given station. Returns the channels with 
+    samplerate closest to and bigger than 1
+    """
     view = dbsort(wvstadb,'samprate',unique=True)
     for i in range(view.nrecs()):
         view[3]=i
@@ -165,13 +153,11 @@ def choose_chan(wvstadb):
         if len(channels) == 3:
             break
     return channels
-#}}}
+
 def get_chan_data(wave_db,evdb):
-#{{{
-#
-# Open wave_form database and returns trace objects based on sta_chan
-# Applies calibration, splice, filter, decimation and rotation to channels
-#
+    """Open wave_form database and returns trace objects based on sta_chan
+    Applies calibration, splice, filter, decimation and rotation to channels
+    """
     try:
         wvdb = dbopen(wave_db,'r')
     except:
@@ -245,13 +231,11 @@ def get_chan_data(wave_db,evdb):
         if counter == statmax*3:
             break
     return (stachan_traces)
-#}}}
+
 def construct_data_matrix(stachan_traces):
-#{{{
-# 
-# Construct data matrix from dictionary containing trace_objects per sta_chan
-# Returns matrix s, which is a 3D matrix, containing all data per channel
-#
+    """Construct data matrix from dictionary containing trace_objects per sta_chan
+    Returns matrix s, which is a 3D matrix, containing all data per channel
+    """
     numsta = 0
     numchan = 0
     for stachan,tr in sorted(stachan_traces.items()):
@@ -274,13 +258,11 @@ def construct_data_matrix(stachan_traces):
             numchan = 0
             numsta += 1
     return(s)
-#}}}
+
 def cross_cor(a,b):
-#{{{
-#
-# Calculate cross correlation between data and accompanying 
-# Green's function. Returns the max_cor and the shift
-#
+    """Calculate cross correlation between data and accompanying 
+    Green's function. Returns the max_cor and the shift
+    """
     xcor  = np.correlate(a.values(),b.values(),'full')
     pr = len(xcor)/2 
     maxval  = 0
@@ -290,28 +272,13 @@ def cross_cor(a,b):
             maxval = abs(xcor[j+pr])
             maxcoef = j+1
     return (maxval,maxcoef)
-#}}}
-
-orid = configure()
-(evdb,evparams) = get_view_from_db(orid)
-stachan_traces = get_chan_data(wave_db,evdb)
-
-# Declare matrices (data and Green's functions
-s = defaultdict(lambda: defaultdict(defaultdict))
-g = defaultdict(lambda: defaultdict(defaultdict))
-
-#s = construct_data_matrix(stachan_traces)
-if len(s) != 0:
-    logmt(debug,'Data matrix S created --> %s stations used' % len(s))
 
 def get_greens_functions(evdb):
-#{{{
-#
-# Opens Green's database and returns a dictionary which describes
-# the path to the Green's function per station. Based on azimuth
-# and distance. Some settings required from parameter-file for 
-# the Green's function creation.
-#
+    """Opens Green's database and returns a dictionary which describes
+    the path to the Green's function per station. Based on azimuth
+    and distance. Some settings required from parameter-file for 
+    the Green's function creation.
+    """
     tmp = {}
     green_pf = 'pf/create_green'
     ddist = stock.pfget_string(green_pf,'ddist')
@@ -341,71 +308,12 @@ def get_greens_functions(evdb):
         except:
             logmt(verbose,'No Green\'s function found for %s' % sta)
     return(tmp)
-#}}}
 
-green_funcs  = {}
-#greens_funcs = get_greens_functions(evdb)
-
-
-
-
-# read the Green's function from database......based on distance and depth.....
-# Only used in testing, should be removed before committing first working version
-######################################################################################################
-# Reading test data and Green;s functions....from file                                               #
-#{{{
-az = [10,40,50]
-for j in range(3):
-    j += 1
-    data =  open('./data%d' % j,'r')
-    samples = []
-    for line in data:
-        tmp = line.split()
-        for samp in tmp:
-            samples.append(float(samp))
-    data.close()
-    for i in range(200):
-        s['T'][j-1][i] = samples.pop(0)
-    for i in range(200):
-        s['R'][j-1][i] = samples.pop(0)
-    for i in range(200):
-        s['Z'][j-1][i] = samples.pop(0)
-
-
-greens = []
-green = open('./green','r')
-for line in green:
-    for j in range(len(line)/12):
-        greens.append(line[j*12:j*12+12]) 
-green.close()
-
-for i in range(3):
-    for k in range(8):
-        for j in range(200):
-            g[k][i][j] = float(greens[j + k*200])
-            if k in [5,6,7]:
-                g[k][i][j] *= -1
-    if isoflag == 5:
-        for k in [8,9]:
-            for j in range(200):
-                g[k][i][j] = 0.0
-    if isoflag == 6:
-        for k in [8,9]:
-            for j in range(200):
-                g[k][i][j] = float(greens[j + k*200])
-#}}}
-######################################################################################################
-if len(g[1]) != len(s['T']):
-    logmt(3,'Number of Green\'s function does not match the number of stations')
-else:
-    logmt(verbose,'Matrix S (data) and G (synthetics) created')
-
-W = []
-for i in range(len(s['T'])):
-    W.append(1.0)
 
 def get_time_shift():
-#{{{
+    """Get the time shift
+    and return a list
+    """
     for i in range(len(s['T'])):
         shift = 0
         xcor  = 0
@@ -435,21 +343,11 @@ def get_time_shift():
             shift = cross_cor(s['Z'][i],g[7][i])[1]
         timeshift.append(shift)
     return(timeshift)
-#}}}
-
-timeshift = []
-timeshift = get_time_shift()
-if len(timeshift) != len(s['T']):
-    logmt(3,'Error in correlating synthetic and measured data')
-else:
-    logmt(debug,'Timeshift between data and synthetics computed for %s stations' % len(timeshift))
 
 def matrix_AIV_B(g,s):
-#{{{
-#
-# Construct matrices AIV and B using the data and Green's function matrices
-# Return AIV and B for further processingi (inversion)
-#
+    """Construct matrices AIV and B using the data and Green's function matrices
+    Return AIV and B for further processingi (inversion)
+    """
     AJ = defaultdict(dict) 
     trim = 0
     cnt1=cnt2=cnt3 = 0
@@ -518,45 +416,25 @@ def matrix_AIV_B(g,s):
         for j in range(cnt3):
             B[i][0] += AJ[i][j]*tmp[j]
     return(AIV,B)
-#}}}
 
-AIV = defaultdict(dict)
-B = defaultdict(dict) 
-(AIV,B) = matrix_AIV_B(g,s)
-if len(AIV) != isoflag or len(AIV[0]) != isoflag:
-    logmt(3,'Matrix AIV has dimension [%s,%s] should be [%s,%s]' % (len(AIV),len(AIV),isoflag,isoflag))
-elif len(B) != isoflag:
-    logmt(3,'Matrix AIV has dimension [%s,i%s] should be [%s,1]' % (len(B),len(B[0]),isoflag))
-else:
-    logmt(debug,'Matrices AIV and B created and have correct dimensions')
 
 def swap(a,b):
-#{{{
-#
-# Swap function....
-#
+    """Remap list"""
     tmp = a
     a = b
     b = tmp
     return(a,b)
 
-#}}}
 def dyadic(v,n1,n2,c):
-#{{{
-#
-# Compute the dyadic matrix of vector v
-#
+    """Compute the dyadic matrix of vector v"""
     tmp = np.matrix([[0.,0.,0.],[0.,0.,0.],[0.,0.,0.]])
     for i in range(3):
         for j in range(3):
             tmp[i,j] = v[i,n1]*v[j,n2]*c
     return(tmp)
-#}}}
+
 def det_solution_vec(AIV,B):
-#{{{
-#
-# Solve the inversion problem, returning the moment tensor
-#
+    """Solve the inversion problem, returning the moment tensor"""
     ipiv = defaultdict(dict)
     for i in range(isoflag):
         ipiv[i] = 0
@@ -599,34 +477,23 @@ def det_solution_vec(AIV,B):
     if isoflag == 5:
         M = np.matrix([[B[0][0],B[2][0],B[3][0]],[B[2][0],B[1][0],B[4][0]],[B[3][0],B[4][0],-(B[0][0]+B[1][0])]])
     
-#    Coded in the original code by Doug Dreger, however, AIV is not used further in the program, so not needed???
-#
-#    indc = defaultdict(dict)
-#    indr = defaultdict(dict)
-#    for i in range(isoflag-1,0,-1):
-#        if indr[i] != indc[i]:
-#            for j in range(isoflag):
-#                (AIV[j][indr[i]],AIV[j][indxc[i]]) = swap(AIV[j][indr[i]],AIV[j][indxc[i]])
+    """
+    # Coded in the original code by Doug Dreger, however, AIV is not used further in the program, so not needed???
+    indc = defaultdict(dict)
+    indr = defaultdict(dict)
+    for i in range(isoflag-1,0,-1):
+        if indr[i] != indc[i]:
+            for j in range(isoflag):
+                (AIV[j][indr[i]],AIV[j][indxc[i]]) = swap(AIV[j][indr[i]],AIV[j][indxc[i]])
+    """
     return(M)
-#}}}
 
-M = det_solution_vec(AIV,B)
-if len(M) != 3:
-    logmt(3,'Wrong dimension returned for matrix M after inversion')
-else:
-    logmt(debug,'Moment tensor matrix M[3,3] created')
-gfscale = -1.0e+20
-gfscale = -1.0
-    
-# Get eigenvalues and eigen vectors of moment tensor
 def decompose_moment_tensor(M):
-#{{{
-#
-# Decompose moment tensor into eigenvector/values.
-# Calculate moment tensor parameters from eigenvalues and vectors. 
-# Return M0, Mw, strike, slip, rake and precentages of present
-# source characteristics
-#
+    """Decompose moment tensor into eigenvector/values.
+    Calculate moment tensor parameters from eigenvalues and vectors. 
+    Return M0, Mw, strike, slip, rake and precentages of present
+    source characteristics
+    """
     M *= -1.0e+20
     trace = 0
     for i in range(3):
@@ -773,19 +640,11 @@ def decompose_moment_tensor(M):
     Mw = math.log10(m0)/1.5 - 10.7
     pciso = abs(miso[0,0])/m0
     return (m0,Mw,strike,dip,slip,pcdc,pcclvd,pciso)
-#}}}
-
-strike = []
-dip = []
-rake = []
-(m0,Mw,strike,dip,rake,pcdc,pcclvd,pciso) = decompose_moment_tensor(M)
-logmt(verbose,'Decomposition of moment tensor succesfull')
 
 def fitcheck(g,s,W,M,m0,isoflag,timeshift,trim_value,az):
-#{{{
-# 
-# Calculate the variance and variance reduction and flag bad stations.
-#
+    """Calculate the variance, variance reduction
+    and flag bad stations
+    """
     M /= -1.0e+20
     cnt = 0
     wsum = etot = var = dtot = dvar = 0
@@ -845,27 +704,12 @@ def fitcheck(g,s,W,M,m0,isoflag,timeshift,trim_value,az):
     var /= dvar
     var = (1-var)*100
     return(pvar,pvred,var,svar,sdpower)
-#}}}
-            
-svar = []
-sdpower = []
-(E,VR,VAR,svar,sdpower) = fitcheck(g,s,W,M,m0,isoflag,timeshift,trim_value,az)
 
-
-
-if VR < 100:qlt=4
-if VR < 80:qlt=3
-if VR < 60:qlt=2
-if VR < 40:qlt=1
-if VR < 20:qlt=0
-
-# Append results to moment database-table. If db.moment does not exists, create it
-
-evdb.close()
 
 def write_results(event_db,orid):
-
-    moment = dbopen(event_db,'r+')
+    """Write out results to database
+    """
+    moment = dbopen(event_db, 'r+')
     moment.lookup(table='moment')
     moment.addv('orid' ,int(orid),
                 'str1' ,math.degrees(strike[0]),
@@ -874,25 +718,148 @@ def write_results(event_db,orid):
                 'str2' ,math.degrees(strike[1]),
                 'dip2' ,math.degrees(dip[1]),
                 'rake2',math.degrees(rake[1]))
+    return True
+
+def main():
+    orid = configure()
+    (evdb,evparams) = get_view_from_db(orid)
+    stachan_traces = get_chan_data(wave_db,evdb)
+
+    # Declare matrices (data and Green's functions
+    s = defaultdict(lambda: defaultdict(defaultdict))
+    g = defaultdict(lambda: defaultdict(defaultdict))
+
+    #s = construct_data_matrix(stachan_traces)
+    if len(s) != 0:
+        logmt(debug,'Data matrix S created --> %s stations used' % len(s))
+
+    green_funcs  = {}
+    #greens_funcs = get_greens_functions(evdb)
 
 
-write_results(event_db,orid)
 
-print 'M0      =',m0
-print 'Mw      =',Mw 
-print 'Strike  =',math.degrees(strike[0])
-print 'Rake    =',math.degrees(rake[0])
-print 'Dip     =',math.degrees(dip[0])
-print 'Strike2 =',math.degrees(strike[1])
-print 'Rake2   =',math.degrees(rake[1])
-print 'Dip2    =',math.degrees(dip[1])
-print 'Pdc     =',pcdc
-print 'Pclvd   =',pcclvd
-print 'Piso    =',pciso
-for j in range(len(svar)):
-    print 'Stat(%d) = %s  %s' % (j,svar[j],sdpower[j])
-print 'Var     =',E
-print 'VR      =',VR,'(UNWEIGHTED)'
-print 'VR      =',VR,'(WEIGHTED)'
-print 'Var/Pdc =',E/pcdc
-print 'Quality =',qlt
+
+    # read the Green's function from database......based on distance and depth.....
+    # Only used in testing, should be removed before committing first working version
+    ######################################################################################################
+    # Reading test data and Green;s functions....from file                                               #
+    #{{{
+    az = [10,40,50]
+    for j in range(3):
+        j += 1
+        data =  open('./data%d' % j,'r')
+        samples = []
+        for line in data:
+            tmp = line.split()
+            for samp in tmp:
+                samples.append(float(samp))
+        data.close()
+        for i in range(200):
+            s['T'][j-1][i] = samples.pop(0)
+        for i in range(200):
+            s['R'][j-1][i] = samples.pop(0)
+        for i in range(200):
+            s['Z'][j-1][i] = samples.pop(0)
+
+
+    greens = []
+    green = open('./green','r')
+    for line in green:
+        for j in range(len(line)/12):
+            greens.append(line[j*12:j*12+12]) 
+    green.close()
+
+    for i in range(3):
+        for k in range(8):
+            for j in range(200):
+                g[k][i][j] = float(greens[j + k*200])
+                if k in [5,6,7]:
+                    g[k][i][j] *= -1
+        if isoflag == 5:
+            for k in [8,9]:
+                for j in range(200):
+                    g[k][i][j] = 0.0
+        if isoflag == 6:
+            for k in [8,9]:
+                for j in range(200):
+                    g[k][i][j] = float(greens[j + k*200])
+    #}}}
+    ######################################################################################################
+    if len(g[1]) != len(s['T']):
+        logmt(3,'Number of Green\'s function does not match the number of stations')
+    else:
+        logmt(verbose,'Matrix S (data) and G (synthetics) created')
+
+    W = []
+    for i in range(len(s['T'])):
+        W.append(1.0)
+
+    timeshift = []
+    timeshift = get_time_shift()
+    if len(timeshift) != len(s['T']):
+        logmt(3,'Error in correlating synthetic and measured data')
+    else:
+        logmt(debug,'Timeshift between data and synthetics computed for %s stations' % len(timeshift))
+
+    AIV = defaultdict(dict)
+    B = defaultdict(dict) 
+    (AIV,B) = matrix_AIV_B(g,s)
+    if len(AIV) != isoflag or len(AIV[0]) != isoflag:
+        logmt(3,'Matrix AIV has dimension [%s,%s] should be [%s,%s]' % (len(AIV),len(AIV),isoflag,isoflag))
+    elif len(B) != isoflag:
+        logmt(3,'Matrix AIV has dimension [%s,i%s] should be [%s,1]' % (len(B),len(B[0]),isoflag))
+    else:
+        logmt(debug,'Matrices AIV and B created and have correct dimensions')
+
+    M = det_solution_vec(AIV,B)
+    if len(M) != 3:
+        logmt(3,'Wrong dimension returned for matrix M after inversion')
+    else:
+        logmt(debug,'Moment tensor matrix M[3,3] created')
+    gfscale = -1.0e+20
+    gfscale = -1.0
+        
+    strike = []
+    dip = []
+    rake = []
+    (m0,Mw,strike,dip,rake,pcdc,pcclvd,pciso) = decompose_moment_tensor(M)
+    logmt(verbose,'Decomposition of moment tensor succesfull')
+
+    svar = []
+    sdpower = []
+    (E,VR,VAR,svar,sdpower) = fitcheck(g,s,W,M,m0,isoflag,timeshift,trim_value,az)
+
+    if VR < 100:qlt=4
+    if VR < 80:qlt=3
+    if VR < 60:qlt=2
+    if VR < 40:qlt=1
+    if VR < 20:qlt=0
+
+    # Append results to moment database-table. If db.moment does not exists, create it
+    evdb.close()
+    write_results(event_db,orid)
+
+    print 'M0      =',m0
+    print 'Mw      =',Mw 
+    print 'Strike  =',math.degrees(strike[0])
+    print 'Rake    =',math.degrees(rake[0])
+    print 'Dip     =',math.degrees(dip[0])
+    print 'Strike2 =',math.degrees(strike[1])
+    print 'Rake2   =',math.degrees(rake[1])
+    print 'Dip2    =',math.degrees(dip[1])
+    print 'Pdc     =',pcdc
+    print 'Pclvd   =',pcclvd
+    print 'Piso    =',pciso
+    for j in range(len(svar)):
+        print 'Stat(%d) = %s  %s' % (j,svar[j],sdpower[j])
+    print 'Var     =',E
+    print 'VR      =',VR,'(UNWEIGHTED)'
+    print 'VR      =',VR,'(WEIGHTED)'
+    print 'Var/Pdc =',E/pcdc
+    print 'Quality =',qlt
+
+    return 0
+
+if __name__ == '__main__':
+    status = main()
+    sys.exit(status)
