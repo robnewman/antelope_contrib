@@ -1,7 +1,7 @@
 # Moment Tensor Code
 *Contributors: Frank Vernon (FLV), Rob Newman (RLN), Juan Reyes (JCR), Gert-Jan van den Hazel (GJV)*
 
-### Background: Moment tensor integration into BRTT Antelope Datascope using the Python interface to Antelope
+### Moment tensor integration into BRTT Antelope Datascope using the Python interface to Antelope
 
 ### History:
 
