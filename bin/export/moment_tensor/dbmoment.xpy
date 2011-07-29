@@ -918,6 +918,8 @@ def main():
     for a particular origin
     """
     pf, orid, verbose, debug = configure()
+
+    # Initialize MomentTensor class
     my_mt = MomentTensor(pf, orid, verbose, debug)
     my_mt.parse_pf()
     evdbptr, evparams = my_mt.get_view_from_db()
@@ -986,8 +988,9 @@ def main():
 
     qlt = my_mt.quality_check(VR)
 
-    # Append results to moment database-table. If db.moment does not exists, create it
+    # Close dbptr
     evdbptr.close()
+    # Append results to moment database-table. If db.moment does not exists, create it
     my_mt.write_results(orid, strike, dip, rake)
 
     print 'M0      = %s' % m0
