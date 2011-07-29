@@ -36,6 +36,9 @@ resp_db demo/resp
 # Green's functions database
 green_db /Users/gvandenhazel/dbwfserver/db/green_db/greendb  
 
+# Green's functions parameter file
+green_pf create_green.pf
+
 # magnitude range vs filters
 mag_filters &Tbl{
 #   lowermag    highermag  filter
