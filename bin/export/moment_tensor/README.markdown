@@ -18,3 +18,9 @@
 * RLN rewrite of dbmoment
 * JCR finalize Fortran translation of Green's functions into Python
 * Integration of dbmoment with native Python Green's functions
+
+### Comments:
+#### 2011-07-29
+* dbmoment.py is not currently tethered to the moment tensor Datascope schema extension __moment_tensor_greensfuncs__
+* dbmoment.py uses 4 local files for testing: data1, data2, data3 (the three components) and green (the Greens function, aka synthetic)
+* These 4 data files need to be copied to your realtime system directly and placed in the db/data directory
