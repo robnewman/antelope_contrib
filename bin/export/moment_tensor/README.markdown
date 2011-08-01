@@ -5,8 +5,10 @@
 
 ### Dependencies:
 You must have the following CSS3.0 schema extensions installed
+
 * moment_tensor_greensfuncs
 * moment_tensor_images
+
 These are located in $ANTELOPE_CONTRIB/data/schemas/css3.0.ext
 where $ANTELOPE_CONTRIB is your path to the contributed code repository.
 
