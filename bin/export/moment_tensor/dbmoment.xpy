@@ -9,13 +9,21 @@ dbmoment.py
 from optparse import OptionParser
 import re
 import numpy as np
+import matplotlib as mpl
 import math as math
 from datetime import datetime
 from collections import defaultdict
 from time import gmtime, time
 
+# ANTELOPE
 import antelope.stock as stock
 import antelope.datascope as antdb
+
+# OBSPY
+try:
+    from obspy.imaging.beachball import Beachball
+except ImportError:
+    print "Import Error: Do you have ObsPy installed correctly?"
 
 # RLN (2011-07-27): Setting global variables (or defaults) is bad programming in Python. Comment out.
 # Set defaults
@@ -127,8 +135,11 @@ class MomentTensor():
             self.resp_db = stock.pfget_string(self.pfname, 'resp_db')
         except:
             self.resp_db = False
-        self.mag_filters = stock.pfget_arr(self.pfname,'mag_filters')
-        if stock.pfget_string(self.pfname,'distance_weighting') == 'on':
+        self.mag_filters = stock.pfget_arr(self.pfname, 'mag_filters')
+        self.mt_images_dir = stock.pfget_string(self.pfname, 'mt_images_dir')
+        self.obspy_beachball = stock.pfget_arr(self.pfname, 'obspy_beachball')
+        print self.obspy_beachball
+        if stock.pfget_string(self.pfname, 'distance_weighting') == 'on':
             self.dw = True
         else:
             self.dw = False
@@ -890,27 +901,106 @@ class MomentTensor():
 
     def write_results(self, orid, strike, dip, rake):
         """Write out results to database
+        tables 'moment' and 'moment_tensor_images
+        the CSS3.0 schema
         """
         if self.debug:
             self.logmt(1, 'Write out moment tensor for orid %s to database table %s.moment' % (orid, self.event_db))
-        moment = antdb.dbopen(self.event_db, 'r+')
+        moment_db = antdb.dbopen(self.event_db, 'r+')
+
+        # (1) Append to moment table
         try:
-            moment.lookup(table='moment')
+            moment_tbl = antdb.dblookup(moment_db, table='moment')
         except Exception, e:
             self.logmt(3, 'write_results(): ERROR in lookup: %s' % e)
         else:
             try:
-                moment.addv('orid', int(orid),
+                moment_tbl.addv(
+                    'orid', int(orid),
                     'str1', math.degrees(strike[0]),
                     'dip1', math.degrees(dip[0]),
                     'rake1', math.degrees(rake[0]),
                     'str2', math.degrees(strike[1]),
                     'dip2', math.degrees(dip[1]),
-                    'rake2', math.degrees(rake[1]))
+                    'rake2', math.degrees(rake[1])
+                )
             except Exception, e:
-                self.logmt(3, 'write_results(): ERROR in adding row: %s' % e)
+                self.logmt(3, 'write_results(): ERROR in adding row to moment table: %s' % e)
             else:
                 self.logmt(1, 'write_results(): Successfully wrote out moment tensor to database')
+            moment_tbl.free()
+
+        # (2) Test images directory exists and then append to moment_tensor_images table
+        if not os.path.exists(self.mt_images_dir):
+            self.logmt(3, 'write_results(): ERROR directory %s does not exist!' % self.mt_images_dir)
+        else:
+            focal_mechanism = [strike[0], dip[0], rake[0]]
+            # Test for default values
+            beachball_vals = {}
+            # From the ObsPy website. This will need to be updated if the library updates
+            beachball_defaults = { 
+                'size': 200, 
+                'linewidth': 2, 
+                'facecolor': 'b', 
+                'edgecolor': 'k', 
+                'bgcolor': 'w', 
+                'alpha': 1.0, 
+                'xy': (0, 0),
+                'width': 200, 
+                'outfile': None, 
+                'format': None, 
+                'nofill': False, 
+                'fig': None
+            }
+            for k,v in beachball_defaults.iteritems():
+                if not self.obspy_beachball[k]:
+                    if self.debug:
+                        self.logmt(1, 'write_results(): Beachball(): Setting default for %s' % k)
+                    beachball_vals[k] = beachball_defaults[k]
+                else:
+                    if self.debug:
+                        self.logmt(1, 'write_results(): Beachball(): Using pf defined value for %s' % k)
+                    beachball_vals[k] = self.obspy_beachball[k]
+                if self.debug:
+                    self.logmt(1, 'write_results(): Beachball(): Arg: %s, Val: %s' % (k, beachball_vals[k]))
+
+            # Beachball(focal_mechanism, size=100, linewidth=2, facecolor='b', outfile='%s.png' % orid)
+            Beachball(focal_mechanism, 
+                size = beachball_vals['size'],
+                linewidth = beachball_vals['linewidth'], 
+                facecolor = beachball_vals['facecolor'],
+                edgecolor = beachball_vals['edgecolor'],
+                bgcolor = beachball_vals['bgcolor'],
+                alpha = beachball_vals['alpha'],
+                xy = beachball_vals['xy'],
+                width = beachball_vals['width'],
+                outfile = '%s/%s%s.%s' % (self.mt_images_dir, beachball_vals['outfile'], orid, beachball_vals['format']),
+                format = beachball_vals['format'],
+                nofill = beachball_vals['nofill'],
+                fig = beachball_vals['fig']
+            )
+
+        try:
+            mtimages_tbl = antdb.dblookup(moment_db, table='moment_tensor_images')
+        except Exception, e:
+            self.logmt(3, 'write_results(): ERROR in adding row to moment_tensor_images table: %s' % e)
+        else:
+            dfile = '%s%s.%s' % (beachball_vals['outfile'], orid, beachball_vals['format'])
+            if self.debug:
+                self.logmt(1, 'Dir: %s, Dfile: %s' % (self.mt_images_dir, dfile))
+            try:
+                mtimages_tbl.addv(
+                    'sta', '109C',
+                    'orid', int(orid),
+                    'dir', self.mt_images_dir,
+                    'dfile', dfile)
+            except Exception, e:
+                self.logmt(3, 'write_results(): ERROR in adding row to moment_tensor_images table: %s' % e)
+            else:
+                self.logmt(1, 'write_results(): Successfully wrote out moment tensor to table moment_tensor_images')
+            mtimages_tbl.free()
+
+        moment_db.close()
         return
 
 def main():
@@ -990,6 +1080,7 @@ def main():
 
     # Close dbptr
     evdbptr.close()
+
     # Append results to moment database-table. If db.moment does not exists, create it
     my_mt.write_results(orid, strike, dip, rake)
 

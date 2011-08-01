@@ -24,7 +24,7 @@ isoflag 1
 use_inc 0
 
 # Event database
-event_db /Users/gvandenhazel/dbwfserver/db/usarray_2009_01
+event_db /Users/rnewman/rtsystems/dbwfserver/db/usarray_2009_01
 #event_db demo/de
 
 # Waveform database, defaults to event_db
@@ -34,7 +34,7 @@ wave_db
 resp_db demo/resp  
 
 # Green's functions database
-green_db /Users/gvandenhazel/dbwfserver/db/green_db/greendb  
+green_db /Users/rnewman/rtsystems/dbwfserver/db/green_db/greendb  
 
 # Green's functions parameter file
 green_pf create_green.pf
@@ -45,4 +45,26 @@ mag_filters &Tbl{
     2.0         4.0        BW_0.02_5_0.10_5
     4.0         5.0        BW_0.02_5_0.05_5
     5.0                    BW_0.01_5_0.05_5
+}
+
+# moment tensor images directory
+mt_images_dir    /Users/rnewman/rtsystems/dbwfserver/mtimages
+
+# ObsPy Beachball parameters
+# from: http://docs.obspy.org/packages/auto/obspy.imaging.beachball.Beachball.html
+# All of these have default values, you can override them here
+obspy_beachball &Arr{
+    # fm                # Focal mechanism - this is determined by the application. Listed here for completeness. Leave commented!
+    size          200   # Controls the number of interpolation points for the curves. Minimum is automatically set to 100
+    linewidth     2     # Width of the line
+    facecolor     b     # Color to use for quadrants of tension; can be a string, e.g. ‘r’, ‘b’ or three component color vector, [R G B]
+    edgecolor           # Color of the edges
+    bgcolor             # The background color, usually white
+    alpha               # The alpha level of the beach ball
+    xy                  # Origin position of the beach ball as tuple
+    width         200   # Symbol size of beach ball
+    outfile       anf_  # Outfile - this is created dynamically based on the orid but you can define a prefix
+    format        png   # Symbol size of beach ball
+    nofill        # Do not fill the beach ball, but only plot the planes
+    fig           # Set zorder. Artists with lower zorder values are drawn first
 }
