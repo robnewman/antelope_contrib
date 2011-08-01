@@ -4,7 +4,7 @@
 ### Moment tensor integration into BRTT Antelope Datascope using the Python interface to Antelope
 
 ### Dependencies:
-You must have the following CSS3.0 schema extensions installed:
+You must have the following CSS3.0 schema extensions installed
 * moment_tensor_greensfuncs
 * moment_tensor_images
 These are located in $ANTELOPE_CONTRIB/data/schemas/css3.0.ext
