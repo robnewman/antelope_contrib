@@ -138,7 +138,6 @@ class MomentTensor():
         self.mag_filters = stock.pfget_arr(self.pfname, 'mag_filters')
         self.mt_images_dir = stock.pfget_string(self.pfname, 'mt_images_dir')
         self.obspy_beachball = stock.pfget_arr(self.pfname, 'obspy_beachball')
-        print self.obspy_beachball
         if stock.pfget_string(self.pfname, 'distance_weighting') == 'on':
             self.dw = True
         else:
@@ -197,6 +196,8 @@ class MomentTensor():
         filter = filters[-1] # RLN (2011-07-28): Assumes all filters are the same
         if float(evparams['magnitude']) > float(min_mag) and float(evparams['magnitude']) < float(max_mag):
             self.filter_string = filter.replace('_', ' ')
+        else:
+            self.logmt(3, 'Magnitude %s not within bounds (%s - %s) defined in the parameter file' % (evparams['magnitude'], float(min_mag), float(max_mag)))
         return evdb, evparams
  
     def get_chan_data(self, dbptr):
