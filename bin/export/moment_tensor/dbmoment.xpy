@@ -1,7 +1,8 @@
 """
 dbmoment.py
 
-@author   Gert-Jan van den Hazel <hazelvd@knmi.nl>, Rob Newman <robertlnewman@gmail.com>
+@authors  Gert-Jan van den Hazel <hazelvd@knmi.nl>
+          Rob Newman <robertlnewman@gmail.com>
 @notes    Look for initialized comments - they define questions to be answered
           e.g. # RLN (2011-07-28): Why this hard-coded value here?
 """
@@ -52,6 +53,9 @@ def configure():
     """Function to configure parameters 
     from command-line and the pf-file
     Check command line options
+    Use Antelope's built-in PFPATH to
+    determine the paths to search for the
+    parameter file
     """
     usage = "Usage: dbmoment [-vV] [-p pfname] orid"
     parser = OptionParser(usage=usage)
@@ -65,18 +69,20 @@ def configure():
     if options.debug:
         debug = True
         verbose = True
-    # RLN (2011-07-29): There should be a better way to search all the PFPATHs for the parameter file!
-    if options.pf:
-        if os.path.isfile(options.pf):
-            pfname = options.pf
-        else:
-            print "Parameter file %s does not exist. Exiting" % options.pf
-    elif os.path.isfile('pf/dbmoment.pf'): # Use local pf if available
-        pfname = 'pf/dbmoment.pf'
-    elif os.path.isfile('%s/data/pf/dbmoment.pf' % os.environ['ANTELOPE']): # Last option, use default Antelope pf path
-        pfname = 'pf/dbmoment.pf'
+    if not options.pf:
+        pfs_tuple = list(stock.pffiles('dbmoment'))
+        pfs_tuple.reverse() # Reverse order to search local pf dir first
+        for p in pfs_tuple:
+            if os.path.isfile(p):
+                pfname = p
+                break
+        print "Used PFPATH to determine which parameter file to use and found '%s'" % pfname
     else:
-        print "You have not defined a valid parameter file"
+        if not os.path.isfile(options.pf):
+            print "Command line defined parameter file '%s' does not exist. Exiting" % options.pf
+            sys.exit(-1)
+        else:
+            pfname = options.pf
     if len(args) != 1:
         print usage;
         sys.exit(-1)
@@ -205,6 +211,8 @@ class MomentTensor():
         trace objects based on sta_chan. Applies 
         calibration, splice, filter, decimation 
         and rotation of channels
+
+        Gert-Jan resampling BH to LH if LH not available - not currently implemented
         """
         if self.verbose or self.debug:
             self.logmt(1, 'Get channel data (trace objects)')
@@ -213,7 +221,7 @@ class MomentTensor():
         except:
             self.logmt(3, 'Could not open waveform database %s' % self.wave_db)
         wvdb.lookup(table='wfdisc')
-        wvdb.subset('samprate>=0.9') # RLN (2011-07-28): Why this hard-coded value here?
+        wvdb.subset('samprate>=0.9') # RLN (2011-07-28): Why this hard-coded value here? Just to get rid of all BH chans
         try:
             wvdb.subset('chan =~/%s/' % self.chan_to_use)
         except:
@@ -234,7 +242,7 @@ class MomentTensor():
             try:
                 chans = self.choose_chan(wvstadb)
             except:
-                self.logmt(1, 'No channels found with a sample-rate >= 1 Hz for sta = %s' % sta) # RLN (2011-07-28): Why hard-coded sample rate here?
+                self.logmt(1, 'No channels found with a sample-rate >= 1 Hz for sta = %s' % sta) # RLN (2011-07-28): Why hard-coded sample rate here? Just to get rid of BH
             self.logmt(1, 'Channels found: %s %s %s' % (chans[0], chans[1], chans[2]))
             wvstadb.subset('chan =~ /%s|%s|%s/' % (chans[0], chans[1], chans[2]))
             resample = 0
@@ -247,7 +255,7 @@ class MomentTensor():
             if resample == 1:
                 logmt(0, 'Resampling to be implemented, skipping station %s for now' % sta) # RLN (2011-07-28): What does this mean?
                 continue
-            vang = 0.0 # RLN (2011-07-28): Why hard code the vang? You can get this from the db?
+            vang = 0.0 # RLN (2011-07-28): Why hard code the vang? You can get this from the db? SHOULD BE IN THE SITECHAN TABLE
             if self.use_inc == 1:
                 vang = dbptr.getv('vang')[0]
             trace = wvstadb.load_css(st, et)
@@ -505,7 +513,7 @@ class MomentTensor():
         """
         if self.debug:
             self.logmt(1, 'Construct matrices AIV and B using the data and Greens function matrices')
-        AJ = defaultdict(dict) # RLN (2011-07-29): What is AJ? 
+        AJ = defaultdict(dict) # RLN (2011-07-29): What is AJ? COPY OF DREGER
         trim = 0
         cnt1 = cnt2 = cnt3 = 0
         trim  = int(len(dict_s['T'][0]) * float(self.trim_value))
@@ -1036,7 +1044,7 @@ def main():
     # RLN (2011-07-28): green_funcs dict is not currently 
     # used anywhere, so why is it here? Possibly relates to 
     # the commented out dict above?
-    green_funcs  = {}
+    ### green_funcs  = {}
 
     g = my_mt.get_greens_functions_hard_coded(g)
     if len(g[1]) != len(s['T']):
@@ -1051,9 +1059,12 @@ def main():
         print 'Timeshift between data and synthetics computed for %s stations' % len(timeshift)
 
     # RLN (2011-07-28): Where does this come from without explanation? Dregers code?
+    # Examples just for the examples
+    # - event to station azimuth, in this example used 3 stations
     az = [10, 40, 50]
 
-    # RLN (2011-07-28): What is W?
+    # RLN (2011-07-28): What is W? Weighting factor - number of stations, long list of values.
+    # If 1 then station fully incorporated into solution. If less than one, don't include
     W = []
     for i in range(len(s['T'])):
         W.append(1.0)
