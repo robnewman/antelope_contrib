@@ -11,6 +11,8 @@ from optparse import OptionParser
 import re
 import numpy as np
 import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 import math as math
 from datetime import datetime
 from collections import defaultdict
@@ -26,6 +28,7 @@ try:
 except ImportError:
     print "Import Error: Do you have ObsPy installed correctly?"
 
+minorLocator = MultipleLocator()
 # RLN (2011-07-27): Setting global variables (or defaults) is bad programming in Python. Comment out.
 # Set defaults
 '''
@@ -439,6 +442,7 @@ class MomentTensor():
         """Hard coded way of getting synthetics (Green's
         function). Remove before production.
         """
+        # Allocate Greens Function structure arrays
         if self.debug:
             self.logmt(1, 'Constructing Greens function matrix from hard-coded file in db/data/green')
         # Container list for values
@@ -448,7 +452,7 @@ class MomentTensor():
         for line in green:
             # RLN (2011-07-28): Every 12 values?
             for j in range(len(line)/12):
-                # RLN (2011-07-28): Append 12 values to the list. So we one giant list. Why?
+                # RLN (2011-07-28): Append 12 values to the list. So we get one giant list. Why?
                 greens.append(line[j*12:j*12+12]) 
         green.close()
 
@@ -458,7 +462,7 @@ class MomentTensor():
                 for j in range(200):
                     this_dict[k][i][j] = float(greens[j + k*200])
                     if k in [5,6,7]:
-                        this_dict[k][i][j] *= -1
+                        this_dict[k][i][j] *= -1 # Note the vertical GF's are flipped in earqt1.f and TW's Blackbox.f DVH conv. z + down
             if self.isoflag == 5:
                 for k in [8,9]:
                     for j in range(200):
@@ -506,47 +510,67 @@ class MomentTensor():
         return timeshift
 
     def matrix_AIV_B(self, dict_s, dict_g, list_az, this_timeshift):
-        """Construct matrices AIV and B using 
+        """Inversion routine
+        Construct matrices AIV and B using 
         the data and Green's function matrices
         Return AIV and B for further processing 
-        (inversion)
         """
         if self.debug:
             self.logmt(1, 'Construct matrices AIV and B using the data and Greens function matrices')
         AJ = defaultdict(dict) # RLN (2011-07-29): What is AJ? COPY OF DREGER
         trim = 0
         cnt1 = cnt2 = cnt3 = 0
-        trim  = int(len(dict_s['T'][0]) * float(self.trim_value))
+        trim = int(len(dict_s['T'][0]) * float(self.trim_value))
+
+        # Loop over the number of stations in the dictionary
         for i in range(len(dict_s)):
             cnt1 = cnt2 = cnt3
             cnt2 += len(dict_s['T'][0]) - trim
             cnt3 += 2*len(dict_s['T'][0]) - 2*trim
             list_az[i] *= math.pi/180
+            # Index over time
             for j in range(len(dict_s['T'][0])-trim):
+                # Mxx term
                 AJ[0][cnt1] =  math.sin(2*list_az[i])*dict_g[0][i][j]/2
+
+                # Myy term
                 AJ[1][cnt1] = -math.sin(2*list_az[i])*dict_g[0][i][j]/2
+
+                # Mxy term
                 AJ[2][cnt1] = -math.cos(2*list_az[i])*dict_g[0][i][j]
                 AJ[2][cnt2] = -math.sin(2*list_az[i])*dict_g[2][i][j]
                 AJ[2][cnt3] = -math.sin(2*list_az[i])*dict_g[5][i][j]
+
+                # Mxz term
                 AJ[3][cnt1] = -math.sin(list_az[i])*dict_g[1][i][j]
                 AJ[3][cnt2] =  math.cos(list_az[i])*dict_g[3][i][j]
                 AJ[3][cnt3] =  math.cos(list_az[i])*dict_g[6][i][j]
+
+                # Myz term
                 AJ[4][cnt1] =  math.cos(list_az[i])*dict_g[1][i][j]
                 AJ[4][cnt2] =  math.sin(list_az[i])*dict_g[3][i][j]
                 AJ[4][cnt3] =  math.sin(list_az[i])*dict_g[6][i][j]
+
+                # Vary the other values depending on isoflag value
                 if self.isoflag == 5:
+                    # Mxx term
                     AJ[0][cnt2] = (dict_g[4][i][j])/2 - (math.cos(2*list_az[i])*dict_g[2][i][j])/2
                     AJ[0][cnt3] = (dict_g[7][i][j])/2 - (math.cos(2*list_az[i])*dict_g[5][i][j])/2
+                    # Myy term
                     AJ[1][cnt2] = (dict_g[4][i][j])/2 + (math.cos(2*list_az[i])*dict_g[2][i][j])/2
                     AJ[1][cnt3] = (dict_g[7][i][j])/2 + (math.cos(2*list_az[i])*dict_g[5][i][j])/2
                 if self.isoflag == 6:
+                    # Mxx term
                     AJ[0][cnt2] = (dict_g[4][i][j])/6 - (math.cos(2*list_az[i])*dict_g[2][i][j])/2 + (dict_g[8][i][j])/3
                     AJ[0][cnt3] = (dict_g[7][i][j])/6 - (math.cos(2*list_az[i])*dict_g[5][i][j])/2 + (dict_g[9][i][j])/3
+                    # Myy term
                     AJ[1][cnt2] = (dict_g[4][i][j])/6 + (math.cos(2*list_az[i])*dict_g[2][i][j])/2 + (dict_g[8][i][j])/3
                     AJ[1][cnt3] = (dict_g[7][i][j])/6 + (math.cos(2*list_az[i])*dict_g[5][i][j])/2 + (dict_g[9][i][j])/3
+                    # RLN (2011-08-24): Where do these values come from and why?
                     AJ[5][cnt1] = 0.0
                     AJ[5][cnt2] = (dict_g[8][i][j])/3  - (dict_g[4][i][j])/3
                     AJ[5][cnt3] = (dict_g[9][i][j])/3 - (dict_g[7][i][j])/3
+
                 cnt1 += 1
                 cnt2 += 1
                 cnt3 += 1
@@ -554,13 +578,17 @@ class MomentTensor():
         for i in range(self.isoflag):
             for j in range(self.isoflag):
                 AIV[i][j] = 0.0
+
+        # Compute AtA
         for i in range(5):
             for j in range(5):
                 for k in range(cnt3):
                     AIV[i][j] += AJ[i][k]*AJ[j][k]
+
         B = defaultdict(dict) 
         for i in range(self.isoflag):
             B[i][0] = 0.0
+
         cnt1 = cnt2 = cnt3 = 0
         tmp = defaultdict(dict) 
         for i in range(len(dict_s)):
@@ -574,15 +602,20 @@ class MomentTensor():
                 cnt1 += 1
                 cnt2 += 1
                 cnt3 += 1
+
+        # Calculate Righthand Side
         for i in range(self.isoflag):
             for j in range(cnt3):
                 B[i][0] += AJ[i][j]*tmp[j]
+
+        # Some logging
         if len(AIV) != self.isoflag or len(AIV[0]) != self.isoflag:
             self.logmt(3, 'Matrix AIV has dimension [%s,%s] should be [%s,%s]' % (len(AIV), len(AIV), self.isoflag, self.isoflag))
         elif len(B) != self.isoflag:
             self.logmt(3, 'Matrix AIV has dimension [%s,i%s] should be [%s,1]' % (len(B), len(B[0]), self.isoflag))
         elif self.verbose or self.debug:
             self.logmt(1, 'Matrices AIV and B created and have correct dimensions')
+
         return AIV, B
 
     def swap(self, a, b):
@@ -594,8 +627,8 @@ class MomentTensor():
         return(a,b)
 
     def dyadic(self, v, n1, n2, c):
-        """Compute the dyadic matrix 
-        of vector v
+        """Calculate the dyadic matrix 
+        of eigenvectors v
         """
         if self.debug:
             self.logmt(1, 'Compute the dyadic matrix of vector v')
@@ -605,9 +638,14 @@ class MomentTensor():
                 tmp[i,j] = v[i, n1]*v[j, n2]*c
         return tmp
 
-    def det_solution_vec(self, dict_AIV, dict_B):
-        """Solve the inversion problem, 
+    def determine_solution_vector(self, dict_AIV, dict_B):
+        """Determine the solution vector
+        Solve the inversion problem, 
         returning the moment tensor
+        From Dreger:
+            Call Bobs MT decomposition routines
+            The minus one is needed to map Helmbergers convention into Aki's
+            Jost and Hermann (1989) state that AKI's convention is -1*LANGSTONS
         """
         if self.debug:
             self.logmt(1, 'Solve the inversion problem and return the moment tensor')
@@ -625,7 +663,7 @@ class MomentTensor():
                                     irow = j
                                     icol = k
                         elif ipiv[k] > 1:
-                            self.logmt(3, 'det_solution_vec(): ERROR... 1')
+                            self.logmt(3, 'determine_solution_vector(): ERROR... 1')
             ipiv[icol] += 1
             if not irow == icol:
                 for l in range(self.isoflag):
@@ -633,7 +671,7 @@ class MomentTensor():
                 for l in range(1):
                     (dict_B[irow][l],dict_B[icol][l]) = swap(dict_B[irow][l],dict_B[icol][l])
             if dict_AIV[icol][icol] == 0.0:
-                self.logmt(3, 'det_solution_vec(): ERROR... 2')
+                self.logmt(3, 'determine_solution_vector(): ERROR... 2')
             pivinv = 1.0/dict_AIV[icol][icol]
             dict_AIV[icol][icol] = 1.0
             for l in range(self.isoflag):
@@ -673,6 +711,7 @@ class MomentTensor():
         Calculate moment tensor parameters from eigenvalues and vectors. 
         Return M0, Mw, strike, slip, rake and precentages of present
         source characteristics
+        From Dreger source: fmap_subs_linux.f
         """
         if self.debug:
             self.logmt(1, 'Decompose moment tensor into eigenvector/values')
@@ -838,6 +877,7 @@ class MomentTensor():
         wsum = etot = var = dtot = dvar = 0
         svar = []
         sdpower = []
+        # Loop over the number of stations
         for i in range(len(dict_s['T'])):
             dpower = 0
             e = 0
@@ -944,57 +984,13 @@ class MomentTensor():
             self.logmt(3, 'write_results(): ERROR directory %s does not exist!' % self.mt_images_dir)
         else:
             focal_mechanism = [strike[0], dip[0], rake[0]]
-            # Test for default values
-            beachball_vals = {}
-            # From the ObsPy website. This will need to be updated if the library updates
-            beachball_defaults = { 
-                'size': 200, 
-                'linewidth': 2, 
-                'facecolor': 'b', 
-                'edgecolor': 'k', 
-                'bgcolor': 'w', 
-                'alpha': 1.0, 
-                'xy': (0, 0),
-                'width': 200, 
-                'outfile': None, 
-                'format': None, 
-                'nofill': False, 
-                'fig': None
-            }
-            for k,v in beachball_defaults.iteritems():
-                if not self.obspy_beachball[k]:
-                    if self.debug:
-                        self.logmt(1, 'write_results(): Beachball(): Setting default for %s' % k)
-                    beachball_vals[k] = beachball_defaults[k]
-                else:
-                    if self.debug:
-                        self.logmt(1, 'write_results(): Beachball(): Using pf defined value for %s' % k)
-                    beachball_vals[k] = self.obspy_beachball[k]
-                if self.debug:
-                    self.logmt(1, 'write_results(): Beachball(): Arg: %s, Val: %s' % (k, beachball_vals[k]))
-
-            # Beachball(focal_mechanism, size=100, linewidth=2, facecolor='b', outfile='%s.png' % orid)
-            Beachball(focal_mechanism, 
-                size = beachball_vals['size'],
-                linewidth = beachball_vals['linewidth'], 
-                facecolor = beachball_vals['facecolor'],
-                edgecolor = beachball_vals['edgecolor'],
-                bgcolor = beachball_vals['bgcolor'],
-                alpha = beachball_vals['alpha'],
-                xy = beachball_vals['xy'],
-                width = beachball_vals['width'],
-                outfile = '%s/%s%s.%s' % (self.mt_images_dir, beachball_vals['outfile'], orid, beachball_vals['format']),
-                format = beachball_vals['format'],
-                nofill = beachball_vals['nofill'],
-                fig = beachball_vals['fig']
-            )
+            dfile = self.mt_plot(orid, focal_mechanism)
 
         try:
             mtimages_tbl = antdb.dblookup(moment_db, table='moment_tensor_images')
         except Exception, e:
             self.logmt(3, 'write_results(): ERROR in adding row to moment_tensor_images table: %s' % e)
         else:
-            dfile = '%s%s.%s' % (beachball_vals['outfile'], orid, beachball_vals['format'])
             if self.debug:
                 self.logmt(1, 'Dir: %s, Dfile: %s' % (self.mt_images_dir, dfile))
             try:
@@ -1011,6 +1007,136 @@ class MomentTensor():
 
         moment_db.close()
         return
+
+    def data_synthetics_plot(self, orid, dict_s, dict_g):
+        # mt_plot(ss,gg,nsta,Strike,Rake,Dip,St2,Rk2,Dp2,d_mt,Pdc,Pclvd,Piso,Mo, Mw, E, VR);
+        """Create and save data vs. synthetic waveform plots. 
+        Equivalent to Dreger's function mt_plot in mt_plot6iso2_linux2.c
+        There should be as many TRZ plots as stations, so length of dict_s and dict_g 
+        TO DO: Each file used in determining the moment tensor should have a station name associated with it
+        """
+        
+        plot_title_mapping = {'T':'Tangential', 'R':'Radial', 'Z':'Vertical'} # The order is important
+
+        fig = plt.figure() # Init figure
+
+        # Reorder for display purposes
+        # for k,v in dict_s.iteritems():
+        #     print k
+        #     print v
+        # Matrix takes the form of:
+        #    Z's for each station, in the example 3 stations
+        #    R's for each station, in the example 3 stations
+        #    T's for each station, in the example 3 stations
+
+        axes = 0 # Start at the 0'th axes
+        rows = len(dict_s)
+        cols = len(plot_title_mapping)
+
+        print 'Number of dict_s: %s' % len(dict_s)
+        print 'Number of dict_g: %s' % len(dict_g)
+
+        '''
+        for ss_trz, ss_mat in dict_s.iteritems():
+            # ss (dict_s vals) should be dashed
+            # Dregers code to my code
+            #     Np = number of points
+            #     Z = vertical displacement?
+            #     dt = time change?
+            #     y = vertical offset = 7.0-trz * yscale # Should not need to worry about this with matplotlib
+            # scale_r = scale_t = scale_z = scale_factor = 0 # Should not need to worry about this with matplotlib
+            # print 'Working on data from station %s' % dict_s['name']
+            print 'Working on station number: %s' % ss_trz
+            print 'Number of ss_mat: %s' % len(dict_s[ss_trz])
+            print 'Number of gg_mat: %s' % len(dict_g[ss_trz])
+            gg_mat = dict_g[ss_trz]
+            for ss_k, ss_v in ss_mat.iteritems():
+                ss_xs = [] # List for x-vals
+                ss_ys = [] # List for y-vals
+                gg_ys = [] # List for y-vals
+                axes += 1
+                for ss_sub_k, ss_sub_v in ss_v.iteritems():
+                    ss_xs.append(ss_sub_k)
+                    ss_ys.append(ss_sub_v)
+                for gg_sub_k, gg_sub_v in gg_mat[ss_k]:
+                    gg_ys.append(gg_sub_v)
+                numrows_numcols_fignum = int('%s%s%s' % (rows, cols, axes)) # Dynamically generate subplot - should only be 3 rows
+                if self.verbose:
+                    print numrows_numcols_fignum
+                my_ax = fig.add_subplot(numrows_numcols_fignum)
+                my_ax.set_title(plot_title_mapping[ss_trz])
+                # my_ax.plot(ss_xs, ss_ys, 'r-', label='synthetic', linewidth=1)
+                my_ax.plot(ss_xs, ss_ys, 'r-', ss_xs, gg_ys, 'b-')
+
+                # Override some default plotting vals for each axes
+                my_ax.xaxis.set_major_locator(minorLocator)
+                my_ax.xaxis.set_minor_locator(minorLocator)
+                my_ax.yaxis.set_major_locator(minorLocator)
+                my_ax.yaxis.set_minor_locator(minorLocator)
+
+        fig.show()
+        syn_plot_outfile = '%s/%s_%s.%s' % (self.mt_images_dir, 'synthetics', orid, 'png')
+        fig.savefig(syn_plot_outfile)
+
+        return syn_plot_outfile
+        '''
+        return
+
+    def mt_plot(self, orid, focal_mechanism):
+        """Create and save beachball
+        plots, return vals to put into
+        Antelope table
+        """
+        # print "ORID is %s" % orid
+        # Init empty dict to fill with values
+        beachball_vals = {}
+        # From the ObsPy website. This will need to be updated if the library updates
+        beachball_defaults = { 
+            'size': 200, 
+            'linewidth': 2, 
+            'facecolor': 'b', 
+            'edgecolor': 'k', 
+            'bgcolor': 'w', 
+            'alpha': 1.0, 
+            'xy': (0, 0),
+            'width': 200, 
+            'outfile': None, 
+            'format': None, 
+            'nofill': False, 
+            'fig': None
+        }
+        # Test for defaults in the pf
+        for k,v in beachball_defaults.iteritems():
+            if not self.obspy_beachball[k]:
+                if self.debug:
+                    self.logmt(1, 'write_results(): Beachball(): Setting default for %s' % k)
+                beachball_vals[k] = beachball_defaults[k]
+            else:
+                if self.debug:
+                    self.logmt(1, 'write_results(): Beachball(): Using pf defined value for %s' % k)
+                beachball_vals[k] = self.obspy_beachball[k]
+            if self.debug:
+                self.logmt(1, 'write_results(): Beachball(): Arg: %s, Val: %s' % (k, beachball_vals[k]))
+
+        # Create beachball
+        # Beachball(focal_mechanism, size=100, linewidth=2, facecolor='b', outfile='%s.png' % orid)
+        Beachball(focal_mechanism, 
+            size = beachball_vals['size'],
+            linewidth = beachball_vals['linewidth'], 
+            facecolor = beachball_vals['facecolor'],
+            edgecolor = beachball_vals['edgecolor'],
+            bgcolor = beachball_vals['bgcolor'],
+            alpha = beachball_vals['alpha'],
+            xy = beachball_vals['xy'],
+            width = beachball_vals['width'],
+            outfile = '%s/%s%s.%s' % (self.mt_images_dir, beachball_vals['outfile'], orid, beachball_vals['format']),
+            format = beachball_vals['format'],
+            nofill = beachball_vals['nofill'],
+            fig = beachball_vals['fig']
+        )
+        mt_outfile = '%s%s.%s' % (beachball_vals['outfile'], orid, beachball_vals['format'])
+        return mt_outfile
+ 
 
 def main():
     """Get the moment tensor solution
@@ -1030,13 +1156,15 @@ def main():
     Currently both s and g are populated from pre-existing
     data files for the test case (method name + '_hard_coded()'). 
     We need to make these database driven
+
+    Name them ss and gg after Dregers code
     """
     s = defaultdict(lambda: defaultdict(defaultdict))
     g = defaultdict(lambda: defaultdict(defaultdict))
     # s = my_mt.construct_data_matrix(stachan_traces, s)
-    s = my_mt.construct_data_matrix_hard_coded(stachan_traces, s)
-    if len(s) != 0:
-        print 'Data matrix S created --> %s stations used' % len(s)
+    ss = my_mt.construct_data_matrix_hard_coded(stachan_traces, s)
+    if len(ss) != 0:
+        print 'Data matrix S created --> %s stations used' % len(ss)
 
     # Read the Green's function from database based on distance and depth.....
     # greens_funcs = my_mt.get_greens_functions(evdbptr)
@@ -1046,14 +1174,21 @@ def main():
     # the commented out dict above?
     ### green_funcs  = {}
 
-    g = my_mt.get_greens_functions_hard_coded(g)
-    if len(g[1]) != len(s['T']):
-        print "Number of Green's functions (%d) does not match the number of stations (%d)" % (len(g[1]), len(s['T']))
+    gg = my_mt.get_greens_functions_hard_coded(g)
+    if len(gg[1]) != len(ss['T']):
+        print "Number of Green's functions (%d) does not match the number of stations (%d)" % (len(gg[1]), len(ss['T']))
     else:
         print 'Matrix S (data) and G (synthetics) created'
 
-    timeshift = my_mt.get_time_shift(s, g)
-    if len(timeshift) != len(s['T']):
+    '''
+    RLN (2011-08-24): The assumption here is that the size of both
+    ss and gg is the same as the number of stations that are used
+    in determining the moment tensor. In the hard-coded example
+    this is three.
+    '''
+
+    timeshift = my_mt.get_time_shift(ss, gg)
+    if len(timeshift) != len(ss['T']):
         print 'Error in correlating synthetic and measured data'
     else:
         print 'Timeshift between data and synthetics computed for %s stations' % len(timeshift)
@@ -1065,15 +1200,21 @@ def main():
 
     # RLN (2011-07-28): What is W? Weighting factor - number of stations, long list of values.
     # If 1 then station fully incorporated into solution. If less than one, don't include
+
+    # Allocate Memory for Station Weights
     W = []
-    for i in range(len(s['T'])):
+    for i in range(len(ss['T'])):
         W.append(1.0)
 
+    # INVERSION ROUTINE
+    # RLN (2011-08-24): Dreger normalizes AtA (B?) and AIV (AIV) matrix. We don't need to - just create default dictionary
     AIV = defaultdict(dict)
     B = defaultdict(dict) 
 
-    AIV, B = my_mt.matrix_AIV_B(s, g, az, timeshift)
-    M = my_mt.det_solution_vec(AIV, B)
+    AIV, B = my_mt.matrix_AIV_B(ss, gg, az, timeshift)
+
+    # DETERMINE SOLUTION VECTOR
+    M = my_mt.determine_solution_vector(AIV, B)
 
     gfscale = -1.0e+20
     gfscale = -1.0
@@ -1081,12 +1222,13 @@ def main():
     dip = []
     rake = []
 
+    # DECOMPOSE MOMENT TENSOR INTO VARIOUS REPRESENTATIONS
     m0, Mw, strike, dip, rake, pcdc, pcclvd, pciso = my_mt.decompose_moment_tensor(M)
 
     svar = []
     sdpower = []
 
-    E, VR, VAR, svar, sdpower = my_mt.fitcheck(g, s, W, M, m0, timeshift, az)
+    E, VR, VAR, svar, sdpower = my_mt.fitcheck(gg, ss, W, M, m0, timeshift, az)
 
     qlt = my_mt.quality_check(VR)
 
@@ -1095,6 +1237,9 @@ def main():
 
     # Append results to moment database-table. If db.moment does not exists, create it
     my_mt.write_results(orid, strike, dip, rake)
+
+    # Create data/synthetics plots
+    my_mt.data_synthetics_plot(orid, ss, gg)
 
     print 'M0      = %s' % m0
     print 'Mw      = %s' % Mw 
@@ -1107,11 +1252,24 @@ def main():
     print 'Pdc     = %s' % pcdc
     print 'Pclvd   = %s' % pcclvd
     print 'Piso    = %s' % pciso
+
+
+    # RLN (2011-08-24): In Dregers code this is where the mt_plot function sits
+    # From Dreger's code
+    # mt_plot(ss,gg,nsta,Strike,Rake,Dip,St2,Rk2,Dp2,d_mt,Pdc,Pclvd,Piso,Mo, Mw, E, VR);
+    ### print ">>TEST"
+    ### synthetics_file = my_mt.synthetics_plot(orid, ss)
+    # synthetics_file = my_mt.synthetics_plot(s['R'])
+    # synthetics_file = my_mt.synthetics_plot(s['V'])
+
+
+    # RLN (2011-08-24): From Dreger's fitcheck fprintf() commands
     for j in range(len(svar)):
-        print 'Stat(%d) = %s  %s' % (j,svar[j],sdpower[j])
+        print 'Station (%d) = %s  %s' % (j,svar[j],sdpower[j])
     print 'Var     = %s' % E
     print 'VR      = %s (UNWEIGHTED)' % VR
     print 'VR      = %s (WEIGHTED)' % VR
+
     print 'Var/Pdc = ', E/pcdc
     print 'Quality = %s' % qlt
 
