@@ -7,7 +7,7 @@
 #   the copyright statement above is not removed. 
 
 Relation moment_tensor_greensfuncs
-	Fields ( vmodel delta depth azimuth dip dir dfile lddate )
+	Fields ( vmodel delta depth dir dfile lddate )
 	Primary ( vmodel delta depth dfile )
 	Description ( "Table of precomputed Greens functions" )
 	Detail {
