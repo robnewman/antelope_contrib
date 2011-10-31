@@ -86,7 +86,7 @@ orbstat2pf( Orbstat *orbstat, int orbversion )
 	pfput_int( pf, "nsources", orbstat->nsources );
 	pfput_int( pf, "nclients", orbstat->nclients );
 	pfput_int( pf, "maxsrc", orbstat->maxsrc );
-	pfput_int( pf, "maxpkts", orbstat->maxpkts );
+	pfput_int( pf, "maxpkts", orbstat->maxpktid );
 
 	s = strdup( orbstat->version );
 	strtrim( s );
@@ -198,7 +198,6 @@ orbclients2pf( double atime, Orbclient *clients, int nclients )
 		pfput_int( clientpf, "errors", aclient->errors );
 		pfput_int( clientpf, "priority", aclient->priority );
 		pfput_int( clientpf, "lastrequest", aclient->lastrequest );
-		pfput_int( clientpf, "mymessages", aclient->mymessages );
 		pfput_int( clientpf, "nrequests", aclient->nrequests );
 		pfput_int( clientpf, "nwrites", aclient->nwrites );
 		pfput_int( clientpf, "nreads", aclient->nreads );
@@ -465,13 +464,13 @@ is_dbprogram( char *what, char *dbprogram, char *dbpath )
 
 	if( rc < 0 || pflib == NULL ) {
 
-		register_error( 0, "pforbstat: failed to load libpforbstat.pf "
+		elog_log( 0, "pforbstat: failed to load libpforbstat.pf "
 				   "during database analysis\n" );
 		return 0;
 
 	}  else if( rc == 0 && morphmap == NULL ) {
 
-		register_error( 0, "pforbstat: no morphmap present for database analysis\n" );
+		elog_log( 0, "pforbstat: no morphmap present for database analysis\n" );
 		return 0;
 	}
 
@@ -488,7 +487,7 @@ is_dbprogram( char *what, char *dbprogram, char *dbpath )
 
 		if( morphlist == NULL ) {
 			
-			register_error( 0, "pforbstat: failed to get dbprograms_morph "
+			elog_log( 0, "pforbstat: failed to get dbprograms_morph "
 					"from libpforbstat.pf during database analysis\n" );
 			return 0;
 		}
@@ -499,8 +498,8 @@ is_dbprogram( char *what, char *dbprogram, char *dbpath )
 
 		if( rc != 0 ) {
 
-			register_error( 0, "pforbstat: %d errors translating dbprograms_morph "
-					"from libpforbstat.pf during database analysis\n" );
+			elog_log( 0, "pforbstat: %d errors translating dbprograms_morph "
+					"from libpforbstat.pf during database analysis\n", rc );
 			return 0;
 		}
 	} 

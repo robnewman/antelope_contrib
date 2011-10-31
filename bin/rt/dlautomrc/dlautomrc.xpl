@@ -13,7 +13,7 @@
     use Datascope ;
     use orb ;
     use archive ;
-    require "getopts.pl" ;
+    use Getopt::Std ;
 
     our ( $opt_a, $opt_d, $opt_D, $opt_f, $opt_m, $opt_n, $opt_N, $opt_p, $opt_s, $opt_S, $opt_t, $opt_V, $opt_v, $opt_x );
     our (%recenter);
@@ -38,8 +38,8 @@
     my ($now, $t) ;
 
  
-    if (! &Getopts('a:d:D:m:N:p:S:s:t:x:fnvV')  || (@ARGV < 2 || @ARGV > 3 )) {
-        print STDERR "Getopts or number of arguments failure.\n";
+    if (! getopts('a:d:D:m:N:p:S:s:t:x:fnvV')  || (@ARGV < 2 || @ARGV > 3 )) {
+        print STDERR "getopts or number of arguments failure.\n";
         &usage;
     }
     
@@ -133,7 +133,6 @@
 
 	print STDERR "Subsetting:  $chansub&&dlsta!='-' \n" if $opt_V;
 
-#	@dbj		= dbsubset(@dbj, "chan == 'BHZ'" ) ;
 	@dbj		= dbsubset(@dbj, $chansub ) ;
 	@dbj		= dbsubset(@dbj, "dlsta != '-'" ) ;
 
@@ -397,7 +396,6 @@ sub check_masspos {#  &check_masspos($pf,$mv,$srcname);
     our (%dl_mv,%sensor_mv);
     our (%dl_snname);
     @recenter = ();
-#    @mc = qw(m0 m1 m2 m3 m4 m5);
     $srcname =~ s/\/.*// ;
     
     if ($opt_x) {

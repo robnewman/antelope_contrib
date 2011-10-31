@@ -26,7 +26,6 @@ main (int argc, char **argv)
 {
 	Pf 	*pf;
 	Packet	*pkt;
-	FILE	*fp = NULL;
     	int	c;
 	int	nargs;
 	int	nsources;
@@ -97,7 +96,7 @@ main (int argc, char **argv)
 			break;
 
 		case '?':
-			complain( 1, "Bad option %c\n", c );
+			elog_complain( 1, "Bad option %c\n", c );
 			errflg++;
 		}
 	}
@@ -114,7 +113,7 @@ main (int argc, char **argv)
 	}
 
 	if( orboutname == NULL && strcmp( srcname, SRCNAME_DEFAULT ) ) {
-		complain( 1, "Useless specification of srcname (-n) without -o\n" );
+		elog_complain( 1, "Useless specification of srcname (-n) without -o\n" );
 	}
 
 	pkt = newPkt();
@@ -124,19 +123,19 @@ main (int argc, char **argv)
 	pkt->pkttype = suffix2pkttype( pkt->parts.src_suffix );
 
 	if( pkt->pkttype == NULL || pkt->pkttype->content != Pkt_pf ) {
-		die( 1, 
+		elog_die( 1, 
 		     "Source-name code \"%s\" is not of pf type\n",
 		     pkt->parts.src_suffix );
 	}
 
 	if ( orboutname && ( orbout = orbopen (orboutname, "w&") ) < 0) {
-		die( 0, "Can't open output '%s'\n", orboutname );
+		elog_die( 0, "Can't open output '%s'\n", orboutname );
 	} 
 
 	for( ;; ) {
 
 		if ((orbin = orbopen (orbname, "r&")) < 0) {
-			die (0, "Can't open input '%s'\n", orbname);
+			elog_die(0, "Can't open input '%s'\n", orbname);
 		}
 
 		if( match ) {
@@ -156,7 +155,7 @@ main (int argc, char **argv)
 
 		pf = pforbstat( orbin, flags );
 
-		clear_register( 1 );
+		elog_clear_register( 1 );
 
 		if( orbout ) {
 
@@ -172,7 +171,7 @@ main (int argc, char **argv)
 
 			if( rc < 0 ) {
 
-				complain( 0, 
+				elog_complain( 0, 
 					  "stuffPkt failed for %s\n",
 					  pkt->pkttype->name );
 			}
@@ -183,7 +182,7 @@ main (int argc, char **argv)
 
 			} else {
 				
-				sprintf( srcname, "%s:%d%s",
+				sprintf( srcname, "%s:%ld%s",
 					 pfget_string( pf, "server{address}" ),
 					 pfget_int( pf, "server{port}" ),
 					 SRCNAME_DEFAULT );
@@ -196,7 +195,7 @@ main (int argc, char **argv)
 				    packet, 
 				    nbytes ) < 0 ) {
 
-				complain( 0,
+				elog_complain( 0,
 				 	"Couldn't send packet to %s\n",
 				 	orboutname);
 			}
@@ -206,7 +205,7 @@ main (int argc, char **argv)
 
 			if( pfwrite( filename, pf ) < 0 ) {
 
-				complain( 1, "pfwrite failed\n" );
+				elog_complain( 1, "pfwrite failed\n" );
 			}
 		}
 
@@ -219,7 +218,7 @@ main (int argc, char **argv)
 		pffree( pf );
 
 		if (orbclose (orbin)) {
-			complain (1, "error closing read orb\n");
+			elog_complain(1, "error closing read orb\n");
 		}
 
 		if( seconds ) {
@@ -230,7 +229,7 @@ main (int argc, char **argv)
 	}
 
 	if ( orbout && orbclose (orbout)) {
-		complain (1, "error closing write orb\n");
+		elog_complain(1, "error closing write orb\n");
 	}
 
 	return 0;

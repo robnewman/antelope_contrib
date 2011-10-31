@@ -1,5 +1,5 @@
 '\" te
-.TH BULLETIN2ORB 1 2009/10/19
+.TH BULLETIN2ORB 1 
 .SH NAME
 bulletin2orb,bulletin.pm \- collect catalog information from remote institutions and put in /pf/orb2dbt packets 
 .SH SYNOPSIS
@@ -447,7 +447,7 @@ The ftp location for the QED weekly files is:
 ftp://hazards.cr.usgs.gov/weekly
 .br
 .LP
-However, in the pf file, the leading \fIftp://\fP is excluded in the \fIftphost\fP parameter
+However, in the pf file, the leading ftp:// is excluded in the \fIftphost\fP parameter
 and \fI/weekly\fP is the value used for the \fIftpdir\fP.  The \fIftpmatch\fP should be set
 to \fIehdf.*\fP.
 .IP "\(bu \fBuwcard\fP"
@@ -468,7 +468,7 @@ The ftp location for the PNSN reviewed files is:
 ftp://ftp.ess.washington.edu/pub/seis_net
 .br
 .LP
-However, in the pf file, the leading \fIftp://\fP is excluded in the \fIftphost\fP parameter
+However, in the pf file, the leading ftp:// is excluded in the \fIftphost\fP parameter
 and \fIpub/seis_net\fP is the value used for the \fIftpdir\fP.  The \fIftpmatch\fP should be set
 to \fIloc.[0-9].*\fP.
 
@@ -488,11 +488,11 @@ The ftp location for the recent mine explosion files is:
 .LP
 ftp://hazards.cr.usgs.gov/explosions/mchedrexp.dat
 .LP
-However, in the pf file, the leading \fIftp://\fP is excluded in the \fIftphost\fP parameter
+However, in the pf file, the leading ftp:// is excluded in the \fIftphost\fP parameter
 and \fIexplosions\fP is the value used for the \fIftpdir\fP.  The \fIftpmatch\fP should be set
 to \fImchedrexp.dat\fP.  Historic information, from 1997 forward, is available from:
 .LP
-ftp://hazards.cr.usgs.gov/mineblast/ex.dat
+ftp://hazards.cr.usgs.gov/mineblast/
 .br
 .LP
 
@@ -1103,7 +1103,7 @@ parameter to define the time range of the search.
 .LP
 Searchable bulletins and those using the \fIdbsubset\fP method can have an \fIenddate\fP
 parameter to define the ending time for the search.  If not specified, search looks for \fIndays\fP
-of data prior to \fBnow()\fI. 
+of data prior to \fBnow()\fP. 
 .LP
 Whether or not a particular bulletin needs an \fIextractor\fP specified depends on the
 format and \fImethod\fP used to collect it.  Don't change the defaults.
@@ -1140,7 +1140,7 @@ only once an hour.
 .fi
 .ft R
 .LP
-  For earthquake bulletins that are updated once less frequently, maybe once or twice
+For earthquake bulletins that are updated once less frequently, maybe once or twice
 a day, but contain multiple months of data, or otherwise don't need to be collected
 raidly, collect once per day: 
 .in 2c
@@ -1151,6 +1151,7 @@ raidly, collect once per day:
 
 .fi
 .ft R
+.in
 .LP
   For earthquake bulletins that are updated infrequently, maybe once or twice
 a month, or for re-collecting long stretches of data from searchable bulletins, 
@@ -1251,4 +1252,3 @@ jeakins@ucsd.edu
 ANF
 University of California, San Diego
 .fi
-.\" $Id$

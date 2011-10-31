@@ -24,6 +24,7 @@ DATA= \
 	cmg40t_60sec.pf \
 	cmg6t.pf \
 	dpg2_water.pf \
+	dpg_obsip.pf \
 	episensor_10vpg.pf \
 	episensor_1_25vpg.pf \
 	episensor_20vpg.pf \
@@ -59,6 +60,7 @@ DATA= \
 	le3d_20sec.pf \
 	mb2000_fil.pf \
 	mb2000_raw.pf \
+	ncpa.pf \
 	paroP.pf \
 	paroT.pf \
 	qep_dummy.pf \
@@ -66,11 +68,16 @@ DATA= \
 	ranger_horz.pf \
 	ranger_vert.pf \
 	reftek_400hz_3-5g_2-4vg.pf \
+	rt151_30.pf \
+	rt151_60.pf \
+	rt151_120.pf \
 	s13.pf \
 	s13e.pf \
 	s13n.pf \
 	s13z.pf \
 	s6000.pf \
+	setra278.pf \
+	setra278HA.pf \
 	sh1.pf \
 	sm6-b.pf \
 	sts1_e.pf \
@@ -80,11 +87,13 @@ DATA= \
 	sts2_g1.pf \
 	sts2_g2.pf \
 	sts2_g3.pf \
+	sts2_5.pf \
 	sv1.pf \
 	terratech.pf \
 	trillium_40.pf \
 	trillium_120.pf \
-	trillium_240.pf \
+	trillium_240_1.pf \
+	trillium_240_2.pf \
 	unknown-acceleration.pf \
 	unknown-displacement.pf \
 	unknown-velocity-1d.pf \

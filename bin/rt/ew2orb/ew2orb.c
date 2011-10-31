@@ -33,7 +33,7 @@
 	BUFFER[NBYTES-1] = C;
 	
 #define BAD_BYTE(WHERE,C) \
-	complain( 0, "Bad byte in parser at location '%s': ", WHERE ); \
+	elog_complain( 0, "Bad byte in parser at location '%s': ", WHERE ); \
 	{ int bad = (C); hexdump( stderr, &bad, 1 ); } \
 	fprintf( stderr, "\n" );
 
@@ -135,7 +135,7 @@ static struct {
 
 Arr	*Import_Threads;
 rwlock_t Import_Threads_rwlock;
-Mtfifo	*E2oPackets_mtf;
+Pmtfifo	*E2oPackets_mtf;
 int	Orbfd = -1;
 char	*Pfname = "ew2orb";
 
@@ -327,7 +327,7 @@ describe_packet( Ew2orbPacket *e2opkt )
 
 	} else {
 
-		complain( 0, "'%s':\tunpacked Unknown data\n", e2opkt->itname  );
+		elog_complain( 0, "'%s':\tunpacked Unknown data\n", e2opkt->itname  );
 	}
 
 	return;
@@ -351,7 +351,7 @@ table_check( char *table, Tabletrack **ttrk )
 
 		if( ret < 0 || db.database < 0 ) {
 
-			complain( 1, "Failed to open %s\n",
+			elog_complain( 1, "Failed to open %s\n",
 				 Calibinfo.dbname );
 			
 			(*ttrk)->use = 0;
@@ -368,7 +368,7 @@ table_check( char *table, Tabletrack **ttrk )
 
 			dbclose( db );
 
-			complain( 1, "Failed to lookup %s.%s\n", 
+			elog_complain( 1, "Failed to lookup %s.%s\n", 
 		  	     	Calibinfo.dbname,
 		  	     	table );
 
@@ -389,7 +389,7 @@ table_check( char *table, Tabletrack **ttrk )
 
 			dbclose( db );
 
-			complain( 1, "%s does not exist\n", (*ttrk)->filename );
+			elog_complain( 1, "%s does not exist\n", (*ttrk)->filename );
 
 			(*ttrk)->use = 0;
 			free( (*ttrk)->statbuf );
@@ -401,7 +401,7 @@ table_check( char *table, Tabletrack **ttrk )
 
 			dbclose( db );
 
-			complain( 1, "Failed to stat %s\n", (*ttrk)->filename );
+			elog_complain( 1, "Failed to stat %s\n", (*ttrk)->filename );
 
 			(*ttrk)->use = 0;
 			free( (*ttrk)->statbuf );
@@ -416,7 +416,7 @@ table_check( char *table, Tabletrack **ttrk )
 			
 			dbclose( db );
 
-			complain( 1, "No records in %s\n", (*ttrk)->filename );
+			elog_complain( 1, "No records in %s\n", (*ttrk)->filename );
 
 			(*ttrk)->use = 0;
 			free( (*ttrk)->statbuf );
@@ -442,7 +442,7 @@ table_check( char *table, Tabletrack **ttrk )
 		ret = stat( (*ttrk)->filename, (*ttrk)->statbuf );
 
 		if( ret < 0 ) {
-			complain( 1, "Failed to stat %s\n", (*ttrk)->filename );
+			elog_complain( 1, "Failed to stat %s\n", (*ttrk)->filename );
 
 			(*ttrk)->use = 0;
 			free( (*ttrk)->statbuf );
@@ -453,6 +453,10 @@ table_check( char *table, Tabletrack **ttrk )
 			return (*ttrk)->statbuf;
 		}
 	}
+
+	/* Unused fallthrough to silence compiler complaint: */
+
+	return (struct stat *) NULL;
 }
 
 static int	
@@ -460,7 +464,6 @@ init_calibinfo( void )
 {
 	Dbptr 	db;
 	int	ret;
-	struct stat *statbuf;
 
 	Calibinfo.usedbcalib = 1;
 	Calibinfo.usedbsegtype = 1;
@@ -480,7 +483,7 @@ init_calibinfo( void )
 
 	if( ret < 0 || db.database < 0 ) {
 
-		complain( 1, "%s %s; %s\n",
+		elog_complain( 1, "%s %s; %s\n",
 		  "Failed to open database",
 		  Calibinfo.dbname,
   		  "calib, calper, and segtype will be default values" );
@@ -495,7 +498,7 @@ init_calibinfo( void )
 
 	if( table_check( "calibration", &Calibinfo.ctrk ) == (struct stat *) NULL ) {
 
-		complain( 1, "Using default values for calib and calper.\n" );
+		elog_complain( 1, "Using default values for calib and calper.\n" );
 
 		Calibinfo.usedbcalib = 0;
 	}
@@ -503,7 +506,7 @@ init_calibinfo( void )
 	if( table_check( "sensor", &Calibinfo.strk ) == (struct stat *) NULL || 
 	    table_check( "instrument", &Calibinfo.itrk ) == (struct stat *) NULL ) {
 
-		complain( 1, "Using default value for segtype.\n" );
+		elog_complain( 1, "Using default value for segtype.\n" );
 
 		Calibinfo.usedbsegtype = 0;
 	}
@@ -530,7 +533,7 @@ set_calibration_database( Pf *pf )
 
 		strcpy( Calibinfo.dbname, "" );
 
-		complain( 0,
+		elog_complain( 0,
 		     "WARNING: no calibration_database specified "
 		     "in parameter file!!\n" );
 
@@ -610,7 +613,7 @@ add_segtype( char *sta, char *chan, double time, char *default_segtype,
 	}
 
 	if( ret < 0 || nrecs <= 0 ) {
-		complain( 1, "Failed to get segtype from database for %s\n", key );
+		elog_complain( 1, "Failed to get segtype from database for %s\n", key );
 		strcpy( segtype, default_segtype );
 	}
 
@@ -641,7 +644,6 @@ static void
 update_segtypevals( double time, char *default_segtype, enum Loglevel loglevel )
 {
 	Dbptr	db;
-	Srcname	parts;
 	Tbl	*keys;
 	char	*key;
 	char	*s;	
@@ -720,7 +722,7 @@ add_current_calibvals( char *sta, char *chan, double time,
 	}
 
 	if( ret < 0 || nrecs <= 0 ) {
-		complain( 1, "Failed to get calib and calper from database for %s\n", key );
+		elog_complain( 1, "Failed to get calib and calper from database for %s\n", key );
 		cv->calib = DEFAULT_CALIB;
 		cv->calper = DEFAULT_CALPER;
 		cv->validuntil = 9999999999.999;
@@ -743,7 +745,6 @@ static void
 update_calibvals( double time, enum Loglevel loglevel )
 {
 	Dbptr	db;
-	Srcname	parts;
 	Tbl	*keys;
 	char	*key;
 	char	*s;	
@@ -854,14 +855,7 @@ buf_intake( ImportThread *it )
 {
 	Ew2orbPacket *e2opkt;
 	char	*cp;
-	TRACE_HEADER th;
 	char	astring[STRSZ];
-	int	inst;
-	int	mod;
-	int	type;
-	char	inststr[STRSZ];
-	char	modstr[STRSZ];
-	char	typestr[STRSZ];
 	char	*s;
 
 	e2opkt = new_Ew2orbPacket();
@@ -910,7 +904,7 @@ buf_intake( ImportThread *it )
 				  it->expect_heartbeat_string, 
 				  &it->expect_heartbeat_hook ) ) {
 
-			complain( 0, 
+			elog_complain( 0, 
 				"'%s': Warning: Received heartbeat '%s' doesn't "
 				"match expected pattern '%s'\n",
 				it->name, cp, it->expect_heartbeat_string );
@@ -943,7 +937,7 @@ buf_intake( ImportThread *it )
 
 		e2opkt->it->npacketrefs++;
 
-		mtfifo_push( E2oPackets_mtf, (void *) e2opkt ); 
+		pmtfifo_push( E2oPackets_mtf, (void *) e2opkt ); 
 	}
 
 	return 0;
@@ -1025,7 +1019,7 @@ stop_import_thread( char *name )
 
 	if( ( it = find_import_thread_byname( name ) ) == 0 ) { 
 
-		complain( 1, "stop_import_thread: "
+		elog_complain( 1, "stop_import_thread: "
 			  "Couldn't find import thread '%s' in registry\n",
 			  name );
 		return;
@@ -1034,7 +1028,7 @@ stop_import_thread( char *name )
 	if( Flags.VeryVerbose ) {
 
 		elog_notify( 0, "'%s': Request sent to stop import thread, "
-			     "thread-id %d\n", name, it->thread_id );
+			     "thread-id %ld\n", name, (long) it->thread_id );
 	}
 
 	mutex_lock( &it->it_mutex );
@@ -1203,8 +1197,8 @@ ew2orb_import_shutdown()
 
 	if( ( it = find_import_thread_byid( thr_self() ) ) == NULL ) {
 
-		complain( 0, "Couldn't find thread %d in registry!\n",
-			  	  thr_self() );
+		elog_complain( 0, "Couldn't find thread %ld in registry!\n",
+			  	  (long) thr_self() );
 
 	} else {
 	
@@ -1222,8 +1216,8 @@ ew2orb_import_shutdown()
 	if( Flags.verbose ) {
 
 		elog_notify( 0, 
-		"'%s': Thread (thread-id %d) stopping at user request\n",
-		  name, thr_self() );
+		"'%s': Thread (thread-id %ld) stopping at user request\n",
+		  name, (long) thr_self() );
 	}
 
 	delete_import_thread( it );
@@ -1385,7 +1379,7 @@ refresh_import_thread( ImportThread *it )
 		it->so = socket( PF_INET, SOCK_STREAM, 0 );
 		if( it->so < 0 ) {
 
-			complain( 1,
+			elog_complain( 1,
 		 	  "'%s': Failed to open socket to %s:%d\n", 
 			  it->name, it->server_ipaddress, it->server_port );
 
@@ -1402,13 +1396,13 @@ refresh_import_thread( ImportThread *it )
 		                                   sizeof( it->sin ) ) ) {
 			if( it->bindfail < NCOMPLAIN_MAX ) {
 
-				complain( 1, "'%s': Couldn't bind socket\n",
+				elog_complain( 1, "'%s': Couldn't bind socket\n",
 					  it->name );
 			}
 
 			if( it->bindfail++ == NCOMPLAIN_MAX ) {
 					
-				complain( 0, 
+				elog_complain( 0, 
 					"'%s': Last message repeated %d "
 					"times; will keep retrying "
 					"every %d sec\n",
@@ -1443,7 +1437,7 @@ refresh_import_thread( ImportThread *it )
 		if( connect( it->so, (struct sockaddr *) &it->sin, sizeof( it->sin ) ) ) {
 			if( it->connectfail < NCOMPLAIN_MAX ) {
 
-				complain( 1, 
+				elog_complain( 1, 
 					"'%s': Failed to connect socket for %s:%d\n",
 					it->name,
 					it->server_ipaddress, it->server_port );
@@ -1451,7 +1445,7 @@ refresh_import_thread( ImportThread *it )
 
 			if( it->connectfail++ == NCOMPLAIN_MAX ) {
 					
-				complain( 0, 
+				elog_complain( 0, 
 					"'%s': Last message repeated %d "
 					"times; will keep retrying "
 					"every %d sec\n",
@@ -1650,7 +1644,7 @@ more_packet_data( ImportThread *it )
 
 		  if( bns_errno == ECONNRESET ) {
 
-			complain( 1, 
+			elog_complain( 1, 
 				  "'%s': Connection reset by peer\n",
 				  it->name );
 
@@ -1661,7 +1655,7 @@ more_packet_data( ImportThread *it )
 
 		  } else {
 
-			complain( 1, 
+			elog_complain( 1, 
 				  "'%s': bns error %d\n", 
 				  it->name, bns_errno );
 		  }
@@ -1673,7 +1667,7 @@ more_packet_data( ImportThread *it )
 
 		if( ( it->loglevel >= VERBOSE ) || Flags.verbose ) {
 
-			complain( 1, 
+			elog_complain( 1, 
 				  "'%s': Connection closed by remote "
 				  "export module\n",
 				  it->name );
@@ -1711,9 +1705,9 @@ ew2orb_import( void *arg )
 
 	if( ( it = find_import_thread_byid( thr_self() ) ) == NULL ) {
 
-		complain( 1, 
-			"Couldn't find thread id %d in registry!\n",
-			 thr_self() );
+		elog_complain( 1, 
+			"Couldn't find thread id %ld in registry!\n",
+			 (long) thr_self() );
 
 		status = -1;
 
@@ -1757,7 +1751,7 @@ new_ImportThread( char *name )
 	it->nbytes = 0;
 	it->sync_state = STREAM_SEARCH;
 	it->loglevel = QUIET;
-	it->thread_id = -1;
+	it->thread_id = (pthread_t) -1;
 	it->last_heartbeat_sent = 0;
 	it->last_heartbeat_received = 0;
 	it->expect_heartbeat_hook = NULL;
@@ -1926,7 +1920,7 @@ update_import_thread( char *name, Pf *pf )
 
 		if( ret != 0 ) {
 
-			complain( 1,
+			elog_complain( 1,
 			    "'%s': Failed to create import thread: "
 			    "thr_create error %d\n", name, ret );
 			
@@ -1954,21 +1948,21 @@ update_import_thread( char *name, Pf *pf )
 		if( it->new ) {
 
 			elog_notify( 0,
-				"'%s': Started import thread as thread-id %d\n", 
-				it->name, it->thread_id );
+				"'%s': Started import thread as thread-id %ld\n", 
+				it->name, (long) it->thread_id );
 
 		} else if( it->update ) {
 
 			elog_notify( 0,
 				"'%s': Posted updates for import thread "
-				"(thread-id %d)\n", 
-				it->name, it->thread_id );
+				"(thread-id %ld)\n", 
+				it->name, (long) it->thread_id );
 
 		} else {
 
 			elog_notify( 0,
-				"'%s': Import thread (thread-id %d) unchanged\n",
-				it->name, it->thread_id );
+				"'%s': Import thread (thread-id %ld) unchanged\n",
+				it->name, (long) it->thread_id );
 		}
 	}
 
@@ -1989,14 +1983,14 @@ reconfigure_import_threads( Pf *pf )
 
 	if( pfget( pf, "import_from", (void **) &pfimport_from ) != PFARR ) {
 
-		complain( 1, 
+		elog_complain( 1, 
 		   "parameter 'import_from' not present or not an array\n" );
 
 		stop_all_import_threads();
 		
 		if( Flags.verbose && num_import_threads() <= 0 ) {
 
-			complain( 0, 
+			elog_complain( 0, 
 			"Warning: no import threads defined; nothing to do\n" );
 		}
 
@@ -2011,7 +2005,7 @@ reconfigure_import_threads( Pf *pf )
 		
 		if( Flags.verbose && num_import_threads() <= 0 ) {
 
-			complain( 0, 
+			elog_complain( 0, 
 			"Warning: no import threads defined; nothing to do\n" );
 		}
 
@@ -2054,7 +2048,7 @@ reconfigure_import_threads( Pf *pf )
 
 	if( Flags.verbose && num_import_threads() <= 0 ) {
 
-		complain( 0, 
+		elog_complain( 0, 
 		"Warning: no import threads defined; nothing to do\n" );
 	}
 
@@ -2067,9 +2061,6 @@ static int
 crack_packet( Ew2orbPacket *e2opkt )
 {
 	int	retcode = 0;
-	int	*out = 0;
-	int	outsize = 0;
-	int	nout = 0;
 	PktChannel *pktchan;
 	char	*dp;
 	char	*sp;
@@ -2084,7 +2075,7 @@ crack_packet( Ew2orbPacket *e2opkt )
 	    ! STREQ( e2opkt->typestr, Default_TYPE_TRACEBUF2 ) &&
 	    ! STREQ( e2opkt->typestr, Default_TYPE_TRACE_COMP_UA ) ) {
 
-		complain( 0, 
+		elog_complain( 0, 
 			"convert: Don't know how to crack type <%s>\n",
 			e2opkt->typestr );
 
@@ -2225,7 +2216,7 @@ crack_packet( Ew2orbPacket *e2opkt )
 
 		if( n < 0 ) { 
 
-			complain( 0, 
+			elog_complain( 0, 
 			"Couldn't compile reject expression '%s'\n",
 			e2opkt->it->reject );
 
@@ -2252,7 +2243,7 @@ crack_packet( Ew2orbPacket *e2opkt )
 
 		if( n < 0 ) { 
 
-			complain( 0, 
+			elog_complain( 0, 
 			"Couldn't compile select expression '%s'\n",
 			e2opkt->it->select );
 
@@ -2392,7 +2383,7 @@ crack_packet( Ew2orbPacket *e2opkt )
 
 		} else {
 
-			complain( 0, 
+			elog_complain( 0, 
 				"convert: Don't know how to translate datatype <%s>\n",
 				e2opkt->th2->datatype );
 			
@@ -2477,7 +2468,7 @@ crack_packet( Ew2orbPacket *e2opkt )
 
 		} else {
 
-			complain( 0, 
+			elog_complain( 0, 
 				"convert: Don't know how to translate datatype <%s>\n",
 				e2opkt->th->datatype );
 
@@ -2587,7 +2578,7 @@ ew2orb_convert( void *arg )
 
 	thr_setprio( thr_self(), THR_PRIORITY_CONVERT );
 
-	while( mtfifo_pop( E2oPackets_mtf, (void **) &e2opkt ) != 0 ) {
+	while( pmtfifo_pop( E2oPackets_mtf, (void **) &e2opkt ) != 0 ) {
 
 		if( crack_packet( e2opkt ) < 0 ) {
 			
@@ -2649,7 +2640,7 @@ ew2orb_pfwatch( void *arg )
 
 		if( rc < 0 ) {
 			
-			complain( 1, "pfupdate pf parameter file '%s' failed\n",
+			elog_complain( 1, "pfupdate pf parameter file '%s' failed\n",
 				  Pfname );
 
 		} else if( rc == 0 ) {
@@ -2715,14 +2706,14 @@ main( int argc, char **argv )
 		case '?':
 		default:
 			usage();
-			die( 0, "option not understood\n" );
+			elog_die( 0, "option not understood\n" );
 		}
 	}
 
 	if( argc - optind != 1 ) {
 
 		usage();
-		die( 0, "Must specify an output orb name\n" );
+		elog_die( 0, "Must specify an output orb name\n" );
 
 	} else {
 		
@@ -2731,20 +2722,20 @@ main( int argc, char **argv )
 
 	if( ( Orbfd = orbopen( orbname, "w&" ) ) < 0 ) {
 		
-		die( 0, "Failed to open orb '%s' for writing\n", orbname );
+		elog_die( 0, "Failed to open orb '%s' for writing\n", orbname );
 	}
 
 	Flags.have_banner = have_banner();
 
 	sigignore( SIGPIPE );
 
-	E2oPackets_mtf = mtfifo_create( PACKET_QUEUE_SIZE, 1, 0 );
+	E2oPackets_mtf = pmtfifo_create( PACKET_QUEUE_SIZE, 1, 0 );
 
 	rc = thr_create( NULL, 0, ew2orb_pfwatch, 0, 0, &pfwatch_tid );
 
 	if( rc != 0 ) {
 
-		die( 1, "Failed to create parameter-file watch thread, "
+		elog_die( 1, "Failed to create parameter-file watch thread, "
 			"thr_create error %d\n", rc );
 	}
 
@@ -2752,7 +2743,7 @@ main( int argc, char **argv )
 
 	if( rc != 0 ) {
 
-		die( 1, "Failed to create packet-conversion thread, "
+		elog_die( 1, "Failed to create packet-conversion thread, "
 			"thr_create error %d\n", rc );
 	}
 

@@ -4,10 +4,10 @@ DLIB=python__Pkt$(DSUFFIX)
 
 DATADIR= python/antelope
 
-DATA= $(ORBDLIB) Pkt.py 
+DATA= $(ORBDLIB) Pkt.pyc
 
 MAN1=
-MAN3P= pythonPkt.3p
+MAN3Y= pythonPkt.3y
 MAN5=
 
 CLEAN= *.pyc *.so

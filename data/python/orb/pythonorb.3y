@@ -1,0 +1,385 @@
+.TH PYTHONORB 3P 
+.SH NAME
+pythonorb \- Python interface to Antelope Orbserver
+.SH SYNOPSIS
+.nf
+sys.path.append( os.environ['ANTELOPE'] + '/local/data/python' )
+
+from antelope.orb import *
+.fi
+.SH DESCRIPTION
+The Python Interface to the Antelope Orb allows one to perform operations 
+on Antelope orbservers from the Python scripting language. 
+
+Upon encountering problems, these routines will raise exceptions
+from the \fIElogException\fP class of Python Exceptions defined in
+the antelope.stock module (see pythonstock(3P)), and incorporated
+internally into this module. This class of exceptions has the several
+subclasses \fIElogLog\fP, \fIElogNotify\fP, \fIElogComplain\fP, and
+\fIElogDie\fP. \fIElogException\fP objects define the two attributes
+e.\fIseverity\fP and e.\fIstring\fP, where e.\fIstring\fP is a
+string message associated with the exception and e.\fIseverity\fP
+is an integer severity indicator which will be one of ELOG_LOG,
+ELOG_NOTIFY, ELOG_COMPLAIN, ELOG_DIE, ELOG_FAULT, ELOG_ALERT, or
+ELOG_DEBUGGING.
+
+Following are brief descriptions of the functions implemented.
+
+.SS Orb functions
+.IP "\fBorbopen\fP (orbname, permissions)"
+Returns an orb descriptor to the specified orbserver.
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+orbfd = orbopen( orbname, "r" ) 
+
+.fi
+.in
+.ft R
+.IP "\fBorbclose\fP (orbfd)"
+Close an orb connection. 
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+orbclose( orbfd )
+
+or
+
+orbfd.close()
+
+.fi
+.in
+.ft R
+.IP "\fBorbping\fP (orbfd)"
+Query orbserver version
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+version = orbping( orbfd )
+
+or 
+
+version = orbfd.ping()
+
+.fi
+.in
+.ft R
+.IP "\fBorbtell\fP (orbfd)"
+Query current orb read-head position
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+pktid = orbtell( orbfd )
+
+or 
+
+pktid = orbfd.tell()
+
+.fi
+.in
+.ft R
+.IP "\fBorbselect\fP (orbfd, match)"
+Select orb source-names
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+nsources = orbselect( orbfd, match )
+
+or 
+
+nsources = orbfd.select(match)
+
+.fi
+.in
+.ft R
+.IP "\fBorbreject\fP (orbfd, reject)"
+Reject orb source-names
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+nsources = orbreject( orbfd, reject )
+
+or 
+
+nsources = orbfd.reject( reject )
+
+.fi
+.in
+.ft R
+.IP "\fBorbposition\fP (orbfd, where)"
+Position orb read head by time or code
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+pktid = orbposition( orbfd, where )
+
+or 
+
+pktid = orbfd.position( where )
+
+.fi
+.in
+.ft R
+.IP "\fBorbseek\fP (orbfd, whichpkt)"
+Position orb read head by pktid or code
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+pktid = orbseek( orbfd, whichpkt )
+
+or 
+
+pktid = orbfd.seek( whichpkt )
+
+.fi
+.in
+.ft R
+.IP "\fBorbafter\fP (orbfd, time)"
+Position orb read head by epoch time
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+pktid = orbafter( orbfd, time )
+
+or 
+
+pktid = orbfd.after( time )
+
+.fi
+.in
+.ft R
+.IP "\fBorbreap\fP (orbfd)"
+Get next orb packet
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+(pktid, srcname, time, packet, nbytes) = orbreap( orbfd )
+
+or 
+
+(pktid, srcname, time, packet, nbytes) = orbfd.reap()
+
+.fi
+.in
+.ft R
+.IP "\fBorbreap_timeout\fP (orbfd, maxseconds)"
+Get next orb packet, waiting a maximum of maxseconds seconds
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+(pktid, srcname, time, packet, nbytes) = orbreap_timeout( orbfd )
+
+or 
+
+(pktid, srcname, time, packet, nbytes) = orbfd.reap_timeout()
+
+.fi
+.in
+.ft R
+.IP "\fBorbget\fP (orbfd, whichpkt)"
+Get an orb packet specified by one of the special values documented in orbget(3), 
+such as ORBNEWEST, ORBOLDEST, ORBCURRENT, ORBSTASH etc. 
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+(pktid, srcname, time, packet, nbytes) = orbget( orbfd, ORBNEWEST )
+
+or 
+
+(pktid, srcname, time, packet, nbytes) = orbfd.get(ORBNEWEST)
+
+.fi
+.in
+.ft R
+.IP "\fBorbput\fP (orbfd, srcname, time, packet, nbytes)"
+Put a packet on an orbserver
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+rc = orbput( orbfd, srcname, time, packet, nbytes )
+
+or 
+
+rc = orbfd.put(srcname, time, packet, nbytes)
+
+.fi
+.in
+.ft R
+.IP "\fBorbputx\fP (orbfd, srcname, time, packet, nbytes)"
+Put a packet on an orbserver, returning the pktid of the output packet
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+pktid = orbputx( orbfd, srcname, time, packet, nbytes )
+
+or 
+
+pktid = orbfd.putx(srcname, time, packet, nbytes)
+
+.fi
+.in
+.ft R
+.IP "\fBorblag\fP (orbfd, match = None, reject = None)"
+Return parameters indicating degree to which clients are behind
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+(oldest, newest, maxpktid, range, clients) = orblag( orb )
+
+or
+
+(oldest, newest, maxpktid, range, clients) = orb.lag()
+
+.fi
+.in
+.ft R
+.IP "\fBorbstat\fP (orbfd)"
+Return a dictionary of status parameters about an orbserver
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+stat = orbstat( orb )
+
+or
+
+stat = orb.stat()
+
+.fi
+.in
+.ft R
+.IP "\fBorbsources\fP (orbfd)"
+Return a list of dictionaries about orb srcnames
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+(when, sources) = orbsources( orb )
+
+or
+
+(when, sources) = orb.sources()
+
+.fi
+.in
+.ft R
+.IP "\fBorbclients\fP (orbfd)"
+Return a list of dictionaries about orb clients
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+(when, clients) = orbclients( orb )
+
+or
+
+(when, clients) = orb.clients()
+
+.fi
+.in
+.ft R
+.IP "\fBorbexhume\fP (filename)"
+Read and initiate a state-file for orb tracking. Unlike the 
+other scripting interfaces to Antelope, in Python the exhume 
+function is currently specific to the orb interface.
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+orbexhume( filename )
+
+.fi
+.in
+.ft R
+.IP "\fBorbresurrect\fP (orbfd)"
+Restore previous orb position variables. This function will 
+raise an ElogLog exception even when successful, announcing the 
+repositioning, which exception should be trapped and handled 
+by the calling program.
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+(pktid, pkttime) = orbresurrect( orb )
+
+or
+
+(pktid, pkttime) = orb.resurrect()
+
+.fi
+.in
+.ft R
+.IP "\fBorbbury\fP (orbfd, pktid, pkttime)"
+Save orb position variables
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+orbbury( orb, pktid, pkttime )
+
+or
+
+orb.bury( pktid, pkttime )
+
+.fi
+.in
+.ft R
+.IP "\fBorbpkt_string\fP (srcname, time, packet, nbytes)"
+Convert an orb packet to a string representation, as used in forb(5)
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+packet_string = orbpkt_string( srcname, time, packet, nbytes )
+
+.fi
+.in
+.ft R
+.SH "SEE ALSO"
+.nf
+pythondb(3y), pythonstock(3y)
+.fi
+.SH "BUGS AND CAVEATS" 
+Not all error conditions are wrapped to emit Python Exceptions, as they probably should be. 
+.SH AUTHOR
+.nf
+Kent Lindquist
+Lindquist Consulting, Inc. 
+.fi

@@ -45,42 +45,56 @@ name from the environment using a default if the variable is
 not set.  
 */
 static Dbptr modeldb;
-#define ENVNAME "VELOCITY_MODEL_DATABASE"
-#define DEFAULT_DB "vmodel"
+#define VMODEL_DBNAME_CUSTOM "VELOCITY_MODEL_DATABASE"
+#define VMODEL_DBNAME_DEFAULT "vmodel"
 
-#pragma init (tt1dcvl_init)
+int _tt1dcvl_has_run = 0;
+
+void tt1dcvl_init();
+
+void __attribute__ ((constructor))
+_tt1dcvl_init()
+{
+    tt1dcvl_init() ;
+
+    _tt1dcvl_has_run++;
+}
 
 void tt1dcvl_init()
 {
 	char *dbpath;
 	char *dbname;
 
-	dbname=getenv(ENVNAME);
+	dbname=getenv(VMODEL_DBNAME_CUSTOM);
 	if(dbname==NULL)
-		dbpath = datapath (0,"tables/genloc/db",DEFAULT_DB,0);
+		dbpath = datapath (NULL,"tables/genloc/db",VMODEL_DBNAME_DEFAULT,NULL);
 	else
-		dbpath = datapath (0,"tables/genloc/db",dbname,0);
+		dbpath = datapath (NULL,"tables/genloc/db",dbname,NULL);
 	
-	if (dbpath == 0) { 
-	    die ( 0, "tt1dcvl database open failed\n" ) ; 
+	if (dbpath == NULL) { 
+	    elog_die( 0, "tt1dcvl database open failed\n" ) ; 
 	}
 	if(dbopen(dbpath,"r",&modeldb) == dbINVALID) {
-	    die(0,"Could not open velocity model database %s during libtt1dcvl initialization\nExiting because all calls to this calculator will fail\n",
-			dbpath);
+	    elog_die(0,"Could not open velocity model database '%s' during libtt1dcvl initialization\n"
+	    	  "Exiting because all calls to this calculator will fail\n",
+		  dbpath);
 	}
-
 }
 
-static void free_Vmodel(Vmodel *mod)
+static void free_Vmodel(void *modp)
 {
+	Vmodel *mod = (Vmodel *) modp;
+
 	free(mod->name);
 	free(mod->property);
 	free(mod->velocity);
 	free(mod->ztop);
 	free(mod);
 }
-static void tt1dcvl_free_hook(tt1dcvl_hook *old)
+static void tt1dcvl_free_hook(void *oldp)
 {
+	tt1dcvl_hook *old = (tt1dcvl_hook *) oldp;
+
 	freearr(old->ttlvz_models,free_Vmodel);
 }
 char *make_vmodel_key(char *model,char *property)
@@ -311,7 +325,7 @@ TTTime *tt1dcvl_compute_atime(TTGeometry *x,double d_km,double azimuth,
 		mod->ztop[0] = x->receiver.z;
 	else
 	{
-		register_error(0,"Warning (ttlvz_time_exec):  elevation correction error\nStation elevation %lf lies below first layer depth %lf\nElevation ignored\n",
+		elog_log(0,"Warning (ttlvz_time_exec):  elevation correction error\nStation elevation %lf lies below first layer depth %lf\nElevation ignored\n",
 			x->receiver.z, mod->ztop[1]);
 	}
 	/* This could be avoided, but it is a relic of the earlier code,
@@ -425,7 +439,6 @@ TTSlow *tt1dcvl_compute_slowness(TTGeometry *x,double d_km,
 		int mode, Hook **hookp)
 {
 	double z0;  /* hold first layer depth (see below)  */
-	TTTime *t;
 	Vmodel *mod;
 
 	double *v, *z;
@@ -469,7 +482,7 @@ TTSlow *tt1dcvl_compute_slowness(TTGeometry *x,double d_km,
 		mod->ztop[0] = x->receiver.z;
 	else
 	{
-		register_error(0,"Warning (ttlvz_slowness_exec):  elevation correction error\nStation elevation %lf lies below first layer depth %lf\nElevation ignored\n",
+		elog_log(0,"Warning (ttlvz_slowness_exec):  elevation correction error\nStation elevation %lf lies below first layer depth %lf\nElevation ignored\n",
 			x->receiver.z, mod->ztop[1]);
 	}
 	/* This could be avoided, but it is a relic of the earlier code */
@@ -480,7 +493,7 @@ TTSlow *tt1dcvl_compute_slowness(TTGeometry *x,double d_km,
 	work1 = (double *) calloc(2*nz,sizeof(double));
 	work2 = (double *) calloc(2*nz,sizeof(double));
 	if( (work1 == NULL) || (work2 == NULL) )
-		die(1,"ttlvz_slow_exec:  Cannot alloc work arrays for phase %s\n",
+		elog_die(1,"ttlvz_slow_exec:  Cannot alloc work arrays for phase %s\n",
 			phase);
 
 	ttlvz_(&d_km, &(x->source.z), &nz, v, z, work1, work2, &time, &p, &up);
@@ -555,7 +568,7 @@ TTSlow *tt1dcvl_compute_slowness(TTGeometry *x,double d_km,
 					work1, work2, &time, &p4, &up);
         		if (time < 0.0)
         		{
-                		register_error(1,"ttlvz could not compute direct wave slowness vector for phase %s while computing derivatives\n",phase);
+                		elog_log(1,"ttlvz could not compute direct wave slowness vector for phase %s while computing derivatives\n",phase);
    				free(slow);
 				free(work1);
 				free(work2);
@@ -765,11 +778,9 @@ int tt1dcvl (
 	double d_km;
 	char *property;  
 	
-	int result;
 	char *plist;
 	char *phase;
 	TTTime *atime;
-	int iphase = 0; /* count of number of phases actually computed */
 
 	dist(rad(geometry->source.lat), rad(geometry->source.lon),
 		rad(geometry->receiver.lat), rad(geometry->receiver.lon),
@@ -830,11 +841,9 @@ int tt1dcvl_ucalc (
 				(uaz != s2raz on a spherical earth) */
 	char *property;  
 	
-	int result;
 	char *plist;
 	char *phase;
 	TTSlow *slowness;
-	int iphase = 0; /* count of number of phases actually computed */
 
 	/* First we compute the epicentral distance and azimuth.  We need
 	azimuth and both ends of the ray path for slowness partial 

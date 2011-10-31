@@ -18,7 +18,7 @@ int             Stop = 0;
 char           *dbname;
 double         *bury_times;
 int            *static_flags;
-int             ntables;
+long            ntables;
 int             verbose = 0;
 
 void
@@ -47,7 +47,7 @@ static void
 usage()
 {
 	cbanner("$Date$",
-		"[-sleep seconds] [-pf pfname] \n\t\t\t[-prefix prefix] [-modified_after time] [-v] db orb",
+		"[-sleep seconds] [-pf pfname] [-state statefile]\n\t\t\t[-prefix prefix] [-modified_after time] [-v] db orb",
 		"Nikolaus Horn",
 		"ZAMG / Vienna",
 		"nikolaus.horn@zamg.ac.at");
@@ -62,9 +62,9 @@ dbrows2orb(Dbptr db, int orb, char *prefix)
 	char           *packet;
 	int             nbytes, packetsize = 0;
 	Dbptr           tmpdb;
-	int             t, nrecords, r, ntables;
+	long            t, nrecords, r, ntables;
 	Arr            *records = NULL;
-	Tbl            *tables = NULL, *static_tables;
+	Tbl            *tables = NULL;
 	char           *thistablename;
 	Stbl           *stbl;
 	char           *s;
@@ -84,7 +84,7 @@ dbrows2orb(Dbptr db, int orb, char *prefix)
 		nrecords = maxstbl(stbl);
 		if (nrecords > 0) {
 			for (r = 0; r < nrecords; r++) {
-				tmpdb.record = (int) getstbl(stbl, r);
+				tmpdb.record = (long) getstbl(stbl, r);
 				pkt->db = tmpdb;
 				if (stuffPkt(pkt, srcname, &time, &packet, &nbytes, &packetsize) < 0) {
 					elog_complain(0, "stuffPkt fails for pf packet");
@@ -101,7 +101,7 @@ dbrows2orb(Dbptr db, int orb, char *prefix)
 	dbfree_untangle(records);
 	freePkt(pkt);
 	if (verbose) {
-		elog_notify(0, "%s: %d patcket(s) sent with sourcename: %s\n", s = strtime(now()), nrecords, srcname);
+		elog_notify(0, "%s: %ld patcket(s) sent with sourcename: %s\n", s = strtime(now()), nrecords, srcname);
 		free(s);
 	}
 	return (0);
@@ -124,18 +124,13 @@ main(int argc, char **argv)
 	int             i;
 	Tbl            *tablenames, *tables_containing_dfile, *check_tables = NULL,
 	               *ignore_tables = NULL;
-	int             table_present, recc, is_view;
+	long            table_present, recc, is_view;
 	char           *tablename, *schemaname;
 	char           *filename;
 	int             counter = 0, force_check = 0;
 	char            expr[512];
 	char           *statefilename = NULL, *pfname = "dbnew2orb";
 	Pf             *pf = NULL;
-	void           *priv_dfile = (void *) NULL;
-	void           *private = (void *) NULL;
-	int             pmsi;	/* poor man's string index, replacment for
-				 * searchtbl... */
-	char           *pmsp;
 	double          lastburytime;
 	Relic           relic;
 	char           *s;
@@ -154,7 +149,7 @@ main(int argc, char **argv)
 			argc--;
 			argv++;
 			if (argc < 1) {
-				complain(0, "Need -modified_after argument.\n");
+				elog_complain(0, "Need -modified_after argument.\n");
 				usage();
 				exit(1);
 			}
@@ -163,7 +158,7 @@ main(int argc, char **argv)
 			argc--;
 			argv++;
 			if (argc < 1) {
-				complain(0, "Need -prefix argument.\n");
+				elog_complain(0, "Need -prefix argument.\n");
 				usage();
 				exit(1);
 			}
@@ -172,7 +167,7 @@ main(int argc, char **argv)
 			argc--;
 			argv++;
 			if (argc < 1) {
-				complain(0, "Need -pf argument.\n");
+				elog_complain(0, "Need -pf argument.\n");
 				usage();
 				exit(1);
 			}
@@ -181,7 +176,7 @@ main(int argc, char **argv)
 			argc--;
 			argv++;
 			if (argc < 1) {
-				complain(0, "Need -state argument.\n");
+				elog_complain(0, "Need -state argument.\n");
 				usage();
 				exit(1);
 			}
@@ -190,7 +185,7 @@ main(int argc, char **argv)
 			argc--;
 			argv++;
 			if (argc < 1) {
-				complain(0, "Need -sleep argument.\n");
+				elog_complain(0, "Need -sleep argument.\n");
 				usage();
 				exit(1);
 			}
@@ -199,7 +194,7 @@ main(int argc, char **argv)
 			argc--;
 			argv++;
 			if (argc < 1) {
-				complain(0, "Need -check_lddate_interval argument.\n");
+				elog_complain(0, "Need -check_lddate_interval argument.\n");
 				usage();
 				exit(1);
 			}
@@ -209,7 +204,7 @@ main(int argc, char **argv)
 		} else if (**argv != '-') {
 			break;
 		} else {
-			complain(0, "Unrecognized argument '%s'.\n", *argv);
+			elog_complain(0, "Unrecognized argument '%s'.\n", *argv);
 			usage();
 			exit(1);
 		}
@@ -262,7 +257,7 @@ main(int argc, char **argv)
 	 */
 
 	if (argc < 1) {
-		complain(0, "Need db argument.\n");
+		elog_complain(0, "Need db argument.\n");
 		usage();
 		exit(1);
 	}
@@ -271,7 +266,7 @@ main(int argc, char **argv)
 	argc--;
 	argv++;
 	if (argc < 1) {
-		complain(0, "Need orb argument.\n");
+		elog_complain(0, "Need orb argument.\n");
 		usage();
 		exit(1);
 	}
@@ -279,7 +274,7 @@ main(int argc, char **argv)
 	argc--;
 	argv++;
 	if (argc > 0) {
-		complain(0, "Unrecognized argument '%s'.\n", *argv);
+		elog_complain(0, "Unrecognized argument '%s'.\n", *argv);
 		usage();
 		exit(1);
 	}
@@ -312,7 +307,7 @@ main(int argc, char **argv)
 	mtimes = malloc(ntables * sizeof(double));
 	lddates = malloc(ntables * sizeof(double));
 	bury_times = malloc(ntables * sizeof(double));
-	static_flags = malloc(ntables * sizeof(int));
+	static_flags = malloc(ntables * sizeof(long));
 	if (statefilename) {
 		if (exhume(statefilename, &Stop, 10, mortician)) {
 			elog_notify(0, "read old state file\n");

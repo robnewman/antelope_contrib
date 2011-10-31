@@ -1,6 +1,8 @@
 
 DATA = \
 	balerlist \
+	calplot \
+	calib_request \
 	dlcmd_cal \
 	dlevent \
 	moment_tensor_images \

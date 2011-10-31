@@ -180,7 +180,7 @@ Arr *build_stachan_list(Pf *pf, int *nchan,int verbose)
 		fprintf(stdout,"Station   Channel_code    Channel_number\n");
 	a = newarr(0);
 	t = pfget_tbl(pf,"channels");
-	if(t==NULL) die(0,"Parameter file error:  no channels table\n");
+	if(t==NULL) elog_die(0,"Parameter file error:  no channels table\n");
 	for(i=0;i<maxtbl(t);++i)
 	{
 		line = gettbl(t,i);
@@ -188,7 +188,7 @@ Arr *build_stachan_list(Pf *pf, int *nchan,int verbose)
 		key = make_key(sta,chan);
 		channel_number = (int *) malloc(sizeof(int));
 		if(channel_number == NULL) 
-			die(0,"malloc error for channel_number\n");
+			elog_die(0,"malloc error for channel_number\n");
 		*channel_number = i;
 		setarr(a,key,(void *)channel_number);
 		if(verbose)
@@ -238,14 +238,14 @@ Arr *check_tables(Dbptr db, Pf *pf)
 	Tbl *t;
 	Dbptr dbtmp;
 	int table_ok;
-	int nrec;
+	long int nrec;
 	Arr *a;
 
 	a = newarr(0);
 	t = pfget_tbl(pf,"join_tables");
 	if(t == NULL)
 	{
-		die(0,"No list of tables to be joined\n");
+		elog_die(0,"No list of tables to be joined\n");
 	}
 	for(i=0;i<maxtbl(t);++i)
 	{
@@ -267,7 +267,7 @@ Arr *check_tables(Dbptr db, Pf *pf)
 				table_ok = 0;
 		}
 		ilogic = (int *) malloc(sizeof(int));
-		if(ilogic == NULL) die(0,"malloc error\n");
+		if(ilogic == NULL) elog_die(0,"malloc error\n");
 		*ilogic = table_ok;
 		setarr(a,table,ilogic);
 	}
@@ -290,7 +290,7 @@ void check_for_required_tables(Arr *tabarray)
 		elog_complain(0,"Cannot find required table wfdisc in db\n");
 		++need_to_die;
 	}
-	if(need_to_die) die(0,"Cannot proceed without required tables\n");
+	if(need_to_die) elog_die(0,"Cannot proceed without required tables\n");
 }
 
 /* This routine cautiously joins tables defined by "join_tables"
@@ -316,7 +316,7 @@ Dbptr join_tables(Dbptr db, Pf *pf, Arr *tables)
 	int *ilogic;
 	Tbl *t;
 	Dbptr dbj;
-	int nrec;
+	long int nrec;
 	int i;
 	int ntables=0;
 
@@ -326,7 +326,7 @@ Dbptr join_tables(Dbptr db, Pf *pf, Arr *tables)
 	t = pfget_tbl(pf,"join_tables");
 	if(t == NULL)
 	{
-		die(0,"No list of tables to be joined\n");
+		elog_die(0,"No list of tables to be joined\n");
 	}
 	for(i=0;i<maxtbl(t);++i)
 	{
@@ -334,7 +334,7 @@ Dbptr join_tables(Dbptr db, Pf *pf, Arr *tables)
 		ilogic = (int *)getarr(tables,table_name);
 		if(ilogic == NULL) 
 		{
-			die(0,"Table %s was not handled previously by check_tables.\nProgramming logic error\n",
+			elog_die(0,"Table %s was not handled previously by check_tables.\nProgramming logic error\n",
 				table_name);
 		}
 		else if(*ilogic)
@@ -343,7 +343,7 @@ Dbptr join_tables(Dbptr db, Pf *pf, Arr *tables)
 				dbj = dblookup(db,0,table_name,0,0);
 			else
 				dbj=dbjoin(dbj,dblookup(db,0,table_name,0,0),
-					0,0,0,0,0);
+					NULL,NULL,0,NULL,0);
 			++ntables;
 			dbquery(dbj,dbRECORD_COUNT,&nrec);
 			if(nrec == 0)
@@ -365,7 +365,7 @@ void set_shot_variable(Dbptr db, Arr *tables, int evid, SegyHead *h)
 {
 	int *ok;
 	char ss_string[30];
-	int ntest;
+	long int ntest;
 	double dnorth, deast, elev, edepth;
 
 	ok = getarr(tables,"shot");
@@ -393,7 +393,7 @@ void set_shot_variable(Dbptr db, Arr *tables, int evid, SegyHead *h)
 			"deast", &deast,
 			"elev", &elev,
 			"edepth",&edepth,
-				0) == dbINVALID) 
+				NULL) == dbINVALID) 
 		{
 			elog_complain(0,"dbgetv error for evid %d\nShot coordinates will not be saved in segy headers\n",
 				evid);
@@ -427,9 +427,9 @@ flipping the sign when appopriate.
 void repair_gaps(Dbptr trdb)
 {
 	Trsample *trdata;
-	int nsamp;
+	long int nsamp;
 	char datatype[4];
-	int ntraces;
+	long int ntraces;
 	int i,i0;
 	Wftype *g;
 
@@ -440,9 +440,9 @@ void repair_gaps(Dbptr trdb)
 			"datatype",datatype,
 			"data",&trdata,
 			"nsamp",&nsamp,
-		0) == dbINVALID)
+		NULL) == dbINVALID)
 		{
-			die(0,"dbgetv error during gap processing\n");
+			elog_die(0,"dbgetv error during gap processing\n");
 		}
 		g = trwftype(datatype);
 		/* this function is supposed to set values to g->fill*/
@@ -523,7 +523,7 @@ int main(int argc, char **argv)
 	Dbptr trdbss;  
 	int nsamp0;
 	double time0, endtime0, samprate0;
-	int nsamp;
+	long int nsamp;
 	double samprate;
 	int i,j;
 	char stime[30],etime[30];
@@ -539,9 +539,10 @@ int main(int argc, char **argv)
 	char refsta[10];
 	int total_traces=0;
 	char *time_str;
-	int evid,shotid=1;
+	long int evid,shotid=1;
 	int rotate=0;
-	int ntraces, ichan;
+	long int ntraces;
+        int ichan;
 	int map_to_cdp;  /* logical switch to output data like cdp stacked data */
 	char *fmt="%Y %j %H %M %S %s";
 	char *pfname;
@@ -603,7 +604,7 @@ r
 	elog_init(argc, argv);
 
 	if(pfread(pfname,&pf)) 
-		die(0,"pfread error for pf file %s.pf\n",argv[0]);
+		elog_die(0,"pfread error for pf file %s.pf\n",argv[0]);
 	/* rotation parameters */
 	rotate=pfget_boolean(pf,"rotate");
 	if(rotate)
@@ -666,9 +667,9 @@ r
 	table_list = check_tables(db,pf);
 	check_for_required_tables(table_list);
 	dbj = join_tables(db,pf,table_list);
-	if(dbj.record == dbINVALID) die(0,"dbjoin error\n");
+	if(dbj.record == dbINVALID) elog_die(0,"dbjoin error\n");
 	if(substr!=NULL) dbj=dbsubset(dbj,substr,0);
-	int ndbrows;
+	long int ndbrows;
 	dbquery(dbj,dbRECORD_COUNT,&ndbrows);
 	if(ndbrows<=0)
 	{
@@ -704,11 +705,11 @@ r
 	algorithm a lot. */
 	traces = matrix(0,nchan,0,nsamp0);
 	if(traces == NULL) 
-		die(0,"Cannot alloc trace data matrix work space of size %d by %d\n",
+		elog_die(0,"Cannot alloc trace data matrix work space of size %d by %d\n",
 			nchan, nsamp0);
 	header = (SegyHead *)calloc((size_t)nchan,sizeof(SegyHead));
 	if(header == NULL)
-			die(0,"Cannot alloc memory for %d segy header workspace\n",nchan);
+			elog_die(0,"Cannot alloc memory for %d segy header workspace\n",nchan);
 	if(write_reel_headers)
 	{
 
@@ -770,7 +771,7 @@ r
 		if(input_source_coordinates)
 		{
 			char stmp[40];
-			sscanf(s,"%s%d%lf%lf%lf",stmp,&shotid,&slon,&slat,&selev);
+			sscanf(s,"%s%ld%lf%lf%lf",stmp,&shotid,&slon,&slat,&selev);
 			time0=str2epoch(stmp);
 		}
 		else
@@ -785,7 +786,7 @@ r
 		{
 			if(Verbose) 
 			{
-			  fprintf(stdout,"trload_css failed for shotid=%d",shotid);
+			  fprintf(stdout,"trload_css failed for shotid=%ld",shotid);
 			  fprintf(stdout,"  No data in time range %s to %s\n",
 			  	strtime(time0),strtime(endtime0) );
 			  fprintf(stdout,"No data written for this shotid block.");
@@ -815,7 +816,7 @@ r
 			fprintf(stdout,"Station  chan_name  chan_number seq_number shotid  evid\n");
 		trdb = dbsort(trdb,sortkeys,0,0);
 		dbquery(trdb,dbRECORD_COUNT,&ntraces);
-		if(Verbose) fprintf(stdout,"Read %d traces for event at time%s\n",
+		if(Verbose) fprintf(stdout,"Read %ld traces for event at time%s\n",
 			ntraces,strtime(time0));
 		for(trdb.record=0;trdb.record<ntraces;++trdb.record)
 		{
@@ -834,37 +835,40 @@ r
 			    "dnorth",&dnorth,
 			    "deast",&deast,
 			    "edepth",&edepth,
-					0) == dbINVALID)
+					NULL) == dbINVALID)
 			{
-				elog_complain(0," dbgetv error reading record %d\nTrace will be skipped for station %s and channel %s\n",
+				elog_complain(0," dbgetv error reading record %ld\nTrace will be skipped for station %s and channel %s\n",
 				trdb.record,sta,chan);
 				continue;
 			}
-			if(samprate != samprate0)
+			/* Allow 1 percent samprate error before killing */
+			double fsrskew=fabs((samprate-samprate0)/samprate0);
+			double frskewcut=0.01;
+			if(fsrskew>frskewcut) 
 			{
-				elog_complain(0,"%s:%s sample rate %f != base sample rate of %f\nTrace skipped -- segy requires fixed sample rates\n",
+				elog_complain(0,"%s:%s sample rate %f is significantly different from base sample rate of %f\nTrace skipped -- segy requires fixed sample rates\n",
 					sta,chan,samprate,samprate0);
 				continue;
 			}
 			if(nsamp > nsamp0)
 			{
-				elog_complain(0,"%s:%s trace has extra samples=%d\nTruncated to length %d\n",
+				elog_complain(0,"%s:%s trace has extra samples=%ld\nTruncated to length %d\n",
 					sta, chan, nsamp, nsamp0);
 				nsamp = nsamp0;
 			}
 			else if(nsamp < nsamp0)
 			{
-				elog_complain(0,"%s:%s trace is shorter than expected %d samples\nZero padded after sample %d\n",
+				elog_complain(0,"%s:%s trace is shorter than expected %d samples\nZero padded after sample %ld\n",
 					sta, chan, nsamp0, nsamp);
 			}
 
 			ichan = get_channel_index(channels,sta,chan);
-			if(ichan > nchan) die(0,"Channel index %d outside limit of %d\nCannot continue\n",
+			if(ichan > nchan) elog_die(0,"Channel index %d outside limit of %d\nCannot continue\n",
 					ichan, nchan);
 			if(ichan >= 0)
 			{
 				if(Verbose) 
-				   fprintf(stdout,"%s:%s\t%-d\t%-d\t%-d\t%-d\n",
+				   fprintf(stdout,"%s:%s\t%-d\t%-d\t%-ld\t%-ld\n",
 					sta,chan,ichan+1,
                                         header[ichan].reelSeq,
 					shotid, evid);
@@ -978,10 +982,10 @@ r
 		for(i=0;i<nchan;++i)
 		{
 			if(fwrite((void *)(&(header[i])),sizeof(SegyHead),1,fp) != 1)
-				die(0,"Write error on header for trace %d\n",total_traces+i);		
+				elog_die(0,"Write error on header for trace %d\n",total_traces+i);		
 			if(fwrite((void *)traces[i],sizeof(float),
 					(size_t)nsamp0,fp) != nsamp0)
-				die(0,"Write error while writing data for trace %d\n",
+				elog_die(0,"Write error while writing data for trace %d\n",
 					total_traces+i);
 		}
 		total_traces += nchan;

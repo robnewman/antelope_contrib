@@ -3040,13 +3040,10 @@ New Row 3 in 'arrival' [sync 'd19ef347f1c5c11aa2eb817f03e72d154ba1abb1']: CHM   
 New Row 4 in 'arrival' [sync 'b8c8cf5affadae025a5f0708091d1117bd8c5c7b']: USP      706139752.40005     4853  1992138       -1        7 BHZ      P        -  0.151   -1.00   -1.00   -1.00   -1.00   -1.00  -1.000        2.6    0.50 -999.00 - ..       3.89 - dbp:rogerh:9333       -1   790465413.00000
 
 Shortening arrival table:
-Deleted row from 'arrival' with sync '8a31aff746d21ec917e72cfbb14c3361526be0f6'
 Deleted row from 'arrival' with sync '0d61a9b8c25268acd002fc42f305f420a88733bb'
 Deleted row from 'arrival' with sync '78614c3070304bc7422ef6c43052a33e9874eb28'
 Deleted row from 'arrival' with sync 'd19ef347f1c5c11aa2eb817f03e72d154ba1abb1'
 Deleted row from 'arrival' with sync 'b8c8cf5affadae025a5f0708091d1117bd8c5c7b'
-New Row 0 in 'arrival' [sync '8a31aff746d21ec917e72cfbb14c3361526be0f6']: KMI      706139638.90564     4849  1992138       -1     1083 BHN      S        -  2.275   -1.00   -1.00   -1.00   -1.00   -1.00  -1.000       -1.0   -1.00 -999.00 - ..      -1.00 - dbp:rogerh:9333       -1   790465413.00000
-
 Lengthening arrival table:
 New Row 1 in 'arrival' [sync '0d61a9b8c25268acd002fc42f305f420a88733bb']: AAK      706139746.35000     4850  1992138       -1       28 BHZ      P        -  0.098   -1.00   -1.00   -1.00   -1.00   -1.00  -1.000        2.7    0.40 -999.00 - ..       6.40 - dbp:rogerh:9333       -1   790465413.00000
 

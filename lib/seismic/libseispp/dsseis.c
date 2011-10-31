@@ -61,25 +61,15 @@ static Arr *resp_arr=NULL;
  *	0 if OK or -1 if ERROR.
  */
 
-int
-grdb_sc_loadcss (dbin, net_expr, sta_expr, chan_expr, tstart, tend,
-		 coords, ir, orient, dbscgr, dbsc)
-
-Dbptr            dbin;
-char *                 net_expr;
-char *                           sta_expr;
-char *                                     chan_expr;
-double                                                tstart, tend;
-int              coords, ir, orient;
-Dbptr *                              dbscgr;
-Dbptr *                                      dbsc;
-
+int grdb_sc_loadcss (Dbptr dbin, char *net_expr, char *sta_expr,
+        char *chan_expr, double tstart, double tend, 
+        int coords, int ir, int orient, Dbptr *dbscgr, Dbptr *dbsc)
 {
 	Dbptr dbout, db, dbout2;
 	char string[1024];
 	char string2[1024];
 	char sta_wfdisc[32], chan_wfdisc[32];
-	int i, j, n, sensor=0, ok;
+	long i, j, n, sensor=0, ok;
 	Tbl *pat1, *pat2;
 	Tbl *sortfields, *groupfields;
 	FILE *file;
@@ -115,7 +105,7 @@ Dbptr *                                      dbsc;
 	}
         dbquery (dbout, dbRECORD_COUNT, &n);
         if (n < 1) {
-		register_error (0, "grdb_sc_loadcss: No wfdisc rows to process.\n");
+		elog_log(0, "grdb_sc_loadcss: No wfdisc rows to process.\n");
 		return (-1);
         }
 
@@ -130,18 +120,18 @@ Dbptr *                                      dbsc;
 		
         	dbquery (dbout, dbRECORD_COUNT, &n);
         	if (n < 1) {
-			register_error (0, "grdb_sc_loadcss: No data rows to process.\n");
+			elog_log(0, "grdb_sc_loadcss: No data rows to process.\n");
 			return (-1);
         	}
         	for (dbout.record=0; dbout.record<n; dbout.record++) {
         		if (dbgetv (dbout, 0, "wfdisc.sta", sta_wfdisc,
         				"wfdisc.chan", chan_wfdisc,
-        				"site.sta", string, 0) == dbINVALID) {
-			    register_error (0, "grdb_sc_loadcss: dbgetv() error while checking site.\n");
+        				"site.sta", string, NULL ) == dbINVALID) {
+			    elog_log(0, "grdb_sc_loadcss: dbgetv() error while checking site.\n");
 			    return (-1);
 			}
         		if (coords > 1 && strcmp(string, sta_wfdisc)) {
-        			register_error (0, "grdb_sc_loadcss: Cannot find site parameters for %s %s.\n", 
+        			elog_log(0, "grdb_sc_loadcss: Cannot find site parameters for %s %s.\n", 
         									sta_wfdisc, chan_wfdisc);
         			return (-1);
         		}
@@ -155,18 +145,18 @@ Dbptr *                                      dbsc;
 		is_view=1;
         	dbquery (dbout, dbRECORD_COUNT, &n);
         	if (n < 1) {
-			register_error (0, "grdb_sc_loadcss: No data rows to process.\n");
+			elog_log(0, "grdb_sc_loadcss: No data rows to process.\n");
 			return (-1);
         	}
         	for (dbout.record=0; dbout.record<n; dbout.record++) {
         		if (dbgetv (dbout, 0, "wfdisc.sta", sta_wfdisc,
         				"wfdisc.chan", chan_wfdisc,
-        				"sensor.sta", string, 0) == dbINVALID) {
-			    register_error (0, "grdb_sc_loadcss: dbgetv() error while checking sensor.\n");
+        				"sensor.sta", string, NULL ) == dbINVALID) {
+			    elog_log(0, "grdb_sc_loadcss: dbgetv() error while checking sensor.\n");
 			    return (-1);
 			}
         		if (ir > 1 && strcmp(string, sta_wfdisc)) {
-        			register_error (0, "grdb_sc_loadcss: Cannot find sensor parameters for %s %s.\n", 
+        			elog_log(0, "grdb_sc_loadcss: Cannot find sensor parameters for %s %s.\n", 
         									sta_wfdisc, chan_wfdisc);
         			return (-1);
         		}
@@ -179,7 +169,7 @@ Dbptr *                                      dbsc;
 		is_view=1;
         	dbquery (dbout, dbRECORD_COUNT, &n);
         	if (n < 1) {
-			register_error (0, "grdb_sc_loadcss: No data rows to process.\n");
+			elog_log(0, "grdb_sc_loadcss: No data rows to process.\n");
 			return (-1);
         	}
         	for (dbout.record=0; dbout.record<n; dbout.record++) {
@@ -187,12 +177,12 @@ Dbptr *                                      dbsc;
         				"wfdisc.chan", chan_wfdisc,
         				"sensor.inid", &j,
         				"instrument.insname", string2,
-        				"instrument.inid", &i, 0) == dbINVALID) {
-			    register_error (0, "grdb_sc_loadcss: dbgetv() error while checking instrument.\n");
+        				"instrument.inid", &i, NULL ) == dbINVALID) {
+			    elog_log(0, "grdb_sc_loadcss: dbgetv() error while checking instrument.\n");
 			    return (-1);
 			}
         		if (ir > 1 && (i != j)) {
-        			register_error (0, "grdb_sc_loadcss: Cannot find instrument parameters for %s %s.\n", 
+        			elog_log(0, "grdb_sc_loadcss: Cannot find instrument parameters for %s %s.\n", 
         									sta_wfdisc, chan_wfdisc);
         			return (-1);
         		}
@@ -200,7 +190,7 @@ Dbptr *                                      dbsc;
 				if (resp_arr == NULL) {
 					resp_arr = newarr (0);
 					if (resp_arr == NULL) {
-        					register_error (0, "grdb_sc_loadcss: newarr() error.\n");
+        					elog_log(0, "grdb_sc_loadcss: newarr() error.\n");
         					return (-1);
 					}
 				}
@@ -210,12 +200,12 @@ Dbptr *                                      dbsc;
 					file = fopen (string, "r");
 					if (file == NULL) {
 						if (ir > 1) {
-        						register_error (1, "grdb_sc_loadcss: fopen('%s') error.\n", string);
+        						elog_log(1, "grdb_sc_loadcss: fopen('%s') error.\n", string);
         						return (-1);
 						}
 					} else {
 						if (read_response (file, &resp)) {
-        						register_error (0, "grdb_sc_loadcss: read_response('%s') error.\n", string);
+        						elog_log(0, "grdb_sc_loadcss: read_response('%s') error.\n", string);
         						return (-1);
 						}
 						fclose (file);
@@ -231,9 +221,6 @@ Dbptr *                                      dbsc;
 		if(is_view)db_to_clear=dbout;
         	db = dblookup (dbin, 0, "sitechan", 0, 0);
         	dbout2 = dbjoin (dbout, db, 0, 0, 1, 0, 0);
-//fprintf(stderr,"Top of offending section.  About to create dbout2\n");
-//fprintf(stderr,"new table =%d  This table is freed later %d\n",
-//	dbout2.table, db_to_clear.table);
 		is_view=1;
         	dbquery (dbout2, dbRECORD_COUNT, &n);
         	if (n < 1) {
@@ -242,7 +229,7 @@ Dbptr *                                      dbsc;
         		for (dbout2.record=0; dbout2.record<n; dbout2.record++) {
         			dbgetv (dbout2, 0, "wfdisc.sta", sta_wfdisc,
         				"wfdisc.chan", chan_wfdisc,
-        				"sitechan.sta", string, 0);
+        				"sitechan.sta", string, NULL );
         			if (strcmp(string, sta_wfdisc)) {
         				ok = 0;
         				break;
@@ -252,17 +239,11 @@ Dbptr *                                      dbsc;
 		if (ok) {
 			dbout = dbout2;
 			if(is_view) dbfree(db_to_clear);
-//fprintf(stderr,"In ok block, freeing table=%d\n",db_to_clear.table);
 		} else {
 			if (!sensor) {
         			db = dblookup (dbin, 0, "sensor", 0, 0);
 				if(is_view)db_to_clear=dbout;
-//fprintf(stderr,"Before problem dbjoin, dbout.table=%d\n",dbout.table);
 	       			dbout = dbjoin (dbout, db, 0, 0, 1, 0, 0);
-//fprintf(stderr,"In if not sensor block\n");
-//fprintf(stderr,"new table =%d  About to free table %d\n",
-//	dbout.table, db_to_clear.table);
-//fprintf(stderr,"Also freeing table=%d\n",dbout2.table);
 				if(is_view) 
 				{
 					dbfree(dbout2);
@@ -271,18 +252,18 @@ Dbptr *                                      dbsc;
 				is_view=1;
         			dbquery (dbout, dbRECORD_COUNT, &n);
         			if (n < 1) {
-					register_error (0, "grdb_sc_loadcss: No data rows to process.\n");
+					elog_log(0, "grdb_sc_loadcss: No data rows to process.\n");
 					return (-1);
         			}
         			for (dbout.record=0; dbout.record<n; dbout.record++) {
         				if (dbgetv (dbout, 0, "wfdisc.sta", sta_wfdisc,
         						"wfdisc.chan", chan_wfdisc,
-        						"sensor.sta", string, 0) == dbINVALID) {
-			    			register_error (0, "grdb_sc_loadcss: dbgetv() error while checking sensor.\n");
+        						"sensor.sta", string, NULL ) == dbINVALID) {
+			    			elog_log(0, "grdb_sc_loadcss: dbgetv() error while checking sensor.\n");
 			    			return (-1);
 					}
         				if (orient > 1 && strcmp(string, sta_wfdisc)) {
-        					register_error (0, "grdb_sc_loadcss: Cannot find sensor parameters for %s %s.\n", 
+        					elog_log(0, "grdb_sc_loadcss: Cannot find sensor parameters for %s %s.\n", 
         											sta_wfdisc, chan_wfdisc);
         					return (-1);
         				}
@@ -291,38 +272,36 @@ Dbptr *                                      dbsc;
         		db = dblookup (dbin, 0, "sitechan", 0, 0);
         		pat1 = newtbl(1);
         		if (pat1 == NULL) {
-        			register_error (0, "grdb_sc_loadcss: newtbl() error.\n");
+        			elog_log(0, "grdb_sc_loadcss: newtbl() error.\n");
         			return (-1);
         		}
         		pat2 = newtbl(1);
         		if (pat2 == NULL) {
-        			register_error (0, "grdb_sc_loadcss: newtbl() error.\n");
+        			elog_log(0, "grdb_sc_loadcss: newtbl() error.\n");
         			return (-1);
         		}
 			if(is_view)db_to_clear=dbout;
         		settbl (pat1, 0, strdup("sensor.chanid"));
         		settbl (pat2, 0, strdup("sitechan.chanid"));
         		dbout = dbjoin (dbout, db, &pat1, &pat2, 1, 0, 0);
-//fprintf(stderr,"new table =%d  About to free table %d\n",
-//dbout.table, db_to_clear.table);
 			if(is_view) dbfree(db_to_clear);
 			is_view=1;
         		freetbl (pat1, free);
         		freetbl (pat2, free);
         		dbquery (dbout, dbRECORD_COUNT, &n);
         		if (n < 1) {
-				register_error (0, "grdb_sc_loadcss: No data rows to process.\n");
+				elog_log(0, "grdb_sc_loadcss: No data rows to process.\n");
 				return (-1);
         		} else {
         			for (dbout.record=0; dbout.record<n; dbout.record++) {
         				if (dbgetv (dbout, 0, "wfdisc.sta", sta_wfdisc,
         					"wfdisc.chan", chan_wfdisc,
-        					"sitechan.sta", string, 0) == dbINVALID) {
-			    		   register_error (0, "grdb_sc_loadcss: dbgetv() error while checking sitechan.\n");
+        					"sitechan.sta", string, NULL ) == dbINVALID) {
+			    		   elog_log(0, "grdb_sc_loadcss: dbgetv() error while checking sitechan.\n");
 			    		   return (-1);
 					}
         				if (orient > 1 && strcmp(string, sta_wfdisc)) {
-        					register_error (0, "grdb_sc_loadcss: Cannot find sitechan parameters for %s %s.\n", 
+        					elog_log(0, "grdb_sc_loadcss: Cannot find sitechan parameters for %s %s.\n", 
         											sta_wfdisc, chan_wfdisc);
         					return (-1);
         				}
@@ -336,19 +315,17 @@ Dbptr *                                      dbsc;
 	if(is_view)db_to_clear=dbout;
 	sortfields = newtbl (3);
 	if (sortfields == NULL) {
-		register_error (0, "grdb_sc_loadcss: newtbl() error.\n");
+		elog_log(0, "grdb_sc_loadcss: newtbl() error.\n");
 		return (-1);
 	}
 	settbl (sortfields, 0, strdup("wfdisc.sta"));
 	settbl (sortfields, 1, strdup("wfdisc.chan"));
 	settbl (sortfields, 2, strdup("wfdisc.time"));
         *dbsc = dbsort (dbout, sortfields, 0, 0);
-//fprintf(stderr,"new table =%d  About to free table %d\n",
-//	dbsc->table, db_to_clear.table);
 	if(is_view) dbfree(db_to_clear);
 	groupfields = newtbl (2);
 	if (groupfields == NULL) {
-		register_error (0, "grdb_sc_loadcss: newtbl() error.\n");
+		elog_log(0, "grdb_sc_loadcss: newtbl() error.\n");
 		return (-1);
 	}
 	settbl (groupfields, 0, strdup("sta"));
@@ -392,32 +369,23 @@ Dbptr *                                      dbsc;
  *	0 if OK or -1 if ERROR.
  */
 
-int
-grdb_sc_getstachan (dbscgr, record, sta, chan, nsegs, time, endtime)
-
-Dbptr               dbscgr;
-int			    record;
-char *				    sta;
-char *				         chan;
-int *                                          nsegs;
-double *                                              time;
-double *                                                    endtime;
-
+int grdb_sc_getstachan(Dbptr dbscgr, int record, char *sta, char *chan,
+        int *nsegs, double *time, double *endtime)
 {
 	Dbptr db;
-	int is, ie;
+	long is, ie;
 
 	if (record >= 0) dbscgr.record = record;
-	if (dbgetv (dbscgr, 0, "sta", sta, "chan", chan, "bundle", &db, 0) == dbINVALID) {
-        	register_error (0, "grdb_sc_getstachan: dbgetv() error.\n");
+	if (dbgetv (dbscgr, 0, "sta", sta, "chan", chan, "bundle", &db, NULL ) == dbINVALID) {
+        	elog_log(0, "grdb_sc_getstachan: dbgetv() error.\n");
         	return (-1);
 	}
         dbget_range (db, &is, &ie);
-	*nsegs = ie - is;
+	*nsegs = (int)(ie - is);
         db.record = is;
-	dbgetv (db, 0, "time", time, 0);
+	dbgetv (db, 0, "time", time, NULL );
         db.record = ie-1;
-	dbgetv (db, 0, "endtime", endtime, 0);
+	dbgetv (db, 0, "endtime", endtime, NULL );
 
 	/* Normal exit. */
 
@@ -479,23 +447,13 @@ double *                                                    endtime;
  *	0 if OK or -1 if ERROR.
  */
 
-grtr_sc_create (dbsc, net_expr, sta_expr, chan_expr, tstart, tend, 
-		gap, calib, ir, trscgr)
-
-Dbptr           dbsc;
-char *                net_expr;
-char *                          sta_expr;
-char *                                    chan_expr;
-double                                               tstart, tend;
-char *          gap;
-int                  calib;
-int                         ir;
-Dbptr *                            trscgr;
-
+int grtr_sc_create(Dbptr dbsc, char *net_expr, char *sta_expr, 
+        char *chan_expr, double tstart, double tend, char *gap,
+        int calib, int ir, Dbptr *trscgr)
 {
 	char time_str[100];
 	char endtime_str[100];
-	int ret, n, n2, i;
+	long ret, n, n2, i;
 	double time, time2, endtime, endtime2;
 	char sta[32], chan[32];
 	char sta2[32], chan2[32];
@@ -527,7 +485,7 @@ Dbptr *                            trscgr;
 	}
         dbquery (dbsc, dbRECORD_COUNT, &n);
         if (n < 1) {
-		register_error (0, "grtr_sc_create: No data to process.\n");
+		elog_log(0, "grtr_sc_create: No data to process.\n");
 		if (new_view) dbfree (dbsc);
 		return (-1);
         }
@@ -537,8 +495,8 @@ Dbptr *                            trscgr;
 	if (tstart == 0.0 && tend == 0.0) {
 		dbquery (dbsc, dbRECORD_COUNT, &n);
 		for (dbsc.record = 0; dbsc.record < n; dbsc.record++) {
-			if (dbgetv (dbsc, 0, "time", &time, "endtime", &endtime, 0) == dbINVALID) {
-        			register_error (0, "grtr_sc_create: dbgetv() error.\n");
+			if (dbgetv (dbsc, 0, "time", &time, "endtime", &endtime, NULL ) == dbINVALID) {
+        			elog_log(0, "grtr_sc_create: dbgetv() error.\n");
 				if (new_view) dbfree (dbsc);
         			return (-1);
 			}
@@ -555,13 +513,6 @@ Dbptr *                            trscgr;
         sprintf (endtime_str, "(%.5f)", tend);
 	dbsc.record = dbALL;
         ret = trload_css (dbsc, time_str, endtime_str, trscgr, "wfdisc", 0);
-/* DEBUG: Bypass this error for now
-        if (ret != 0) {
-        	register_error (0, "grtr_sc_create: trload_cssgrp() error.\n");
-		if (new_view) dbfree (dbsc);
-        	return (-1);
-	}
-*/
 
 	/* Split, splice, apply calib */
 
@@ -572,11 +523,11 @@ Dbptr *                            trscgr;
 		trsplit (*trscgr, 0, 0);
 		trsplice (*trscgr, 0.5, 0, 0);
 	} else if (!strcmp(string, "interp")) {
-		register_error (0, "grtr_sc_create: gap value '%s' not implemented yet.\n", string);
+		elog_log(0, "grtr_sc_create: gap value '%s' not implemented yet.\n", string);
 		if (new_view) dbfree (dbsc);
 		return (-1);
 	} else if (!strcmp(string, "zero")) {
-		register_error (0, "grtr_sc_create: gap value '%s' not implemented yet.\n", string);
+		elog_log(0, "grtr_sc_create: gap value '%s' not implemented yet.\n", string);
 		if (new_view) dbfree (dbsc);
 		return (-1);
 	} else if (!strcmp(string, "drop")) {
@@ -590,8 +541,8 @@ Dbptr *                            trscgr;
 		db = *trscgr;
 		for (trscgr->record=0; trscgr->record<n; (trscgr->record)++) {
 			if (dbgetv (*trscgr, 0, "sta", sta, "chan", chan,
-					0) == dbINVALID) {
-        			register_error (0, "grtr_sc_create: dbgetv() error.\n");
+					NULL ) == dbINVALID) {
+        			elog_log(0, "grtr_sc_create: dbgetv() error.\n");
 				if (new_view) dbfree (dbsc);
         			return (-1);
 			}
@@ -620,7 +571,7 @@ Dbptr *                            trscgr;
 			dbcrunch (db);
 		}
 	} else {
-		register_error (0, "grtr_sc_create: Illegal gap value '%s'.\n", string);
+		elog_log(0, "grtr_sc_create: Illegal gap value '%s'.\n", string);
 		if (new_view) dbfree (dbsc);
 		return (-1);
 	}
@@ -632,20 +583,20 @@ Dbptr *                            trscgr;
 	{
 	/* Run this section if instrument response is to be loaded */
 	    dbsc.record = 0;
-	    if (dbgetv (dbsc, 0, "instrument.inid", &i, 0) != dbINVALID && i >= 0) {
+	    if (dbgetv (dbsc, 0, "instrument.inid", &i, NULL ) != dbINVALID && i >= 0) {
 		dbquery (*trscgr, dbRECORD_COUNT, &n);
 		dbquery (dbsc, dbRECORD_COUNT, &n2);
 		for (trscgr->record=0; trscgr->record<n; (trscgr->record)++) {
 			if (dbgetv (*trscgr, 0, "sta", sta, "chan", chan,
-					"time", &time, 0) == dbINVALID) {
-        			register_error (0, "grtr_sc_create: dbgetv() error.\n");
+					"time", &time, NULL ) == dbINVALID) {
+        			elog_log(0, "grtr_sc_create: dbgetv() error.\n");
 				if (new_view) dbfree (dbsc);
         			return (-1);
 			}
 			for (dbsc.record=0; dbsc.record<n2; dbsc.record++) {
 				if (dbgetv (dbsc, 0, "sta", sta2, "chan", chan2,
-					"time", &time2, "endtime", &endtime2, 0) == dbINVALID) {
-        				register_error (0, "grtr_sc_create: dbgetv() error.\n");
+					"time", &time2, "endtime", &endtime2, NULL ) == dbINVALID) {
+        				elog_log(0, "grtr_sc_create: dbgetv() error.\n");
 					if (new_view) dbfree (dbsc);
         				return (-1);
 				}
@@ -655,13 +606,13 @@ Dbptr *                            trscgr;
 				if (time >= endtime2) continue;
 				dbextfile (dbsc, "instrument", string);
 				resp = (Response *) getarr (resp_arr, string);
-				dbputv (*trscgr, 0, "response", resp, 0);
+				dbputv (*trscgr, 0, "response", resp, NULL );
 				break;
 			}
 		}
 	    }
 	}
-	clear_register (0);
+	elog_clear_register(0);
 	if (new_view) dbfree (dbsc);
 
 	/* Normal exit. */

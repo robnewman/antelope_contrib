@@ -1,6 +1,5 @@
 
-#include "tr.h"
-#include "msd.h"
+#include "liss2orb.h"
 
 int 
 UNSEED ( char *seed, int size, Steim **confp, double *time, double *samprate, int *nsamp, 
@@ -34,7 +33,7 @@ UNSEED ( char *seed, int size, Steim **confp, double *time, double *samprate, in
 	    elog_clear ();
 	    retcode = -4 ;
 	} else {
-	    register_error ( 0, 
+	    elog_log( 0, 
 		"Problems parsing SEED header or 1000 blockette.\n" ) ;
 	    retcode = -2 ;
 	}
@@ -63,10 +62,10 @@ UNSEED ( char *seed, int size, Steim **confp, double *time, double *samprate, in
 		case 0:	/* ASCII text !? */
 		    if ( ! notified_ASCII ) { 
 			notified_ASCII = 1 ;
-			complain ( 0, 
+			elog_complain( 0, 
 			    "ASCII data format not supported" );
 			hexdump ( stderr, seed, size ) ;
-			complain ( 0, "ignoring these packets hereafter" ) ; 
+			elog_complain( 0, "ignoring these packets hereafter" ) ; 
 		    }
 		    retcode = -3 ;
 		    break ;
@@ -87,9 +86,9 @@ UNSEED ( char *seed, int size, Steim **confp, double *time, double *samprate, in
 		case 2:	/* 24 bit integers */
 		    if ( ! notified_24bit ) { 
 			notified_24bit = 1 ; 
-			complain ( 0, "24 bit integers not supported" );
+			elog_complain( 0, "24 bit integers not supported" );
 			hexdump ( stderr, seed, size ) ;
-			complain ( 0, "ignoring these packets hereafter" ) ; 
+			elog_complain( 0, "ignoring these packets hereafter" ) ; 
 		    }
 		    retcode = -3 ;
 		    break ;
@@ -105,9 +104,9 @@ UNSEED ( char *seed, int size, Steim **confp, double *time, double *samprate, in
 		case 4:	/* 32 bit float */
 		    if ( ! notified_32bit ) { 
 			notified_32bit = 1 ; 
-			complain ( 0, "32 bit floats not supported" );
+			elog_complain( 0, "32 bit floats not supported" );
 			hexdump ( stderr, seed, size ) ;
-			complain ( 0, "ignoring these packets hereafter" ) ; 
+			elog_complain( 0, "ignoring these packets hereafter" ) ; 
 		    }
 		    retcode = -3 ;
 		    break ;
@@ -115,9 +114,9 @@ UNSEED ( char *seed, int size, Steim **confp, double *time, double *samprate, in
 		case 5:	/* 64 bit float */
 		    if ( ! notified_64bit ) { 
 			notified_64bit = 1 ; 
-			complain ( 0, "64 bit floats not supported" );
+			elog_complain( 0, "64 bit floats not supported" );
 			hexdump ( stderr, seed, size ) ;
-			complain ( 0, "ignoring these packets hereafter" ) ; 
+			elog_complain( 0, "ignoring these packets hereafter" ) ; 
 		    }
 		    retcode = -3 ;
 		    break ;
@@ -134,9 +133,9 @@ UNSEED ( char *seed, int size, Steim **confp, double *time, double *samprate, in
 		case 14:
 		    if ( ! notified_GEOSCOPE ) { 
 			notified_GEOSCOPE = 1 ;
-			complain ( 0, "GEOSCOPE multiplexed data not supported" );
+			elog_complain( 0, "GEOSCOPE multiplexed data not supported" );
 			hexdump ( stderr, seed, size ) ;
-			complain ( 0, "ignoring these packets hereafter" ) ; 
+			elog_complain( 0, "ignoring these packets hereafter" ) ; 
 		    }
 		    retcode = -3 ;
 		    break; 
@@ -144,9 +143,9 @@ UNSEED ( char *seed, int size, Steim **confp, double *time, double *samprate, in
 		case 15:    	/* US National Network Compression */
 		    if ( ! notified_USNN ) { 
 			notified_USNN = 1 ;
-			complain ( 0, "US National Network Compression not supported" );
+			elog_complain( 0, "US National Network Compression not supported" );
 			hexdump ( stderr, seed, size ) ;
-			complain ( 0, "ignoring these packets hereafter" ) ; 
+			elog_complain( 0, "ignoring these packets hereafter" ) ; 
 		    }
 		    retcode = -3 ;
 		    break ;
@@ -180,9 +179,9 @@ UNSEED ( char *seed, int size, Steim **confp, double *time, double *samprate, in
 		case 17:	/* Graefenberg 16 bit gain ranged */
 		    if ( ! notified_Graefenberg ) { 
 			notified_Graefenberg = 1 ;
-			complain ( 0, "Graefenberg 16 bit gain ranged not supported" );
+			elog_complain( 0, "Graefenberg 16 bit gain ranged not supported" );
 			hexdump ( stderr, seed, size ) ;
-			complain ( 0, "ignoring these packets hereafter" ) ; 
+			elog_complain( 0, "ignoring these packets hereafter" ) ; 
 		    }
 		    retcode = -3 ;
 		    break ;
@@ -190,9 +189,9 @@ UNSEED ( char *seed, int size, Steim **confp, double *time, double *samprate, in
 		case 18:	/* IPG - Strasbourg 16 bit gain ranged */
 		    if ( ! notified_Strasbourg ) { 
 			notified_Strasbourg = 1 ;
-			complain ( 0, "IPG - Strasbourg 16 bit gain ranged not supported" );
+			elog_complain( 0, "IPG - Strasbourg 16 bit gain ranged not supported" );
 			hexdump ( stderr, seed, size ) ;
-			complain ( 0, "ignoring these packets hereafter" ) ; 
+			elog_complain( 0, "ignoring these packets hereafter" ) ; 
 		    }
 		    retcode = -3 ;
 		    break; 
@@ -200,9 +199,9 @@ UNSEED ( char *seed, int size, Steim **confp, double *time, double *samprate, in
 		case 19:	/* Steim (3) compression */
 		    if ( ! notified_Steim3 ) { 
 			notified_Steim3 = 1 ;
-			complain ( 0, "Steim (3) compression not supported" );
+			elog_complain( 0, "Steim (3) compression not supported" );
 			hexdump ( stderr, seed, size ) ;
-			complain ( 0, "ignoring these packets hereafter" ) ; 
+			elog_complain( 0, "ignoring these packets hereafter" ) ; 
 		    }
 		    retcode = -3 ;
 		    break; 
@@ -222,9 +221,9 @@ UNSEED ( char *seed, int size, Steim **confp, double *time, double *samprate, in
 		case 31:	/* HGLP Format */
 		    if ( ! notified_HGLP ) { 
 			notified_Steim3 = 1 ;
-			complain ( 0, "HGLP Format not supported" );
+			elog_complain( 0, "HGLP Format not supported" );
 			hexdump ( stderr, seed, size ) ;
-			complain ( 0, "ignoring these packets hereafter" ) ; 
+			elog_complain( 0, "ignoring these packets hereafter" ) ; 
 		    }
 		    retcode = -3 ;
 		    break ;
@@ -232,15 +231,15 @@ UNSEED ( char *seed, int size, Steim **confp, double *time, double *samprate, in
 		case 32:	/* DWWSSN Gain Range Format */
 		    if ( ! notified_DWWSSN ) { 
 			notified_DWWSSN = 1 ;
-			complain ( 0, "DWWSSN Gain Range Format not supported" );
+			elog_complain( 0, "DWWSSN Gain Range Format not supported" );
 			hexdump ( stderr, seed, size ) ;
-			complain ( 0, "ignoring these packets hereafter" ) ; 
+			elog_complain( 0, "ignoring these packets hereafter" ) ; 
 		    }
 		    retcode = -3 ;
 		    break ;
 
 		default:
-		    register_error ( 0, 
+		    elog_log( 0, 
 			"unrecognized SEED 1000 encoding format %d", 
 			conf->s1000.dataformat );
 		    retcode = -1 ;

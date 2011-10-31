@@ -1,0 +1,132 @@
+.TH PYTHONPKT 3P 
+.SH NAME
+pythonPkt \- Python interface to Antelope Packet library
+.SH SYNOPSIS
+.nf
+sys.path.append( os.environ['ANTELOPE'] + '/local/data/python' )
+
+from antelope.Pkt import *
+.fi
+.SH DESCRIPTION
+The Python Interface to the Antelope Packet library allows one to perform operations 
+on Antelope orbserver packets from the Python scripting language. 
+
+Upon encountering problems, these routines will raise exceptions
+from the \fIElogException\fP class of Python Exceptions defined in
+the antelope.stock module (see pythonstock(3P)), and incorporated
+internally into this module. This class of exceptions has the several
+subclasses \fIElogLog\fP, \fIElogNotify\fP, \fIElogComplain\fP, and
+\fIElogDie\fP. \fIElogException\fP objects define the two attributes
+e.\fIseverity\fP and e.\fIstring\fP, where e.\fIstring\fP is a
+string message associated with the exception and e.\fIseverity\fP
+is an integer severity indicator which will be one of ELOG_LOG,
+ELOG_NOTIFY, ELOG_COMPLAIN, ELOG_DIE, ELOG_FAULT, ELOG_ALERT, or
+ELOG_DEBUGGING.
+
+Following are brief descriptions of the functions implemented.
+
+.SS Pkt functions
+.IP "\fBunstuffPkt\fP (srcname, time, packet, nbytes)"
+Returns an unstuffed Pkt object 
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+pkt = unstuffPkt( srcname, time, packet, nbytes )
+
+.fi
+.in
+.ft R
+.IP "\fBjoin_srcname\fP (net, sta, chan, loc, suffix, subcode)"
+Join component parts into a packet source-name
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+srcname = join_srcname(net, sta, chan, loc, suffix, subcode) 
+
+.fi
+.in
+.ft R
+.IP "\fBsplit_srcname\fP (srcname)"
+Break a packet source-name into component parts
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+(net, sta, chan, loc, suffix, subcode) = split_srcname(srcname)
+
+.fi
+.in
+.ft R
+.IP "\fBunstuffPkt\fP (srcname, time, packet, nbytes, pktid = -1)"
+Unstuff an orb packet, returning type and a packet object
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+(type, pkt) = unstuffPkt(srcname, time, packet, nbytes)
+
+pkt.srcname()
+pkt.time()
+pkt.PacketType()
+pkt.type()
+pkt.nchannels()
+pkt.pf()
+pkt.string()
+pkt.db()
+pkt.dfile()
+pkt.version()
+pkt.channels(ichannel)
+
+pktchannel = pkt.channels(0)
+
+pktchannel.time()
+pktchannel.net()
+pktchannel.sta()
+pktchannel.chan()
+pktchannel.loc()
+pktchannel.nsamp()
+pktchannel.samprate()
+pktchannel.data()
+pktchannel.calib()
+pktchannel.calper()
+pktchannel.segtype()
+pktchannel.duser1()
+pktchannel.duser2()
+pktchannel.iuser1()
+pktchannel.iuser2()
+pktchannel.iuser3()
+pktchannel.cuser1()
+pktchannel.cuser2()
+
+.fi
+.in
+.ft R
+.IP "\fBshowPkt\fP (pktid, srcname, time, packet, nbytes, mode = PKT_TERSE)"
+print the contents of a packet to stdout
+.ft CW
+.in 2c
+.nf
+.ne 3
+
+showPkt(pktid, srcname, time, packet, nbytes)
+
+showPkt(pktid, srcname, time, packet, nbytes, PKT_DUMP)
+
+.fi
+.in
+.ft R
+.SH "SEE ALSO"
+.nf
+pythondb(3y), pythonorb(3y), pythonstock(3y)
+.fi
+.SH AUTHOR
+.nf
+Kent Lindquist
+Lindquist Consulting, Inc. 
+.fi

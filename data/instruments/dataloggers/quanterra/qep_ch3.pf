@@ -1,0 +1,63 @@
+originator     Jennifer Eakins, UCSD
+last_modified  2011-04-04
+
+category	ANF 
+configuration	Q330 w/Environmental Processor, no SOH, ch3 sensor attached to QEP 
+
+description	Q330 w/Environmental Processor, no SOH, ch3 sensor attached
+dfile 		qep 		# no response, qep = dummy
+
+soh		
+soh_only	0
+
+streams         40sps 20sps 10sps 1sps 
+
+# definitions of streams
+40sps    40 a/d40  
+20sps    20 a/d20  
+10sps    10 a/d10  
+1sps      1 a/d1   
+
+gains		3187671 # sensor attached to channel 3 of qep 
+
+a/d40   &Arr{
+samprate        40
+gtype           digitizer
+iunits          V
+ounits          counts
+sn              datalogger
+}
+
+a/d20   &Arr{
+samprate        20
+gtype           digitizer
+iunits          V
+ounits          counts
+sn              datalogger
+}
+
+a/d10   &Arr{
+samprate        10
+gtype           digitizer
+iunits          V
+ounits          counts
+sn              datalogger
+}
+
+a/d1    &Arr{
+samprate        1
+gtype           digitizer
+iunits          V
+ounits          counts
+sn              datalogger
+}
+
+
+
+#          stages        list of stages for the channel (no samprate)
+#          sensitivity   gnom for this sensor
+#          gains         a/d gain(s) for this datalogger
+#          iunits        natural units for this sensor
+#          samprate      input sample rate for this sensor
+
+

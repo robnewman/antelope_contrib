@@ -11,6 +11,8 @@ long db2sqlinsert( Dbptr db, Tbl **tbl, char *(*createsync)(Dbptr db), long flag
 
 int db2sqldelete( Dbptr db, char *sync, Tbl **tbl, long flags );
 
+char *db2sql_set_syncfield_name( void );
+
 void db2sql_set_syncfield_name( char *name );
 
 .fi
@@ -85,6 +87,9 @@ by the input database pointer and described by the syncronization string given i
 argument. The SQL command is added to the input tbl, which, as in the other functions in this library, 
 is created if null and must be destroyed by the caller. 
 
+The \fBdb2sql_get_syncfield_name\fP returns the current name of the synchronization field for the SQL 
+database. This is returned as a newly allocated character string which must be freed by the caller. 
+
 The \fBdb2sql_set_syncfield_name\fP function allows the user to specify the name of the synchronization 
 field name in the SQL database, which defaults to \fIsyncstring\fP. 
 .SH EXAMPLE
@@ -98,26 +103,15 @@ field name in the SQL database, which defaults to \fIsyncstring\fP.
 #include "dbmon.h"
 #include "db2sql.h"
 
-void newrow( Dbptr db, char *table, char *sync, void *private );
-void changerow( char *oldsync, Dbptr db, char *table, char *sync, void *private );
+void newrow( Dbptr db, char *table, long irecord, char *sync, void *private );
 void delrow( Dbptr db, char *table, char *sync, void *private );
 
 void
-newrow( Dbptr db, char *table, char *sync, void *private )
+newrow( Dbptr db, char *table, long irecord, char *sync, void *private )
 { 
 	Tbl	**sql = (Tbl **) private;
 
 	db2sqlinsert( db, sql, dbmon_compute_row_sync, 0L );
-
-	return;
-}
-
-void
-changerow( char *oldsync, Dbptr db, char *table, char *sync, void *private )
-{ 
-	delrow( db, table, oldsync, private );
-
-	newrow( db, table, sync, private );
 
 	return;
 }
@@ -158,7 +152,7 @@ main(int argc, char **argv )
 
 	dbopen_database( dbname, "r", &db );
 
-	dbmon_hook = dbmon_init( db, tables, newrow, changerow, delrow, 0 );
+	dbmon_hook = dbmon_init( db, tables, newrow, delrow, 0 );
 
 	dbmon_update( dbmon_hook, (void *) &sql );
 
@@ -192,6 +186,8 @@ main(int argc, char **argv )
 statements are newly allocated, and must be freed by the caller. 
 
 \fBdb2sqlinsert\fP returns the number of SQL commands successfully created. 
+
+\fBdb2sql_get_syncfield_name\fP returns a newly-allocated character string which must be freed by the caller. 
 
 .SH "SEE ALSO"
 .nf

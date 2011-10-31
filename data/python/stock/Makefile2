@@ -4,9 +4,9 @@ DLIB=python__stock$(DSUFFIX)
 
 DATADIR= python/antelope
 
-DATA= $(STOCKDLIB) stock.py
+DATA= $(STOCKDLIB) stock.pyc
 
-MAN3P= pythonstock.3p
+MAN3Y= pythonstock.3y
 
 CLEAN= *.pyc *.so
 

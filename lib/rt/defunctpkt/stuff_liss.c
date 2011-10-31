@@ -78,7 +78,7 @@ int liss_ucompress( int *data,
         register int lp,ct;
         register int *oarray, l_data;
         int ret;
-        Steim *conf ;
+        Msd *conf ;
         int *sud, npts;
 
 
@@ -111,35 +111,35 @@ int liss_ucompress( int *data,
 
 	
          case 10:
-              conf = ( Steim *) newsteim();
+              conf = ( Msd *) msdnew();
               conf->record = indata;
               conf->record_size = pktsize-doff; 
               conf->sdh.data_offset = 0;
               conf->sdh.nsamp = nsamp;
-              conf->level = 1;
-              if ( usteim (conf, &sud, &npts) ) {
-                      register_error (0, "unstuffqorbpkt: usteim() error.\n");
+	      conf->b1000.dataformat = 10 ;
+              if ( ustc (conf, &sud, &npts) ) {
+                      elog_log(0, "unstuffqorbpkt: ustc() error.\n");
                       return (0);
               }
               memcpy (data, sud, nsamp*4);
               conf->record = 0;
-              freesteim(conf);
+              msdfree(conf);
               return (nsamp*4); 
          
          case 11:
-              conf = ( Steim *) newsteim();
+              conf = ( Msd *) msdnew();
               conf->record = indata;
               conf->record_size = pktsize-doff; 
               conf->sdh.data_offset = 0;
               conf->sdh.nsamp = nsamp;
-              conf->level = 2;
-              if ( usteim (conf, &sud, &npts) ) {
-                      register_error (0, "unstuffqorbpkt: usteim() error.\n");
+	      conf->b1000.dataformat = 11 ;
+              if ( ustc (conf, &sud, &npts) ) {
+                      elog_log(0, "unstuffqorbpkt: ustc() error.\n");
                       return (0);
               }
               memcpy (data, sud, nsamp*4);
               conf->record = 0;
-              freesteim(conf);
+              msdfree(conf);
               return (nsamp*4); 
          
          case 16:
@@ -178,19 +178,19 @@ int liss_ucompress( int *data,
 
          case 20:
                
-              conf = ( Steim *) newsteim();
+              conf = ( Msd *) msdnew();
               conf->record = indata;
               conf->record_size = pktsize-doff; 
               conf->sdh.data_offset = 0;
               conf->sdh.nsamp = nsamp;
-              conf->level = 2;
-              if ( usteim (conf, &sud, &npts) ) {
-                      register_error (0, "unstuffqorbpkt: usteim() error.\n");
+	      conf->b1000.dataformat = 11 ;
+              if ( ustc (conf, &sud, &npts) ) {
+                      elog_log(0, "unstuffqorbpkt: ustc() error.\n");
                       return (0);
               }
               memcpy (data, sud, nsamp*4);
               conf->record = 0;
-              freesteim(conf);
+              msdfree(conf);
               return (nsamp*4); 
          
          case 30:
@@ -223,7 +223,7 @@ int liss_ucompress( int *data,
              return(ct);
               
          default:
-           complain(0, "unknown data format %c\n", dtype );
+           elog_complain(0, "unknown data format %c\n", dtype );
            return -1; 
  
          break;
@@ -279,7 +279,7 @@ int unstuff_liss(  double time,
         if( (nbytes = liss_ucompress( 
 	    		(int *) &udata[0], (int) hdr->prehdr.pktsiz, (int) hdr->doff, 
 			(char *) cptr, hdr->nsamp, dformat) )<= 0 )  {
-             complain( 0, "Can't uncompress LISS data.\n");
+             elog_complain( 0, "Can't uncompress LISS data.\n");
              hexdump( stderr, packet, 16+hdr->doff+16 );
              fflush(stderr);
              return 0;

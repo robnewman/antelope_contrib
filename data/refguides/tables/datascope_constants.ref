@@ -96,7 +96,7 @@ dbTABLE_IS_TRANSIENT
 dbTABLE_COUNT
     count of relations in database
 dbTABLE_CREATION
-    returns a dbprocess like string whigh shows how the view was created
+    returns a dbprocess-like string which shows how the view was created
     
 
 
@@ -117,6 +117,8 @@ dbRECORD_COUNT
     count of records in table
 dbRECORD_SIZE
     return size in bytes of a record in the table
+
+
 
 dbTABLE_IS_VIEW
     returns non-zero if table is a view

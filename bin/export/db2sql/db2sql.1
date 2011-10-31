@@ -28,7 +28,9 @@ argument is neither required nor allowed.
 Specify a parameter file other than the default \fBdb2sql\fP.pf
 .IP -r
 Rebuild the database if it already exists. This command executes a \fIDROP DATABASE\fP command to the 
-SQL server for the named target database, so should be used with caution.
+SQL server for the named target database, so should be used with caution. If this option is not 
+specified and the SQL database already exists, \fBdb2sql\fP will attempt to synchronize with the 
+previously-created SQL database.
 .IP -v
 Be verbose
 .IP -V
@@ -39,6 +41,9 @@ Be very verbose
 The \fIdsn\fP parameter specifies a Perl DBI Data Source Name, usually listing the database driver 
 and connection properties of the target SQL server. Do not include the SQL database name in 
 the \fIdsn\fP parameter, as the database name is entered on the command line. 
+.IP enable_mysql_auto_reconnect
+When this boolean value is \fItrue\fP, the \fImysql_auto_reconnect\fP capability of the MySQL server 
+will be enabled.
 .IP user
 The \fIuser\fP parameter specifies the database username under which to connect to the 
 SQL server. 
@@ -68,6 +73,7 @@ password &ask(Password: )
 
 refresh_interval_sec 5
 schema_create_errors_nonfatal true
+enable_mysql_auto_reconnect true
 
 table_subset &Tbl{
 }
@@ -165,6 +171,9 @@ db2sql: Done importing '/opt/antelope/data/db/demo/demo.site' into 'sample' at  
 .nf
 db2sql(3), perldb2sql(3P), DBI(3), DBD::mysql(3)
 .fi
+.SH "BUGS AND CAVEATS"
+When resynchronizing with a previous SQL Database, \fBdb2sql\fP assumes the schema has not changed incompatibly 
+from the one it originally loaded. 
 .SH AUTHOR
 .nf
 Kent Lindquist
