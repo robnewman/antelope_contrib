@@ -4,15 +4,16 @@ dbmoment.py
 @authors  Gert-Jan van den Hazel <hazelvd@knmi.nl>
           Rob Newman <robertlnewman@gmail.com>
 @notes    Look for initialized comments - they define questions to be answered
-          e.g. # RLN (2011-07-28): Why this hard-coded value here?
+          e.g. # !!! BUG: Why this hard-coded value here? RLN (2011-07-28)
+               # !!! FIX: This is a hacked solution. RLN (2011-07-28)
+               # ??? Why is this here? RLN (2011-07-28)
+               # !!! NOTE: An explanation. RLN (2011-07-28)
+               (http://python.net/~goodger/projects/pycon/2007/idiomatic/handout.html#docstrings-comments)
 """
 
 from optparse import OptionParser
+from pprint import pprint
 import re
-import numpy as np
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 import math as math
 from datetime import datetime
 from collections import defaultdict
@@ -22,14 +23,30 @@ from time import gmtime, time
 import antelope.stock as stock
 import antelope.datascope as antdb
 
+# NUMPY
+try:
+    import numpy as np
+except ImportError:
+    print "Import Error: Do you have NumPy installed correctly?"
+
+# MATPLOTLIB
+try:
+    import matplotlib as mpl
+except ImportError:
+    print "Import Error: Do you have MatplotLib installed correctly?"
+else:
+    import matplotlib.pyplot as plt
+    from matplotlib.ticker import MultipleLocator, FormatStrFormatter
+
 # OBSPY
 try:
     from obspy.imaging.beachball import Beachball
 except ImportError:
     print "Import Error: Do you have ObsPy installed correctly?"
 
-minorLocator = MultipleLocator()
-# RLN (2011-07-27): Setting global variables (or defaults) is bad programming in Python. Comment out.
+# !!! FIX: Setting global variables (or defaults) 
+# is bad programming in Python - comment out. RLN (2011-07-27)
+
 # Set defaults
 '''
 pfname  = 'dbmoment'
@@ -138,7 +155,9 @@ class MomentTensor():
             self.wave_db = stock.pfget_string(self.pfname, 'wave_db')
         except:
             self.wave_db = False
-        self.green_db = stock.pfget_string(self.pfname, 'green_db')
+        # !!! FIX: Currently not using a Greens db, just a file. RLN (2011-11-03)
+        # self.green_db = stock.pfget_string(self.pfname, 'green_db')
+        self.green_file = stock.pfget_string(self.pfname, 'green_file')
         self.green_pf = stock.pfget_string(self.pfname, 'green_pf')
         try:
             self.resp_db = stock.pfget_string(self.pfname, 'resp_db')
@@ -188,6 +207,8 @@ class MomentTensor():
         evdb.subset('iphase=~/.*P.*|.*p.*/')
         if evdb.nrecs() == 0:
             self.logmt(3, 'No arrivals for selected origin %s' % self.orid)
+        elif self.debug:
+            self.logmt(1, 'There are %d records that match this origin arrival and iphase' % evdb.nrecs())
         lower_mags = []
         upper_mags = []
         filters = []
@@ -200,9 +221,9 @@ class MomentTensor():
             lower_mags.append(lower_magnitude)
             upper_mags.append(upper_magnitude)
             filters.append(filter)
-        min_mag = lower_mags[0] # RLN (2011-07-28): Assumes order correct in pf
-        max_mag = upper_mags[-1] # RLN (2011-07-28): Assumes order correct in pf
-        filter = filters[-1] # RLN (2011-07-28): Assumes all filters are the same
+        min_mag = lower_mags[0] # !!! NOTE: Assumes order correct in pf. RLN (2011-07-28)
+        max_mag = upper_mags[-1] # !!! NOTE: Assumes order correct in pf. RLN (2011-07-28)
+        filter = filters[-1] # !!! NOTE: Assumes all filters are the same. RLN (2011-07-28)
         if float(evparams['magnitude']) > float(min_mag) and float(evparams['magnitude']) < float(max_mag):
             self.filter_string = filter.replace('_', ' ')
         else:
@@ -224,14 +245,17 @@ class MomentTensor():
         except:
             self.logmt(3, 'Could not open waveform database %s' % self.wave_db)
         wvdb.lookup(table='wfdisc')
-        wvdb.subset('samprate>=0.9') # RLN (2011-07-28): Why this hard-coded value here? Just to get rid of all BH chans
+        wvdb.subset('samprate>=0.9') # !!! NOTE: Why this hard-coded value here? Just to get rid of all BH chans. RLN (2011-07-28)
         try:
             wvdb.subset('chan =~/%s/' % self.chan_to_use)
         except:
             self.logmt(3, 'No records found in wfdisc table (%s.wfdisc)' % self.wave_db) 
         numrec = dbptr.nrecs()
-        if numrec > int(self.statmax):
+        # !!! BUG: Compare numrec to stamax*3 as we are looking at three channels per sta, not just one. RLN (2011-11-03)
+        if numrec > int(self.statmax*3):
             numrec = int(self.statmax)
+            if self.verbose or self.debug:
+                self.logmt(1, 'The number of records %d is greater than the max number of stations x 3 (for three chans), so only use max number of stations for orid %s' % (numrec, self.orid))
         self.logmt(1, 'Processing %s stations for orid %s' % (numrec, self.orid))
         stachan_traces = {}
         counter = 0
@@ -245,29 +269,29 @@ class MomentTensor():
             try:
                 chans = self.choose_chan(wvstadb)
             except:
-                self.logmt(1, 'No channels found with a sample-rate >= 1 Hz for sta = %s' % sta) # RLN (2011-07-28): Why hard-coded sample rate here? Just to get rid of BH
+                self.logmt(1, 'No channels found with a sample-rate >= 1 Hz for sta = %s' % sta)
             self.logmt(1, 'Channels found: %s %s %s' % (chans[0], chans[1], chans[2]))
             wvstadb.subset('chan =~ /%s|%s|%s/' % (chans[0], chans[1], chans[2]))
             resample = 0
             for j in range(wvstadb.nrecs()):
                 wvstadb[3] = j
-                if wvstadb.getv('samprate')[0] != 1:
+                if wvstadb.getv('samprate')[0] != 1: # !!! FIX: Why hard-coded sample rate here just to remove BH chans? RLN (2011-11-03)
                     logmt(0, 'Samplerate higher than 1.0 --> resample')
                     resample = 1
                 break
             if resample == 1:
-                logmt(0, 'Resampling to be implemented, skipping station %s for now' % sta) # RLN (2011-07-28): What does this mean?
+                logmt(0, 'Resampling to be implemented, skipping station %s for now' % sta) # !!! FIX: Need to implement resampling. RLN (2011-07-28)
                 continue
-            vang = 0.0 # RLN (2011-07-28): Why hard code the vang? You can get this from the db? SHOULD BE IN THE SITECHAN TABLE
+            vang = 0.0 # !!! FIX: Why hard code the vang? You can get this from the db? Should be in the sitechan table. RLN (2011-07-28)
             if self.use_inc == 1:
                 vang = dbptr.getv('vang')[0]
             trace = wvstadb.load_css(st, et)
             trace.apply_calib()
             trace.splice()
             trace.filter(self.filter_string)
-            rotchan = ('R', 'T', 'Z') # RLN (2011-07-28): Why hard-code this? Should be defined at the config phase
+            rotchan = ('R', 'T', 'Z') # !!! NOTE: Hard-coded as moment tensor uses these rotated channel codes. RLN (2011-11-03)
             trace.rotate(esaz, vang, rotchan)
-            trace.subset('chan =~ /R|T|Z/') # (2011-07-28): Why hard-code this? Should be defined at the config phase
+            trace.subset('chan =~ /R|T|Z/') # !!! NOTE: Hard-coded as moment tensor uses these rotated channel codes. RLN (2011-07-28)
             foundchans = []
             for j in range(trace.nrecs()):
                 trace[3] = j
@@ -305,7 +329,7 @@ class MomentTensor():
         for i in range(view.nrecs()):
             view[3] = i
             chan = view.getv('chan')
-            chanview = antdb.dbsubset(dbptr,'chan =~ /%s.*/' % chan[0][:2])
+            chanview = antdb.dbsubset(dbptr,'chan =~ /%s.*/' % chan[0][:2]) # !!! NOTE: Just get the first two chan letters, so LH.*. RLN (2011-11-03)
             chanview.sort('chan', unique=True)
             channels = []
             if chanview.nrecs() == 3:
@@ -440,23 +464,57 @@ class MomentTensor():
 
     def get_greens_functions_hard_coded(self, this_dict):
         """Hard coded way of getting synthetics (Green's
-        function). Remove before production.
+        function) from file, not db. Remove before production,
+        unless we can't get Green's functions auto-generated!!!
         """
-        # Allocate Greens Function structure arrays
         if self.debug:
-            self.logmt(1, 'Constructing Greens function matrix from hard-coded file in db/data/green')
-        # Container list for values
+            self.logmt(1, 'Constructing Greens function matrix from hard-coded file in %s' % self.green_file)
+        # !!! NOTE: Container list for parsed file object values. RLN (2011-11-03)
         greens = []
-        # Open up the Green function file
+        # !!! NOTE: Open up the Green function file as specified in the pf (for now). RLN (2011-11-03)
+        green = open(self.green_file, 'r')
+        nl, dt, t1 = (green.readline()).split() # !!! NOTE: Only in PGC Greens functions, there are three starting numbers. RLN (2011-11-03)
+        for line in green:
+            one_line = line.rstrip('\n')
+            vals = one_line.split()
+            for j in vals:
+                greens.append(float(j))
+        green.close()
+        tarr = greens.pop() # !!! NOTE: Only in PGC Greens functions, there is a trailing float on the last line. RLN (2011-11-03)
+        if self.debug:
+            self.logmt(1, 'nl: %s, dt: %s, t1: %s, tarr: %s' % (nl, dt, t1, tarr))
+
+        # !!! NOTE: Just force into two dimensional matrix. RLN (2011-11-03)
+        #           'blockettes': separate chunks (components) of the Greens functions
+        #           In the PGC: blockettes = 12, number of elements (nl) = 101
+        #           In Dreger:  blockettes = 8, number of elements (nl) = 200
+        blockettes = len(greens) / int(nl)
+        for i in range(3):
+            for j in range(blockettes):
+                for k in range(int(nl)):
+                    this_dict[j][i][k] = float(greens[k + j*int(nl)])
+
+        '''
+        !!! NOTE: The section below is Gert-Jan's original code - which takes into account
+                  if the Green's function is isotropic, which you define in dbmoment.pf.
+                  He forces the matrix into a certain format if it is isotropic,
+                  but this does not play nice with the PGC Green's functions which
+                  already have the isotropic components in them, but in a DIFFERENT
+                  part of the matrix. I am pretty sure this has knock on effects in
+                  the code, but I am not sure where or how yet. RLN (2011-11-03)
+        '''
+
+        '''
+        # !!! NOTE: Open up the Green function file
         green = open('db/data/green', 'r')
         for line in green:
-            # RLN (2011-07-28): Every 12 values?
+            # !!! NOTE: Each value is a float of twelve (12) significant figures with 
+            #           no spaces, so split line into units of twelve. RLN (2011-11-03)
             for j in range(len(line)/12):
-                # RLN (2011-07-28): Append 12 values to the list. So we get one giant list. Why?
-                greens.append(line[j*12:j*12+12]) 
+                # !!! NOTE: Append one value at a time. RLN (2011-11-03)
+                greens.append(line[j*12:j*12+12])
         green.close()
 
-        # RLN (2011-07-28): Some hard-coded translations to populate Greens function matrix 'g'
         for i in range(3):
             for k in range(8):
                 for j in range(200):
@@ -471,6 +529,7 @@ class MomentTensor():
                 for k in [8,9]:
                     for j in range(200):
                         this_dict[k][i][j] = float(greens[j + k*200])
+        '''
         return this_dict
 
     def get_time_shift(self, data_dict, greens_dict):
@@ -521,6 +580,9 @@ class MomentTensor():
         trim = 0
         cnt1 = cnt2 = cnt3 = 0
         trim = int(len(dict_s['T'][0]) * float(self.trim_value))
+
+        print "Timeshift: %s" % this_timeshift
+        print "Number of stations: %s" % len(dict_s)
 
         # Loop over the number of stations in the dictionary
         for i in range(len(dict_s)):
@@ -592,13 +654,15 @@ class MomentTensor():
         cnt1 = cnt2 = cnt3 = 0
         tmp = defaultdict(dict) 
         for i in range(len(dict_s)):
+            # print "i is %d" % i
             cnt1 = cnt2 = cnt3
             cnt2 += len(dict_s['T'][0])-trim
             cnt3 += 2*(len(dict_s['T'][0])-trim)
             for j in range(len(dict_s['T'][0])-trim):
-                tmp[cnt1] = dict_s['T'][i][j+this_timeshift[i]]
-                tmp[cnt2] = dict_s['R'][i][j+this_timeshift[i]]
-                tmp[cnt3] = dict_s['Z'][i][j+this_timeshift[i]]
+                 #print "j is %d" % j
+                tmp[cnt1] = dict_s['T'][i][j + this_timeshift[i]]
+                tmp[cnt2] = dict_s['R'][i][j + this_timeshift[i]]
+                tmp[cnt3] = dict_s['Z'][i][j + this_timeshift[i]]
                 cnt1 += 1
                 cnt2 += 1
                 cnt3 += 1
@@ -1015,6 +1079,7 @@ class MomentTensor():
         There should be as many TRZ plots as stations, so length of dict_s and dict_g 
         TO DO: Each file used in determining the moment tensor should have a station name associated with it
         """
+        minorLocator = MultipleLocator()
         
         plot_title_mapping = {'T':'Tangential', 'R':'Radial', 'Z':'Vertical'} # The order is important
 
@@ -1144,11 +1209,19 @@ def main():
     """
     pf, orid, verbose, debug = configure()
 
-    # Initialize MomentTensor class
+    # !!! NOTE: Initialize MomentTensor class. RLN (2011-11-03)
     my_mt = MomentTensor(pf, orid, verbose, debug)
     my_mt.parse_pf()
     evdbptr, evparams = my_mt.get_view_from_db()
     stachan_traces = my_mt.get_chan_data(evdbptr)
+
+    # !!! FIX: Why only 24 values for T,R,Z from the Texas 
+    #          event when pulling from the db?
+    #          It needs to match the length of the Green's 
+    #          function to ensure we are comparing apples to apples
+    # RLN (2011-11-03)
+    print '\n\nStachan traces:\n'
+    pprint(stachan_traces)
 
     """
     Declare empty matrices (for data and Green's functions)
@@ -1161,17 +1234,21 @@ def main():
     """
     s = defaultdict(lambda: defaultdict(defaultdict))
     g = defaultdict(lambda: defaultdict(defaultdict))
-    # s = my_mt.construct_data_matrix(stachan_traces, s)
-    ss = my_mt.construct_data_matrix_hard_coded(stachan_traces, s)
+    ss = my_mt.construct_data_matrix(stachan_traces, s)
+    # ss = my_mt.construct_data_matrix_hard_coded(stachan_traces, s)
+
+    pprint(ss.items())
+    exit()
+
     if len(ss) != 0:
         print 'Data matrix S created --> %s stations used' % len(ss)
 
-    # Read the Green's function from database based on distance and depth.....
+    # !!! FIX: Read the Green's function from database based on distance and depth. RLN (2011-11-03)
     # greens_funcs = my_mt.get_greens_functions(evdbptr)
 
-    # RLN (2011-07-28): green_funcs dict is not currently 
+    # !!! NOTE: green_funcs dict is not currently 
     # used anywhere, so why is it here? Possibly relates to 
-    # the commented out dict above?
+    # the commented out dict above? RLN (2011-07-28)
     ### green_funcs  = {}
 
     gg = my_mt.get_greens_functions_hard_coded(g)
@@ -1181,39 +1258,41 @@ def main():
         print 'Matrix S (data) and G (synthetics) created'
 
     '''
-    RLN (2011-08-24): The assumption here is that the size of both
+    !!! NOTE: The assumption here is that the size of both
     ss and gg is the same as the number of stations that are used
     in determining the moment tensor. In the hard-coded example
-    this is three.
+    this is three. RLN (2011-08-24)
     '''
 
+    # !!! NOTE: timeshift is a list? RLN (2011-11-03)
     timeshift = my_mt.get_time_shift(ss, gg)
     if len(timeshift) != len(ss['T']):
         print 'Error in correlating synthetic and measured data'
     else:
         print 'Timeshift between data and synthetics computed for %s stations' % len(timeshift)
 
-    # RLN (2011-07-28): Where does this come from without explanation? Dregers code?
+    # !!! NOTE: Where does this come from without explanation? Dregers code? RLN (2011-07-28)
     # Examples just for the examples
     # - event to station azimuth, in this example used 3 stations
     az = [10, 40, 50]
 
-    # RLN (2011-07-28): What is W? Weighting factor - number of stations, long list of values.
-    # If 1 then station fully incorporated into solution. If less than one, don't include
+    # !!! NOTE: What is W? Weighting factor - number of stations, long list of values.
+    # If 1 then station fully incorporated into solution. If less than one, don't include. RLN (2011-07-28)
 
     # Allocate Memory for Station Weights
     W = []
     for i in range(len(ss['T'])):
         W.append(1.0)
 
-    # INVERSION ROUTINE
-    # RLN (2011-08-24): Dreger normalizes AtA (B?) and AIV (AIV) matrix. We don't need to - just create default dictionary
+    # !!! NOTE: INVERSION ROUTINE
+    #     Dreger normalizes AtA (B?) and AIV (AIV) matrix. We don't need to - just create default dictionary
+    #     RLN (2011-08-24)
     AIV = defaultdict(dict)
     B = defaultdict(dict) 
 
     AIV, B = my_mt.matrix_AIV_B(ss, gg, az, timeshift)
 
-    # DETERMINE SOLUTION VECTOR
+    # !!! NOTE: DETERMINE SOLUTION VECTOR. RLN (2011-08-24)
     M = my_mt.determine_solution_vector(AIV, B)
 
     gfscale = -1.0e+20
@@ -1222,7 +1301,7 @@ def main():
     dip = []
     rake = []
 
-    # DECOMPOSE MOMENT TENSOR INTO VARIOUS REPRESENTATIONS
+    # !!! NOTE: DECOMPOSE MOMENT TENSOR INTO VARIOUS REPRESENTATIONS. RLN (2011-11-03)
     m0, Mw, strike, dip, rake, pcdc, pcclvd, pciso = my_mt.decompose_moment_tensor(M)
 
     svar = []
@@ -1232,13 +1311,13 @@ def main():
 
     qlt = my_mt.quality_check(VR)
 
-    # Close dbptr
+    # !!! NOTE: Close dbptr. RLN (2011-11-03)
     evdbptr.close()
 
-    # Append results to moment database-table. If db.moment does not exists, create it
+    # !!! NOTE: Append results to moment database-table. If db.moment does not exists, create it. RLN (2011-11-03)
     my_mt.write_results(orid, strike, dip, rake)
 
-    # Create data/synthetics plots
+    # !!! FIX: Create data/synthetics plots. NOT YET WORKING. RLN (2011-11-03)
     my_mt.data_synthetics_plot(orid, ss, gg)
 
     print 'M0      = %s' % m0
@@ -1253,17 +1332,17 @@ def main():
     print 'Pclvd   = %s' % pcclvd
     print 'Piso    = %s' % pciso
 
-
-    # RLN (2011-08-24): In Dregers code this is where the mt_plot function sits
+    # !!! NOTE: In Dregers code this is where the mt_plot function sits
     # From Dreger's code
     # mt_plot(ss,gg,nsta,Strike,Rake,Dip,St2,Rk2,Dp2,d_mt,Pdc,Pclvd,Piso,Mo, Mw, E, VR);
     ### print ">>TEST"
     ### synthetics_file = my_mt.synthetics_plot(orid, ss)
     # synthetics_file = my_mt.synthetics_plot(s['R'])
     # synthetics_file = my_mt.synthetics_plot(s['V'])
+    # RLN (2011-08-24)
 
 
-    # RLN (2011-08-24): From Dreger's fitcheck fprintf() commands
+    # !!! NOTE: From Dreger's fitcheck fprintf() commands. RLN (2011-08-24)
     for j in range(len(svar)):
         print 'Station (%d) = %s  %s' % (j,svar[j],sdpower[j])
     print 'Var     = %s' % E
