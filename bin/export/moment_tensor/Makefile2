@@ -7,5 +7,7 @@ MAN1 = dbmoment.1
 
 ANTELOPEMAKELOCAL = $(ANTELOPE)/local/include/antelopemake.local
 
+SUBDIR=/local
+
 include $(ANTELOPEMAKE)
 include $(ANTELOPEMAKELOCAL)
