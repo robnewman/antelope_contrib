@@ -126,13 +126,15 @@ class MomentTensor():
         on the verbosity setting. Prints messages with a 
         timestamp. Whenever an error occurs it also exits.
         """
-        curtime = stock.strtime(time())
+        #curtime = stock.strtime( time() )
         if not flag:
             return
         elif flag < 3:
-            print curtime, message
+            #print curtime, message
+            print message
         else:
-            print curtime, 'ERROR:',message,'--> exiting'
+            #print curtime, 'ERROR:',message,'--> exiting'
+            print 'ERROR:',message,'--> exiting'
             sys.exit(-1)
 
     def parse_pf(self):
@@ -230,7 +232,7 @@ class MomentTensor():
             self.logmt(3, 'Magnitude %s not within bounds (%s - %s) defined in the parameter file' % (evparams['magnitude'], float(min_mag), float(max_mag)))
         return evdb, evparams
  
-    def get_chan_data(self, dbptr):
+    def get_chan_data(self, dbptr, size):
         """Opens waveform database and returns 
         trace objects based on sta_chan. Applies 
         calibration, splice, filter, decimation 
@@ -238,53 +240,76 @@ class MomentTensor():
 
         Gert-Jan resampling BH to LH if LH not available - not currently implemented
         """
-        if self.verbose or self.debug:
+        if self.verbose or self.debug: 
             self.logmt(1, 'Get channel data (trace objects)')
-        try:
-            wvdb = antdb.dbopen(self.wave_db, 'r')
-        except:
-            self.logmt(3, 'Could not open waveform database %s' % self.wave_db)
-        wvdb.lookup(table='wfdisc')
-        wvdb.subset('samprate>=0.9') # !!! NOTE: Why this hard-coded value here? Just to get rid of all BH chans. RLN (2011-07-28)
-        try:
-            wvdb.subset('chan =~/%s/' % self.chan_to_use)
-        except:
-            self.logmt(3, 'No records found in wfdisc table (%s.wfdisc)' % self.wave_db) 
+
+
+        #wvdb.subset('samprate>=0.9') # !!! NOTE: Why this hard-coded value here? Just to get rid of all BH chans. RLN (2011-07-28)
+        #try:
+        #    wvdb.subset('chan =~/%s/' % self.chan_to_use)
+        #except:
+        #    self.logmt(3, 'No records found in wfdisc table (%s.wfdisc)' % self.wave_db) 
+
         numrec = dbptr.nrecs()
+        dbptr[3] = 0
+        at = dbptr.getv('arrival.time')[0]
+        st = at - int(size/2)  
+        et = at + int(size/2) 
+        et += 10
+
         # !!! BUG: Compare numrec to stamax*3 as we are looking at three channels per sta, not just one. RLN (2011-11-03)
-        if numrec > int(self.statmax*3):
-            numrec = int(self.statmax)
-            if self.verbose or self.debug:
-                self.logmt(1, 'The number of records %d is greater than the max number of stations x 3 (for three chans), so only use max number of stations for orid %s' % (numrec, self.orid))
-        self.logmt(1, 'Processing %s stations for orid %s' % (numrec, self.orid))
+        #if numrec > int(self.statmax*3):
+        #    numrec = int(self.statmax)
+        #    if self.verbose or self.debug:
+        #        self.logmt(1, 'The number of records %d is greater than the max number of stations x 3 (for three chans), so only use max number of stations for orid %s' % (numrec, self.orid))
+        #self.logmt(1, 'Processing %s stations for orid %s' % (numrec, self.orid))
+
         stachan_traces = {}
         counter = 0
-        for i in range(dbptr.nrecs()):
+
+        self.logmt(1, 'Processing %s entries ' % dbptr.nrecs())
+
+        #for i in range(dbptr.nrecs()):
+        for i in range(3):
             dbptr[3] = i
-            sta, at, esaz = dbptr.getv('sta','arrival.time','esaz')
-            st = at - 12 
-            et = at + 12
-            wvstadb = antdb.dbsubset(wvdb,'sta=~/^%s$/' % sta)
-            self.logmt(1, 'Looking for channels with a sample rate >= 1 Hz for sta = %s' % sta)
+
+            " Get each entry on the table " 
+            sta, esaz = dbptr.getv('sta','esaz')
+
+            " Subset secondary table for data extraction "
             try:
-                chans = self.choose_chan(wvstadb)
+                wvdb = antdb.dbopen(self.wave_db, 'r')
+                wvdb.lookup(table='wfdisc')
             except:
-                self.logmt(1, 'No channels found with a sample-rate >= 1 Hz for sta = %s' % sta)
-            self.logmt(1, 'Channels found: %s %s %s' % (chans[0], chans[1], chans[2]))
-            wvstadb.subset('chan =~ /%s|%s|%s/' % (chans[0], chans[1], chans[2]))
+                self.logmt(3, 'Could not open waveform database %s' % self.wave_db)
+                exit()
+            wvstadb = antdb.dbsubset(wvdb,'sta=~/^%s$/ && chan=~/LH./' % sta)
+
+            #self.logmt(1, 'Looking for channels with a sample rate >= 1 Hz for sta = %s' % sta)
+            #try:
+            #    chans = self.choose_chan(wvstadb)
+            #except:
+            #    self.logmt(1, 'No channels found with a sample-rate >= 1 Hz for sta = %s' % sta)
+
+            #" Subset for channels "
+            #self.logmt(1, 'Channels found: %s %s %s' % (chans[0], chans[1], chans[2]))
+            #wvstadb.subset('chan =~ /%s|%s|%s/' % (chans[0], chans[1], chans[2]))
+
             resample = 0
-            for j in range(wvstadb.nrecs()):
-                wvstadb[3] = j
-                if wvstadb.getv('samprate')[0] != 1: # !!! FIX: Why hard-coded sample rate here just to remove BH chans? RLN (2011-11-03)
-                    logmt(0, 'Samplerate higher than 1.0 --> resample')
-                    resample = 1
-                break
-            if resample == 1:
-                logmt(0, 'Resampling to be implemented, skipping station %s for now' % sta) # !!! FIX: Need to implement resampling. RLN (2011-07-28)
-                continue
-            vang = 0.0 # !!! FIX: Why hard code the vang? You can get this from the db? Should be in the sitechan table. RLN (2011-07-28)
-            if self.use_inc == 1:
-                vang = dbptr.getv('vang')[0]
+            #for j in range(wvstadb.nrecs()):
+            #    wvstadb[3] = j
+            #    if wvstadb.getv('samprate')[0] != 1: # !!! FIX: Why hard-coded sample rate here just to remove BH chans? RLN (2011-11-03)
+            #        self.logmt(0, 'Samplerate higher than 1.0 --> resample')
+            #        resample = 1
+            #    break
+
+            #if self.use_inc == 1:
+            #    vang = dbptr.getv('vang')[0]
+            #if self.use_inc == 1:
+            " Need to join dbptr to some table in dbmaster to get VANG value for sta:chan "
+            vang = 0
+
+            self.logmt(1, 'Load data into memory for (%s,%s)' % (st,et))
             trace = wvstadb.load_css(st, et)
             trace.apply_calib()
             trace.splice()
@@ -292,28 +317,37 @@ class MomentTensor():
             rotchan = ('R', 'T', 'Z') # !!! NOTE: Hard-coded as moment tensor uses these rotated channel codes. RLN (2011-11-03)
             trace.rotate(esaz, vang, rotchan)
             trace.subset('chan =~ /R|T|Z/') # !!! NOTE: Hard-coded as moment tensor uses these rotated channel codes. RLN (2011-07-28)
+            self.logmt(1, 'Trace : [%s]' % trace.nrecs())
             foundchans = []
-            for j in range(trace.nrecs()):
+            #for j in range(trace.nrecs()):
+            for j in range(3):
                 trace[3] = j
                 sta, chan, ns, sr = trace.getv('sta', 'chan', 'nsamp', 'samprate')
                 stachan = '%s_%s' % (sta, chan)
                 ns_tra = 0
                 ns_req = 0
+
+                " extract the data "
                 samples = trace.data()
-                for k in range(len(samples)):
-                    ns_tra += ns
-                    ns_req += int((et-st)*sr)
-                if not ns_tra == ns_req:
-                    logmt(0, 'Incorrect number of samples for %s, skipping %s' % (stachan, sta))
-                    for delchan in foundchans:
-                        if stachan_traces[delchan]:
-                            del stachan_traces[delchan]
-                            logmt(0, 'Deleting channel %s' % delchan)
-                            counter -= 1
-                stachan_traces[stachan] = samples  
-                self.logmt(1, 'Trace extracted for %s' % stachan)
+
+                #for k in range(len(samples)):
+                #    ns_tra += ns
+                #    ns_req += int((et-st)*sr)
+
+                #if not ns_tra == ns_req:
+                #    self.logmt(0, 'Incorrect number of samples for %s, skipping %s' % (stachan, sta))
+                #    for delchan in foundchans:
+                #        if stachan_traces[delchan]:
+                #            del stachan_traces[delchan]
+                #            self.logmt(0, 'Deleting channel %s' % delchan)
+                #            counter -= 1
+
+                stachan_traces[stachan] = samples[0:size]  
+                self.logmt(1, 'Trace extracted for %s samples:[%s] wanted:[%s]' % (stachan,len(stachan_traces[stachan]),size))
                 foundchans.append(stachan)
                 counter += 1
+
+            trace.trdestroy()
             if counter == self.statmax*3:
                 break
         return stachan_traces
@@ -417,8 +451,10 @@ class MomentTensor():
         for j in range(pr):
             if abs(xcor[j+pr]) > maxval:
                 maxval = abs(xcor[j+pr])
-                maxcoef = j+1
-        return maxval, maxcoef
+                #maxcoef = j+1
+                maxcoef = j
+        print "maxval %s maxcoef %s" % (maxval,maxcoef)
+        return (maxval, maxcoef)
 
     def get_greens_functions(self, dbptr):
         """Opens Green's database and returns a 
@@ -530,7 +566,7 @@ class MomentTensor():
                     for j in range(200):
                         this_dict[k][i][j] = float(greens[j + k*200])
         '''
-        return this_dict
+        return (nl,this_dict)
 
     def get_time_shift(self, data_dict, greens_dict):
         """Get the time shift and return a list
@@ -542,29 +578,37 @@ class MomentTensor():
             shift = 0
             xcor  = 0
             if self.cross_cor(data_dict['T'][i], greens_dict[0][i])[0] > xcor:
-                xcor  = self.cross_cor(data_dict['T'][i], greens_dict[0][i])[0]
-                shift = self.cross_cor(data_dict['T'][i], greens_dict[0][i])[1]
+                xcor, shift  = self.cross_cor(data_dict['T'][i], greens_dict[0][i])
+                #xcor  = self.cross_cor(data_dict['T'][i], greens_dict[0][i])[0]
+                #shift = self.cross_cor(data_dict['T'][i], greens_dict[0][i])[1]
             if self.cross_cor(data_dict['T'][i], greens_dict[1][i])[0] > xcor:
-                xcor = self.cross_cor(data_dict['T'][i], greens_dict[1][i])[0]
-                shift = self.cross_cor(data_dict['T'][i], greens_dict[1][i])[1]
+                xcor, shift = self.cross_cor(data_dict['T'][i], greens_dict[1][i])
+                #xcor = self.cross_cor(data_dict['T'][i], greens_dict[1][i])[0]
+                #shift = self.cross_cor(data_dict['T'][i], greens_dict[1][i])[1]
             if self.cross_cor(data_dict['R'][i], greens_dict[2][i])[0] > xcor:
-                xcor = self.cross_cor(data_dict['R'][i], greens_dict[2][i])[0]
-                shift = self.cross_cor(data_dict['R'][i], greens_dict[2][i])[1]
+                xcor, shift = self.cross_cor(data_dict['R'][i], greens_dict[2][i])
+                #xcor = self.cross_cor(data_dict['R'][i], greens_dict[2][i])[0]
+                #shift = self.cross_cor(data_dict['R'][i], greens_dict[2][i])[1]
             if self.cross_cor(data_dict['R'][i], greens_dict[3][i])[0] > xcor:
-                xcor = self.cross_cor(data_dict['R'][i], greens_dict[3][i])[0]
-                shift = self.cross_cor(data_dict['R'][i], greens_dict[3][i])[1]
+                xcor,shift = self.cross_cor(data_dict['R'][i], greens_dict[3][i])
+                #xcor = self.cross_cor(data_dict['R'][i], greens_dict[3][i])[0]
+                #shift = self.cross_cor(data_dict['R'][i], greens_dict[3][i])[1]
             if self.cross_cor(data_dict['R'][i], greens_dict[4][i])[0] > xcor:
-                xcor = self.cross_cor(data_dict['R'][i], greens_dict[4][i])[0]
-                shift = self.cross_cor(data_dict['R'][i], greens_dict[4][i])[1]
+                xcor,shift = self.cross_cor(data_dict['R'][i], greens_dict[4][i])
+                #xcor = self.cross_cor(data_dict['R'][i], greens_dict[4][i])[0]
+                #shift = self.cross_cor(data_dict['R'][i], greens_dict[4][i])[1]
             if self.cross_cor(data_dict['Z'][i], greens_dict[5][i])[0] > xcor:
-                xcor = self.cross_cor(data_dict['Z'][i], greens_dict[5][i])[0]
-                shift = self.cross_cor(data_dict['Z'][i], greens_dict[5][i])[1]
+                xcor, shift = self.cross_cor(data_dict['Z'][i], greens_dict[5][i])
+                #xcor = self.cross_cor(data_dict['Z'][i], greens_dict[5][i])[0]
+                #shift = self.cross_cor(data_dict['Z'][i], greens_dict[5][i])[1]
             if self.cross_cor(data_dict['Z'][i], greens_dict[6][i])[0] > xcor:
-                xcor = self.cross_cor(data_dict['Z'][i], greens_dict[6][i])[0]
-                shift = self.cross_cor(data_dict['Z'][i], greens_dict[6][i])[1]
+                xcor,shift = self.cross_cor(data_dict['Z'][i], greens_dict[6][i])
+                #xcor = self.cross_cor(data_dict['Z'][i], greens_dict[6][i])[0]
+                #shift = self.cross_cor(data_dict['Z'][i], greens_dict[6][i])[1]
             if self.cross_cor(data_dict['Z'][i], greens_dict[7][i])[0] > xcor:
-                xcor = self.cross_cor(data_dict['Z'][i], greens_dict[7][i])[0]
-                shift = self.cross_cor(data_dict['Z'][i], greens_dict[7][i])[1]
+                xcor,shift = self.cross_cor(data_dict['Z'][i], greens_dict[7][i])
+                #xcor = self.cross_cor(data_dict['Z'][i], greens_dict[7][i])[0]
+                #shift = self.cross_cor(data_dict['Z'][i], greens_dict[7][i])[1]
             timeshift.append(shift)
         return timeshift
 
@@ -579,8 +623,7 @@ class MomentTensor():
         AJ = defaultdict(dict) # RLN (2011-07-29): What is AJ? COPY OF DREGER
         trim = 0
         cnt1 = cnt2 = cnt3 = 0
-        trim = int(len(dict_s['T'][0]) * float(self.trim_value))
-
+        #trim = int(len(dict_s['T'][0]) * float(self.trim_value)) 
         print "Timeshift: %s" % this_timeshift
         print "Number of stations: %s" % len(dict_s)
 
@@ -659,10 +702,22 @@ class MomentTensor():
             cnt2 += len(dict_s['T'][0])-trim
             cnt3 += 2*(len(dict_s['T'][0])-trim)
             for j in range(len(dict_s['T'][0])-trim):
-                 #print "j is %d" % j
-                tmp[cnt1] = dict_s['T'][i][j + this_timeshift[i]]
-                tmp[cnt2] = dict_s['R'][i][j + this_timeshift[i]]
-                tmp[cnt3] = dict_s['Z'][i][j + this_timeshift[i]]
+                #print "\nj is %s" % j
+                #print "i is %s" % i
+                #print "trim is %s" % trim
+                #print "this_timeshift[i] is %s" % this_timeshift[i]
+                #print "dict_s['T'][i] is %s" % len(dict_s['T'][i])
+                #print "cnt1 is %s" % cnt1
+                #print "tmp[cnt1] is %s" % tmp[cnt1]
+                #print "cnt2 is %s" % cnt2
+                #print "cnt3 is %s" % cnt3
+                #tmp[cnt1] = dict_s['T'][i][j + this_timeshift[i]]
+                #tmp[cnt2] = dict_s['R'][i][j + this_timeshift[i]]
+                #tmp[cnt3] = dict_s['Z'][i][j + this_timeshift[i]]
+                tmp[cnt1] = dict_s['T'][i][j]
+                tmp[cnt2] = dict_s['R'][i][j]
+                tmp[cnt3] = dict_s['Z'][i][j]
+                #print "\n#### tmp[cnt1] is %s\n" % tmp[cnt1]
                 cnt1 += 1
                 cnt2 += 1
                 cnt3 += 1
@@ -670,7 +725,13 @@ class MomentTensor():
         # Calculate Righthand Side
         for i in range(self.isoflag):
             for j in range(cnt3):
-                B[i][0] += AJ[i][j]*tmp[j]
+                B[i][0] += AJ[i][j] * tmp[j]
+                #print "i is %s" % i
+                #print "j is %s" % j
+                #print "B[i][0] is %s" % B[i][0]
+                #print "AJ[i][j] is %s" % AJ[i][j]
+                #print "tmp[j] is %s" % tmp[j]
+                #B[i][0] = B[i][0] + AJ[i][j] * tmp[j]
 
         # Some logging
         if len(AIV) != self.isoflag or len(AIV[0]) != self.isoflag:
@@ -1019,6 +1080,11 @@ class MomentTensor():
         """
         if self.debug:
             self.logmt(1, 'Write out moment tensor for orid %s to database table %s.moment' % (orid, self.event_db))
+
+        self.logmt(1, '\n\t## MT for %s strike => %s ' % (orid, strike))
+        self.logmt(1, '\t## MT for %s dip => %s ' % (orid, dip))
+        self.logmt(1, '\t## MT for %s rake => %s \n' % (orid, rake))
+
         moment_db = antdb.dbopen(self.event_db, 'r+')
 
         # (1) Append to moment table
@@ -1044,11 +1110,20 @@ class MomentTensor():
             moment_tbl.free()
 
         # (2) Test images directory exists and then append to moment_tensor_images table
+        print "images dir : %s " % self.mt_images_dir
+
         if not os.path.exists(self.mt_images_dir):
-            self.logmt(3, 'write_results(): ERROR directory %s does not exist!' % self.mt_images_dir)
-        else:
-            focal_mechanism = [strike[0], dip[0], rake[0]]
+            #self.logmt(3, 'write_results(): ERROR directory %s does not exist!' % self.mt_images_dir)
+            self.logmt(1, 'write_results(): ERROR directory %s does not exist!' % self.mt_images_dir)
+            exit()
+
+        focal_mechanism = [strike[0], dip[0], rake[0]]
+        print "Try to plot MT: %s " % focal_mechanism
+
+        try:
             dfile = self.mt_plot(orid, focal_mechanism)
+        except Exception, e:
+            self.logmt(3, 'write_results(): ERROR in mt_plot %s' % focal_mechanism)
 
         try:
             mtimages_tbl = antdb.dblookup(moment_db, table='moment_tensor_images')
@@ -1069,7 +1144,9 @@ class MomentTensor():
                 self.logmt(1, 'write_results(): Successfully wrote out moment tensor to table moment_tensor_images')
             mtimages_tbl.free()
 
+        self.logmt(3, 'TEST')
         moment_db.close()
+
         return
 
     def data_synthetics_plot(self, orid, dict_s, dict_g):
@@ -1170,6 +1247,7 @@ class MomentTensor():
             'nofill': False, 
             'fig': None
         }
+        self.logmt(1, 'Beachball(): default %s' % beachball_defaults)
         # Test for defaults in the pf
         for k,v in beachball_defaults.iteritems():
             if not self.obspy_beachball[k]:
@@ -1184,22 +1262,32 @@ class MomentTensor():
                 self.logmt(1, 'write_results(): Beachball(): Arg: %s, Val: %s' % (k, beachball_vals[k]))
 
         # Create beachball
-        # Beachball(focal_mechanism, size=100, linewidth=2, facecolor='b', outfile='%s.png' % orid)
-        Beachball(focal_mechanism, 
-            size = beachball_vals['size'],
-            linewidth = beachball_vals['linewidth'], 
-            facecolor = beachball_vals['facecolor'],
-            edgecolor = beachball_vals['edgecolor'],
-            bgcolor = beachball_vals['bgcolor'],
-            alpha = beachball_vals['alpha'],
-            xy = beachball_vals['xy'],
-            width = beachball_vals['width'],
-            outfile = '%s/%s%s.%s' % (self.mt_images_dir, beachball_vals['outfile'], orid, beachball_vals['format']),
-            format = beachball_vals['format'],
-            nofill = beachball_vals['nofill'],
-            fig = beachball_vals['fig']
-        )
+        #Beachball(focal_mechanism, size=100, linewidth=2, facecolor='b', outfile='%s.png'%orid)
+
+        try:
+            Beachball(focal_mechanism, 
+                size = beachball_vals['size'],
+                linewidth = beachball_vals['linewidth'], 
+                #facecolor = beachball_vals['facecolor'],
+                #edgecolor = beachball_vals['edgecolor'],
+                #bgcolor = beachball_vals['bgcolor'],
+                #alpha = beachball_vals['alpha'],
+                alpha = beachball_vals['alpha']
+                #xy = beachball_vals['xy'],
+                #width = beachball_vals['width'],
+                #outfile = '%s/%s%s.%s' % (self.mt_images_dir, beachball_vals['outfile'], orid, beachball_vals['format']),
+                #outfile = 'test.ps',
+                #format = beachball_vals['format'],
+                #nofill = beachball_vals['nofill'],
+                #fig = beachball_vals['fig']
+            )
+        except Exception,e:
+            print "ERROR on Beachball() %s: %s" % (Exception,e)
+            exit()
+
         mt_outfile = '%s%s.%s' % (beachball_vals['outfile'], orid, beachball_vals['format'])
+
+        self.logmt(1, 'Beachball(): outfile %s' % mt_outfile)
         return mt_outfile
  
 
@@ -1207,13 +1295,36 @@ def main():
     """Get the moment tensor solution
     for a particular origin
     """
-    pf, orid, verbose, debug = configure()
+    s = defaultdict(lambda: defaultdict(defaultdict))
+    g = defaultdict(lambda: defaultdict(defaultdict))
 
     # !!! NOTE: Initialize MomentTensor class. RLN (2011-11-03)
+    pf, orid, verbose, debug = configure()
     my_mt = MomentTensor(pf, orid, verbose, debug)
     my_mt.parse_pf()
     evdbptr, evparams = my_mt.get_view_from_db()
-    stachan_traces = my_mt.get_chan_data(evdbptr)
+
+    """
+    Opens Green's database and returns a 
+    dictionary which the 10 component ascii series.
+    """
+    # !!! FIX: Read the Green's function from database based on distance and depth. RLN (2011-11-03)
+    # greens_funcs = my_mt.get_greens_functions(evdbptr)
+    #   !!! NOTE: green_funcs dict is not currently 
+    #   used anywhere, so why is it here? Possibly relates to 
+    #   the commented out dict above? RLN (2011-07-28)
+    nl, gg = my_mt.get_greens_functions_hard_coded(g)
+    nl = int(nl)
+
+    if len(gg[1][1]) != nl:
+        print "Size of Green's functions (%s) does not match the reported value (%s)" % (len(gg[1][1]), nl)
+
+    """
+    Pull the data from the db into stachan_traces
+    then...
+    Name them ss and gg after Dregers code
+    """
+    stachan_traces = my_mt.get_chan_data(evdbptr,nl)
 
     # !!! FIX: Why only 24 values for T,R,Z from the Texas 
     #          event when pulling from the db?
@@ -1223,39 +1334,20 @@ def main():
     print '\n\nStachan traces:\n'
     pprint(stachan_traces)
 
-    """
-    Declare empty matrices (for data and Green's functions)
-
-    Currently both s and g are populated from pre-existing
-    data files for the test case (method name + '_hard_coded()'). 
-    We need to make these database driven
-
-    Name them ss and gg after Dregers code
-    """
-    s = defaultdict(lambda: defaultdict(defaultdict))
-    g = defaultdict(lambda: defaultdict(defaultdict))
     ss = my_mt.construct_data_matrix(stachan_traces, s)
     # ss = my_mt.construct_data_matrix_hard_coded(stachan_traces, s)
-
-    pprint(ss.items())
-    exit()
 
     if len(ss) != 0:
         print 'Data matrix S created --> %s stations used' % len(ss)
 
-    # !!! FIX: Read the Green's function from database based on distance and depth. RLN (2011-11-03)
-    # greens_funcs = my_mt.get_greens_functions(evdbptr)
 
-    # !!! NOTE: green_funcs dict is not currently 
-    # used anywhere, so why is it here? Possibly relates to 
-    # the commented out dict above? RLN (2011-07-28)
-    ### green_funcs  = {}
-
-    gg = my_mt.get_greens_functions_hard_coded(g)
     if len(gg[1]) != len(ss['T']):
         print "Number of Green's functions (%d) does not match the number of stations (%d)" % (len(gg[1]), len(ss['T']))
     else:
         print 'Matrix S (data) and G (synthetics) created'
+
+    pprint(ss.items())
+
 
     '''
     !!! NOTE: The assumption here is that the size of both
