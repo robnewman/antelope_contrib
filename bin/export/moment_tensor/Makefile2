@@ -1,4 +1,4 @@
-BIN = dbmoment
+BIN = fkrprog dbmoment
 PF = dbmoment.pf create_green.pf
 MAN1 = dbmoment.1
 
