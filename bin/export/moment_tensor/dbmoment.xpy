@@ -989,50 +989,78 @@ class Event():
         '''
 
     def update_moment_tbl(self, strike, dip, rake):
-        """Write out results to database
-        tables 'moment' and 'moment_tensor_images
-        the CSS3.0 schema
+        """Write out results to 
+        database moment table
         """
         if self.verbosity > 0:
             logmt(1, 'Write out moment tensor for orid %s to database table %s.moment' % (self.orid, self.event_db))
-            logmt(1, '\t## MT for %s strike => %s ' % (self.orid, strike))
-            logmt(1, '\t## MT for %s dip => %s ' % (self.orid, dip))
-            logmt(1, '\t## MT for %s rake => %s \n' % (self.orid, rake))
-        moment_db = antdb.dbopen(self.event_db, 'r+')
-        # (1) Append record to moment table
+            logmt(1, '## MT for orid %s strike => %s' % (self.orid, strike))
+            logmt(1, '## MT for orid %s dip => %s' % (self.orid, dip))
+            logmt(1, '## MT for orid %s rake => %s' % (self.orid, rake))
+        moment_dbptr = antdb.dbopen(self.event_db, 'r+')
         try:
-            moment_tbl = antdb.dblookup(moment_db, table='moment')
+            moment_dbptr.lookup(table='moment')
         except Exception, e:
-            logmt(3, 'write_results(): ERROR in lookup: %s' % e)
+            logmt(3, 'update_moment_tbl error: Error in lookup: %s' % e)
         else:
-            try:
-                moment_tbl.addv(
-                    'orid', int(self.orid),
-                    'str1', math.degrees(strike[0]),
-                    'dip1', math.degrees(dip[0]),
-                    'rake1', math.degrees(rake[0]),
-                    'str2', math.degrees(strike[1]),
-                    'dip2', math.degrees(dip[1]),
-                    'rake2', math.degrees(rake[1])
-                )
-            except Exception, e:
-                logmt(3, 'write_results(): ERROR in adding row to moment table: %s' % e)
+            orid_subset = antdb.dbsubset(moment_dbptr, 'orid == %s' % self.orid)
+            if orid_subset.query('dbRECORD_COUNT') == 0:
+                logmt(1, 'Adding new moment tensor to moment table with orid (%s)' % self.orid)
+                try:
+                    moment_dbptr.addv(
+                        'orid', int(self.orid),
+                        'str1', math.degrees(strike[0]),
+                        'dip1', math.degrees(dip[0]),
+                        'rake1', math.degrees(rake[0]),
+                        'str2', math.degrees(strike[1]),
+                        'dip2', math.degrees(dip[1]),
+                        'rake2', math.degrees(rake[1])
+                    )
+                except Exception, e:
+                    logmt(3, 'Adding record to moment table unknown error: %s' % e)
+                else:
+                    logmt(1, 'Successfully added record with orid (%s) to moment table' % self.orid)
             else:
-                logmt(1, 'write_results(): Successfully wrote out moment tensor to database')
-            moment_tbl.free()
+                logmt(1, 'Updating moment tensor to moment table with orid (%s). Deleting current record and rewriting.' % self.orid)
+                for i in range(moment_dbptr.query('dbRECORD_COUNT')):
+                    moment_dbptr[3] = i
+                    try:
+                        moment_dbptr.putv(
+                            'orid', int(self.orid),
+                            'str1', math.degrees(strike[0]),
+                            'dip1', math.degrees(dip[0]),
+                            'rake1', math.degrees(rake[0]),
+                            'str2', math.degrees(strike[1]),
+                            'dip2', math.degrees(dip[1]),
+                            'rake2', math.degrees(rake[1])
+                        )
+                    except Exception, e:
+                        logmt(3, 'Update record in moment table unknown error: %s' % e)
+                    else:
+                        logmt(1, 'Successfully updated record with orid (%s) in moment table' % self.orid)
+            orid_subset.free()
+            moment_dbptr.free()
+            moment_dbptr.close()
             return True
 
-    def create_focal_mechanism(self, obspy_beachball, mt_images_dir):
-        """Write out focal mechanism to disk
+    def create_focal_mechanism(self, obspy_beachball, mt_images_dir, strike, dip, rake):
+        """Write out focal mechanism
+        to images directory
         """
         if self.verbosity > 0:
-            logmt(1, 'images dir : %s ' % mt_images_dir)
-        if not os.path.exists(self.mt_images_dir):
-            logmt(3, 'write_results(): ERROR directory (%s) does not exist!' % mt_images_dir)
+            logmt(1, 'Writing file to images dir (%s)' % mt_images_dir)
+
+        if not os.path.exists(mt_images_dir):
+            if self.verbosity > 0:
+                logmt(1, 'Images dir (%s) does not exist. Try to create...' % mt_images_dir)
+            try:
+                os.mkdir(mt_images_dir, 0775)
+            except:
+                logmt(3, 'Moment tensor images dir (%s) does not exist and cannot be created!' % mt_images_dir)
 
         focal_mechanism = [strike[0], dip[0], rake[0]]
         if self.verbosity > 0:
-            logmt(1, 'Try to plot MT: %s' % focal_mechanism)
+            logmt(1, 'Try to plot focal mechanism: %s' % focal_mechanism)
 
         beachball_vals = {}
 
@@ -1090,29 +1118,43 @@ class Event():
             logmt(3, 'Error creating Beachball() %s: %s' % (Exception, e))
         else:
             if self.verbosity > 0:
-                logmt(1, 'Beachball(): Outpath %s' % mt_outpath)
+                logmt(1, 'Successfully created focal mechanism image (%s)' % my_outpath)
+            mtimages_dbptr = antdb.dbopen(self.event_db, 'r+')
             try:
-                mtimages_tbl = antdb.dblookup(self.event_db, table='moment_tensor_images')
+                mtimages_dbptr.lookup(table='moment_tensor_images')
             except Exception, e:
-                logmt(3, 'write_results(): ERROR in adding row to moment_tensor_images table: %s' % e)
+                logmt(3, "Cannot open table 'moment_tensor_images'. Do you have the schema extension correctly installed? Error: %s" % e)
             else:
-                if self.verbosity > 0:
-                    logmt(1, 'Dir: %s, Dfile: %s' % (mt_images_dir, my_outfile))
-                try:
-                    mtimages_tbl.addv(
-                        'sta', '109C',
-                        'orid', int(self.orid),
-                        'dir', mt_images_dir,
-                        'dfile', my_outfile)
-                except Exception, e:
-                    logmt(3, 'write_results(): ERROR in adding row to moment_tensor_images table: %s' % e)
+                orid_subset = antdb.dbsubset(mtimages_dbptr, 'orid == %s' % self.orid)
+                if orid_subset.query('dbRECORD_COUNT') == 0:
+                    logmt(1, 'Adding new focal mechanism to moment_tensor_images table with orid (%s)' % self.orid)
+                    try:
+                        mtimages_dbptr.addv(
+                            'sta', '109C',
+                            'orid', int(self.orid),
+                            'dir', mt_images_dir,
+                            'dfile', my_outfile)
+                    except Exception, e:
+                        logmt(3, 'Adding record to moment_tensor_images table unknown error: %s' % e)
+                    else:
+                        logmt(1, 'Successfully added record with orid (%s) to moment_tensor_images table' % self.orid)
                 else:
-                    logmt(1, 'write_results(): Successfully wrote out moment tensor to table moment_tensor_images')
-                mtimages_tbl.free()
-
-        if self.verbosity > 0:
-            logmt(1, 'TEST')
-        moment_db.close()
+                    logmt(1, 'Updating focal mechanism to moment_tensor_images table with orid (%s). Deleting current record and rewriting.' % self.orid)
+                    for i in range(mtimages_dbptr.query('dbRECORD_COUNT')):
+                        mtimages_dbptr[3] = i
+                        try:
+                            mtimages_dbptr.putv(
+                                'sta', '109C',
+                                'orid', int(self.orid),
+                                'dir', mt_images_dir,
+                                'dfile', my_outfile)
+                        except Exception, e:
+                            logmt(3, 'Update record in moment_tensor_images table unknown error: %s' % e)
+                        else:
+                            logmt(1, 'Successfully updated record with orid (%s) to moment_tensor_images table' % self.orid)
+                orid_subset.free()
+                mtimages_dbptr.free()
+                mtimages_dbptr.close()
         return True
 
     '''
@@ -1343,7 +1385,7 @@ def main():
     green_db = '0' # Holder for now as we don't have an active Greens function db
     my_greens = GreensFuncs(green_db, green_pf, verbosity)
     greens_file = my_greens.retrieve_file(evdbptr)
-    greens_file = '/anf/TA/work/moment_tensor/greens_ascii_test/gn/0060_001_SFZ3.gv'
+    greens_file = 'greens/0060_001_SFZ3.gv'
     nl, gg = my_greens.parse_data_file(greens_file)
     nl = int(nl)
 
@@ -1443,16 +1485,14 @@ def main():
 
     qlt = my_mt.quality_check(VR)
 
-    # !!! NOTE: Close dbptr. RLN (2011-11-03)
     evdbptr.close()
 
-    # !!! NOTE: Append results to moment database-table. If db.moment does not exists, create it. RLN (2011-11-03)
-    # my_db = DbWriter(pf, verbosity)
+    # !!! NOTE: UPDATE TABLES AND CREATE FOCAL MECHANISM IMAGE. RLN (2011-11-22)
     my_event.update_moment_tbl(strike, dip, rake)
-    my_event.create_focal_mechanism(obspy_beachball, mt_images_dir)
+    my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, strike, dip, rake)
 
     # !!! FIX: Create data/synthetics plots. NOT YET WORKING. RLN (2011-11-03)
-    # my_mt.data_synthetics_plot(orid, ss, gg)
+    my_event.create_data_synthetics_plot(orid, ss, gg)
 
     print 'M0      = %s' % m0
     print 'Mw      = %s' % Mw 
