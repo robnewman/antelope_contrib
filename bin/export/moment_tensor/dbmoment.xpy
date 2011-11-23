@@ -1157,80 +1157,65 @@ class Event():
                 mtimages_dbptr.close()
         return True
 
-    '''
-    def data_synthetics_plot(self, orid, dict_s, dict_g):
-        # mt_plot(ss,gg,nsta,Strike,Rake,Dip,St2,Rk2,Dp2,d_mt,Pdc,Pclvd,Piso,Mo, Mw, E, VR);
-        """Create and save data vs. synthetic waveform plots. 
-        Equivalent to Dreger's function mt_plot in mt_plot6iso2_linux2.c
-        There should be as many TRZ plots as stations, so length of dict_s and dict_g 
-        TO DO: Each file used in determining the moment tensor should have a station name associated with it
+    def create_data_synthetics_plot(self, stachan_traces, synthetics, mt_images_dir):
+        """Create and save 
+        data vs. synthetic waveform 
+        plots. Equivalent to Dreger's 
+        function mt_plot in mt_plot6iso2_linux2.c:
+
+        mt_plot(ss,gg,nsta,Strike,Rake,Dip,
+                St2,Rk2,Dp2,d_mt,Pdc,Pclvd,Piso,Mo, Mw, E, VR);
+
+        There should be as many TRZ 
+        plots as stations
         """
-        minorLocator = MultipleLocator()
-        
-        plot_title_mapping = {'T':'Tangential', 'R':'Radial', 'Z':'Vertical'} # The order is important
+        # Matplotlib
+        my_plot = plt.figure(figsize=(8.5, 11)) # Init figure
+        my_plot.subplots_adjust(hspace=0.05, wspace=0.02,
+                                bottom=0.05, top=0.9,
+                                left=0.05, right=0.95)
+        # Immutable rotated components
+        # The order is important!
+        rotated_components = ('T', 'R', 'Z')
+        plot_title_mapping = {'T':'Tangential', 'R':'Radial', 'Z':'Vertical'}
 
-        fig = plt.figure() # Init figure
+        # Get a list of the stations from the data
+        stations = []
+        for k in sorted(stachan_traces.iterkeys()):
+            sta, chan = k.split('_')
+            if sta not in stations:
+                stations.append(sta)
 
-        # Reorder for display purposes
-        # for k,v in dict_s.iteritems():
-        #     print k
-        #     print v
-        # Matrix takes the form of:
-        #    Z's for each station, in the example 3 stations
-        #    R's for each station, in the example 3 stations
-        #    T's for each station, in the example 3 stations
-
-        axes = 0 # Start at the 0'th axes
-        rows = len(dict_s)
+        rows = len(stations)
         cols = len(plot_title_mapping)
-
-        print 'Number of dict_s: %s' % len(dict_s)
-        print 'Number of dict_g: %s' % len(dict_g)
-
-        for ss_trz, ss_mat in dict_s.iteritems():
-            # ss (dict_s vals) should be dashed
-            # Dregers code to my code
-            #     Np = number of points
-            #     Z = vertical displacement?
-            #     dt = time change?
-            #     y = vertical offset = 7.0-trz * yscale # Should not need to worry about this with matplotlib
-            # scale_r = scale_t = scale_z = scale_factor = 0 # Should not need to worry about this with matplotlib
-            # print 'Working on data from station %s' % dict_s['name']
-            print 'Working on station number: %s' % ss_trz
-            print 'Number of ss_mat: %s' % len(dict_s[ss_trz])
-            print 'Number of gg_mat: %s' % len(dict_g[ss_trz])
-            gg_mat = dict_g[ss_trz]
-            for ss_k, ss_v in ss_mat.iteritems():
-                ss_xs = [] # List for x-vals
-                ss_ys = [] # List for y-vals
-                gg_ys = [] # List for y-vals
-                axes += 1
-                for ss_sub_k, ss_sub_v in ss_v.iteritems():
-                    ss_xs.append(ss_sub_k)
-                    ss_ys.append(ss_sub_v)
-                for gg_sub_k, gg_sub_v in gg_mat[ss_k]:
-                    gg_ys.append(gg_sub_v)
-                numrows_numcols_fignum = int('%s%s%s' % (rows, cols, axes)) # Dynamically generate subplot - should only be 3 rows
-                if self.verbosity == 1:
-                    print numrows_numcols_fignum
-                my_ax = fig.add_subplot(numrows_numcols_fignum)
-                my_ax.set_title(plot_title_mapping[ss_trz])
-                # my_ax.plot(ss_xs, ss_ys, 'r-', label='synthetic', linewidth=1)
-                my_ax.plot(ss_xs, ss_ys, 'r-', ss_xs, gg_ys, 'b-')
-
-                # Override some default plotting vals for each axes
-                my_ax.xaxis.set_major_locator(minorLocator)
-                my_ax.xaxis.set_minor_locator(minorLocator)
-                my_ax.yaxis.set_major_locator(minorLocator)
-                my_ax.yaxis.set_minor_locator(minorLocator)
-
-        fig.show()
-        syn_plot_outfile = '%s/%s_%s.%s' % (self.mt_images_dir, 'synthetics', orid, 'png')
-        fig.savefig(syn_plot_outfile)
-
-        return syn_plot_outfile
-        return
-        '''
+        no_of_subs = len(stations) * len(rotated_components)
+        axis_num = 0
+        my_plot.suptitle('Station data vs.synthetics for orid: %s' % self.orid, fontsize=12, fontweight='bold')
+        for i, s in enumerate(stations):
+            for j, rc in enumerate(rotated_components):
+                axis_num += 1
+                new_sta_chan = s+'_'+rc
+                if new_sta_chan in stachan_traces:
+                    # Only plotting the first synthetic matrix
+                    simple_synthetic = [(v) for k, v in synthetics[rc][0].iteritems()]
+                    ax = plt.subplot(len(rotated_components), len(stations), axis_num)
+                    plt.plot(stachan_traces[new_sta_chan], 'b', simple_synthetic, 'r--')
+                    plt.grid(True)
+                    ax.text(0.05, 0.95, '%s_%s' % (s, rc), 
+                            verticalalignment='top', horizontalalignment='left',
+                            transform=ax.transAxes,
+                            color='green', fontsize=15)
+                    ax.set_yticklabels([])
+                    ax.set_xticklabels([])
+                else:
+                    print "Trace (%s) is not in stachan_traces matrix" % new_sta_chan
+        syn_plot_outfile = '%s/%s_synthetics_fit.png' % (mt_images_dir, self.orid)
+        my_plot.savefig(syn_plot_outfile)
+        if os.path.isfile(syn_plot_outfile) and self.verbosity > 0:
+            logmt(1, 'Data vs. synthetics plot (%s) successfully saved' % syn_plot_outfile)
+        elif not os.path.isfile(syn_plot_outfile):
+            logmt(3, 'Data vs. synthetics plot (%s) unsuccessfully saved!' % syn_plot_outfile)
+        return True
 
     # }}}
 
@@ -1487,12 +1472,12 @@ def main():
 
     evdbptr.close()
 
-    # !!! NOTE: UPDATE TABLES AND CREATE FOCAL MECHANISM IMAGE. RLN (2011-11-22)
+    # !!! NOTE: UPDATED TABLES AND CREATE FOCAL MECHANISM IMAGE - DONE. RLN (2011-11-22)
     my_event.update_moment_tbl(strike, dip, rake)
     my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, strike, dip, rake)
 
-    # !!! FIX: Create data/synthetics plots. NOT YET WORKING. RLN (2011-11-03)
-    my_event.create_data_synthetics_plot(orid, ss, gg)
+    # !!! FIX: CREATE DATA vs. SYNTHETICS PLOTS - DONE. RLN (2011-11-03)
+    my_event.create_data_synthetics_plot(stachan_traces, gg, mt_images_dir)
 
     print 'M0      = %s' % m0
     print 'Mw      = %s' % Mw 
@@ -1505,16 +1490,6 @@ def main():
     print 'Pdc     = %s' % pcdc
     print 'Pclvd   = %s' % pcclvd
     print 'Piso    = %s' % pciso
-
-    # !!! NOTE: In Dregers code this is where the mt_plot function sits
-    # From Dreger's code
-    # mt_plot(ss,gg,nsta,Strike,Rake,Dip,St2,Rk2,Dp2,d_mt,Pdc,Pclvd,Piso,Mo, Mw, E, VR);
-    ### print ">>TEST"
-    ### synthetics_file = my_mt.synthetics_plot(orid, ss)
-    # synthetics_file = my_mt.synthetics_plot(s['R'])
-    # synthetics_file = my_mt.synthetics_plot(s['V'])
-    # RLN (2011-08-24)
-
 
     # !!! NOTE: From Dreger's fitcheck fprintf() commands. RLN (2011-08-24)
     for j in range(len(svar)):

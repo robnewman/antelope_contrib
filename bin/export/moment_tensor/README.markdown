@@ -2,6 +2,12 @@
 *Contributors: Frank Vernon (FLV), Rob Newman (RLN), Juan Reyes (JCR), Gert-Jan van den Hazel (GJV)*
 
 ### Moment tensor integration into BRTT Antelope Datascope using the Python interface to Antelope
+Once installed, you run this from the command line:
+
+```bash
+dbmoment -v orid
+```
+where orid is an origin id in your Datascope CSS3.0 schema database
 
 ### Dependencies:
 You must have the following CSS3.0 schema extensions installed
