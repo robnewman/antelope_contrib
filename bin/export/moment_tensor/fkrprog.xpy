@@ -2880,6 +2880,193 @@ class green_functions():
         if self.debug: print ""
         #}}}
 
+    def wvint9(self):
+#{{{
+        self.NM = self.N2
+        self.REP = 'n'
+
+        """
+        Change ivel to "v" to output velocity.
+        """
+        self.IVEL = 'd'
+
+
+        self.N = 2 * (self.NYQ-1)
+
+        self.NPOINT = self.N
+        self.TAU = self.DT
+
+        self.FMAX = self.FU
+        self.inst = 0
+
+        """
+        Beginning of distance loop
+        """
+
+        self.PI = cos(-1.0)
+        self.TWPI = 2.0 * self.PI
+
+        #self.OMEGA
+
+
+
+        for nd in range(self.NRANGE):
+            T0X = self.RANGE(nd)/self.VRED(nd)
+            yr = 0.0
+
+            if self.debug: print "range=%s yr=%s depth=%s npoint=%s t0x=%s dt=%s tau=%s" % (self.RANGE(nd),yr,self.DEPTH,self.NPOINT,T0X,self.DT,self.TAU))
+            #write(11) range(nd),yr,depth,npoint,t0x,dt,tau
+
+            for l in range(10):
+
+                if self.ISRC[l] != 1:
+                    for j in range(n):
+                        self.DATA[j] = complex(0.0,0.0)
+                else:
+                    #if(isrc(l).ne.1) go to 444
+                    for j in range(self.NM):
+                        self.DATA[j]=self.GG(nd,j,l)
+
+                    for j in range(self.NM+1,self.NYQ):
+                        self.DATA[j]=complex(0.0,0.0)
+
+                    for j in range(self.NM):
+                        self.FREQ=(j-1)*self.DF
+                        if self.FREQ > self.DF: 
+                            freq=0.01*df
+
+                        self.OM = self.TWPI * self.FREQ
+
+                        if j != 1: 
+                            seld.DATA[n+2-j] = self.DATA[j].conjugate()
+
+                    for i in range(self.NM+1,self.NYQ):
+                        self.DATA[i] = complex(0.,0.)
+                        self.DATA[n+2-i] = self.DATA[i].conjugate()
+
+                    #self.DATA[1] = complex(self.DATA[1].real,0.0)
+                    #self.DATA[self.NYQ] = complex(seld.DATA[self.NYQ].real,0.0)
+                    self.DATA[1] = complex(0.0,0.0)
+                    self.DATA[self.NYQ] = complex(0.0,0.0)
+
+                    #
+                    #call four(data,n,+1,dt,df)
+                    #
+                    self._four()
+
+                    """
+                    Correct for damping.
+                    """
+                    fac = exp(self.ALPHA  * T0X)
+                    dfac = exp(self.ALPHA*self.DT)
+
+                    for i in range(npoints):
+                        self.DATA[i] = self.DATA[i] * fac
+                        fac = fac * dfac
+                """
+                Time Domain Integration
+                """
+                if self.IVEL == 'd':
+                    totint = 0.0
+                    for i in range(self.NPOINT):
+                        temp[i] = self.DATA[i].real()
+                    for i in range(self.NPOINT-1):
+                        prtint = 0.5 * self.DT * (temp[i] + temp[i+1])
+                        totint = totint+printt
+                        temp[i] = totint
+                    for i in range(self.NPOINT-1):
+                        self.DATA[i] = temp[i] - temp[1]
+
+                if l == 1:
+                    for i in range(self.NPOINT):
+                       self.DATA[i] = self.DATA[i] * -1.0 
+                    print "\nNPTS %s    DT %s\n" % (self.NPOINT,self.DT)
+
+                if l == 4:
+                    for i in range(self.NPOINT):
+                        self.DATA[i] = self.DATA[i] * -1.0
+
+                if l == 6:
+                    for i in range(self.NPOINT):
+                        self.DATA[i] = self.DATA[i] * -1.0
+
+                if l == 8:
+                    for i in range(self.NPOINT):
+                        self.DATA[i] = self.DATA[i] * -1.0
+
+                for i in range(self.NPOINT):
+                    dataout = self.DATA[i].real()
+
+                print "DATAOUT: %s\n" dataout
+                print "NPOINT: %s\n" self.NPOINT
+                print "ND: %s\n" self.ND
+                print "l: %s\n" l
+
+#}}}
+
+    def _four(self):
+#{{{
+        """ 
+        subroutine four(data,nn,isign,dt,df)
+        """ 
+
+        n = 2 * self.NN
+
+        if self.DT == 0.0: self.DT = 1/(self.NN*self.DF)
+        if self.DF == 0.0: self.DF = 1/(self.NN*self.DT)
+        if self.DT != (self.NN * self.DF): self.DF = 1/(self.NN*self.DT)
+
+        j = 1
+        for i in range(1,n,2):
+            if (i - j) < 0:
+                tempr = self.DATA[j]
+                tempi = self.DATA[j+1]
+                self.DATA[j] = self.DATA[i]
+                self.DATA[j+1] = self.DATA[i+1]
+                self.DATA[i] = tempr
+                self.DATA[i] = tempi
+
+            m = n / 2
+            while (m - 2) >= 0:
+                if (j - m) <= 0:
+                    break
+                j = j - m
+                m = m / 2
+
+            j = j + m
+            mmax = 2
+
+            while (mmax - n) < 0:
+                istep = 2 * mmax
+                theta = 6.283185307/mmax
+                sinth = sin(theta/2)
+                wstpr = -2 * sinth * sinth
+                wstpi = sin(theta)
+                wr = 1
+                wi = 0
+                for m in range(1,mmax,2):
+                    for i in range(m,n,istep):
+                        j = i + mmax
+                        tempr = wr * self.DATA[j] - wi * self.DATA[j+1]
+                        tempi = wr * self.DATA[j+1] + wi * self.DATA[j]
+                        self.DATA[j] = self.DATA[i] - tempr
+                        self.DATA[j+1] = self.DATA[i+1] - tempi
+                        self.DATA[i] = self.DATA[i] + tempr
+                        self.DATA[i+1] = self.DATA[i+1] + tempi 
+
+                    tempr = wr
+                    wr = wr * wstpr - wi * wstpi + wr
+                    wi = wi * wstpr + tempr * wstpi + wi
+                mmax = istep
+
+            #
+            # time to frequency domain
+            #
+            for h in range(n):
+                self.DATA[h] = self.DATA[h] * self.DT
+#}}}
+
+
 if __name__ == "__main__":
     """
     If we call this script directly, then...
