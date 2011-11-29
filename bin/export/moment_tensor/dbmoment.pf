@@ -50,20 +50,22 @@ mag_filters &Tbl{
 # moment tensor images directory
 mt_images_dir    /Users/rnewman/rtsystems/dbwfserver/mtimages
 
+# Font path
+ttfont    /Library/Fonts/Verdana.ttf
+
 # ObsPy Beachball parameters
 # from: http://docs.obspy.org/packages/auto/obspy.imaging.beachball.Beachball.html
 # All of these have default values, you can override them here
 obspy_beachball &Arr{
     # fm                # Focal mechanism - this is determined by the application. Listed here for completeness. Leave commented!
-    size          200   # Controls the number of interpolation points for the curves. Minimum is automatically set to 100
+    size          300   # Draw with this diameter
     linewidth     2     # Width of the line
     facecolor     b     # Color to use for quadrants of tension; can be a string, e.g. ‘r’, ‘b’ or three component color vector, [R G B]
     edgecolor           # Color of the edges
-    bgcolor             # The background color, usually white
+    bgcolor       w     # The background color, usually white
     alpha               # The alpha level of the beach ball
     xy                  # Origin position of the beach ball as tuple
     width         200   # Symbol size of beach ball
-    outfile       anf_  # Outfile - this is created dynamically based on the orid but you can define a prefix
     format        png   # Symbol size of beach ball
     nofill        # Do not fill the beach ball, but only plot the planes
     fig           # Set zorder. Artists with lower zorder values are drawn first

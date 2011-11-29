@@ -19,6 +19,7 @@ import math as math
 from datetime import datetime
 from collections import defaultdict
 from time import gmtime, time
+from PIL import Image, ImageDraw, ImageFont
 
 # ANTELOPE
 import antelope.stock as stock
@@ -129,6 +130,7 @@ def parse_pf(pfname, verbosity=0):
         resp_db = False
     mag_filters = stock.pfget_arr(pfname, 'mag_filters')
     mt_images_dir = stock.pfget_string(pfname, 'mt_images_dir')
+    ttfont = stock.pfget_string(pfname, 'ttfont')
     obspy_beachball = stock.pfget_arr(pfname, 'obspy_beachball')
     if stock.pfget_string(pfname, 'distance_weighting') == 'on':
         distance_weighting = True
@@ -147,7 +149,7 @@ def parse_pf(pfname, verbosity=0):
     return (chan_to_use, trim_value, isoflag, 
             model_type, statmax, use_inc, event_db, 
             wave_db, green_file, green_pf, resp_db, 
-            mag_filters, mt_images_dir, obspy_beachball, 
+            mag_filters, mt_images_dir, ttfont, obspy_beachball, 
             distance_weighting)
 
 def logmt(flag, message):
@@ -309,9 +311,9 @@ class MomentTensor():
         trim = 0
         cnt1 = cnt2 = cnt3 = 0
         #trim = int(len(dict_s['T'][0]) * float(self.trim_value)) 
-        if self.verbosity > 0:
-            print "Timeshift: %s" % this_timeshift
-            print "Number of stations: %s" % len(dict_s)
+        if self.verbosity > 1:
+            logmt(1, 'Timeshift: %s' % this_timeshift)
+            logmt(1, 'Number of stations used in calculation: %s' % len(dict_s))
 
         # Loop over the number of stations in the dictionary
         for i in range(len(dict_s)):
@@ -1074,13 +1076,12 @@ class Event():
             'alpha': 1.0, 
             'xy': (0, 0),
             'width': 200, 
-            'outfile': None, 
             'format': None, 
             'nofill': False, 
             'fig': None
         }
-        if self.verbosity > 0:
-            logmt(1, 'Beachball(): default %s' % beachball_defaults)
+        if self.verbosity > 1:
+            logmt(1, 'Beachball(): defaults %s' % beachball_defaults)
 
         # Test for defaults in the pf
         for k, v in beachball_defaults.iteritems():
@@ -1095,7 +1096,7 @@ class Event():
             if self.verbosity > 1:
                 logmt(1, 'write_results(): Beachball(): Arg: %s, Val: %s' % (k, beachball_vals[k]))
 
-        my_outfile = '%s%s.%s' % (beachball_vals['outfile'], self.orid, beachball_vals['format'])
+        my_outfile = '%s_focal_mechanism.%s' % (self.orid, beachball_vals['format'])
         my_outpath = '%s/%s' % (mt_images_dir, my_outfile)
 
         try:
@@ -1116,9 +1117,121 @@ class Event():
             )
         except Exception,e:
             logmt(3, 'Error creating Beachball() %s: %s' % (Exception, e))
+            return False
         else:
             if self.verbosity > 0:
                 logmt(1, 'Successfully created focal mechanism image (%s)' % my_outpath)
+            return my_outpath
+
+    def create_data_synthetics_plot(self, stachan_traces, synthetics, mt_images_dir):
+        """Create and save data vs. 
+        synthetic waveform plots. 
+        Equivalent to Dreger's function 
+        mt_plot in mt_plot6iso2_linux2.c:
+
+        mt_plot(ss,gg,nsta,Strike,Rake,Dip,
+                St2,Rk2,Dp2,d_mt,Pdc,Pclvd,Piso,Mo, Mw, E, VR);
+
+        There should be as many TRZ 
+        plots as stations
+        """
+        # Init figure
+        my_plot = plt.figure(figsize=(9, 8.5), dpi=100)
+        my_plot.subplots_adjust(hspace=0.05, wspace=0.02,
+                                bottom=0.02, top=0.96,
+                                left=0.07, right=0.98)
+        # Immutable rotated components
+        # The order is important!
+        rotated_components = ('T', 'R', 'Z')
+
+        if self.verbosity > 1:
+            print "Synthetics (Green's functions) used in calculations:"
+            print synthetics
+
+        # Get a list of the stations from the data
+        stations = []
+        for k in sorted(stachan_traces.iterkeys()):
+            sta, chan = k.split('_')
+            if sta not in stations:
+                stations.append(sta)
+
+        rows = len(stations)
+        cols = len(rotated_components)
+        no_of_subs = len(stations) * len(rotated_components)
+        axis_num = 0
+        my_plot.text(0.22, 0.985, 'Tangential', ha='center', va='top')
+        my_plot.text(0.525, 0.985, 'Radial', ha='center', va='top')
+        my_plot.text(0.83, 0.985, 'Vertical', ha='center', va='top')
+
+        for i, s in enumerate(stations):
+            for j, rc in enumerate(rotated_components):
+                axis_num += 1
+                new_sta_chan = s+'_'+rc
+                if new_sta_chan in stachan_traces:
+                    # Only plotting the first synthetic matrix
+                    simple_synthetic = [(v) for k, v in synthetics[rc][0].iteritems()]
+                    ax = plt.subplot(len(rotated_components), len(stations), axis_num)
+                    plt.plot(stachan_traces[new_sta_chan], 'b', simple_synthetic, 'r--')
+                    ax.set_yticklabels([])
+                    ax.set_xticklabels([])
+                    if j == 0:
+                        ax.set_ylabel(s, rotation='horizontal')
+
+                else:
+                    print "Trace (%s) is not in stachan_traces matrix" % new_sta_chan
+        syn_plot_outfile = '%s/%s_synthetics_fit.png' % (mt_images_dir, self.orid)
+        my_plot.savefig(syn_plot_outfile)
+        if os.path.isfile(syn_plot_outfile) and self.verbosity > 0:
+            logmt(1, 'Successfully created data vs. synthetics plot (%s)' % syn_plot_outfile)
+        elif not os.path.isfile(syn_plot_outfile):
+            logmt(3, 'Error creating data vs. synthetics plot (%s)' % syn_plot_outfile)
+        return syn_plot_outfile
+
+    def create_composite_plot(self, ttfont, img_anno, mt_images_dir, synthetics_img, focalmech_img):
+        """
+        Create a composite image 
+        from focal mechanism and 
+        synthetics plots and update 
+        the database
+
+        All PIL work
+        """ 
+        if self.verbosity > 0:
+            logmt(1, 'Merging the image annotations, synthetics & focal mechanism plots together')
+
+        # Create composite image
+        size = (1400, 900)
+        white = (255, 255, 255, 255)
+        try:
+            myfont = ImageFont.truetype(ttfont, 20)
+        except IOError as e:
+            logmt(3, 'Error importing font: %s' % e)
+
+        final_file = '%s.png' % self.orid
+        path_to_file = '%s/%s' % (mt_images_dir, final_file)
+        syn_img = Image.open(synthetics_img, 'r')
+        fm_img = Image.open(focalmech_img, 'r')
+        fm_position = (size[0] - (fm_img.size)[0] - 50, size[1] - (fm_img.size)[1] - 50)
+
+        composite = Image.new('RGBA', size, white)
+        composite.paste(syn_img, (10, 10))
+        composite.paste(fm_img, fm_position)
+
+        draw = ImageDraw.Draw(composite)
+        position = (1000, 20)
+        incr = 0
+        for anno in img_anno:
+            new_position = (position[0], position[1] + (incr*25))
+            complete_anno = '%s = %s' % (anno[0], anno[1])
+            draw.text(new_position, complete_anno, font=myfont, fill='black')
+            incr += 1
+
+        try:
+            composite.save(path_to_file, 'PNG')
+        except IOError as e:
+            logmt(3, 'Cannot save file (%s). Error: %s' % (final_file, e))
+        else:
+            # Update the database table
             mtimages_dbptr = antdb.dbopen(self.event_db, 'r+')
             try:
                 mtimages_dbptr.lookup(table='moment_tensor_images')
@@ -1133,7 +1246,7 @@ class Event():
                             'sta', '109C',
                             'orid', int(self.orid),
                             'dir', mt_images_dir,
-                            'dfile', my_outfile)
+                            'dfile', final_file)
                     except Exception, e:
                         logmt(3, 'Adding record to moment_tensor_images table unknown error: %s' % e)
                     else:
@@ -1147,7 +1260,7 @@ class Event():
                                 'sta', '109C',
                                 'orid', int(self.orid),
                                 'dir', mt_images_dir,
-                                'dfile', my_outfile)
+                                'dfile', final_file)
                         except Exception, e:
                             logmt(3, 'Update record in moment_tensor_images table unknown error: %s' % e)
                         else:
@@ -1156,67 +1269,6 @@ class Event():
                 mtimages_dbptr.free()
                 mtimages_dbptr.close()
         return True
-
-    def create_data_synthetics_plot(self, stachan_traces, synthetics, mt_images_dir):
-        """Create and save 
-        data vs. synthetic waveform 
-        plots. Equivalent to Dreger's 
-        function mt_plot in mt_plot6iso2_linux2.c:
-
-        mt_plot(ss,gg,nsta,Strike,Rake,Dip,
-                St2,Rk2,Dp2,d_mt,Pdc,Pclvd,Piso,Mo, Mw, E, VR);
-
-        There should be as many TRZ 
-        plots as stations
-        """
-        # Matplotlib
-        my_plot = plt.figure(figsize=(8.5, 11)) # Init figure
-        my_plot.subplots_adjust(hspace=0.05, wspace=0.02,
-                                bottom=0.05, top=0.9,
-                                left=0.05, right=0.95)
-        # Immutable rotated components
-        # The order is important!
-        rotated_components = ('T', 'R', 'Z')
-        plot_title_mapping = {'T':'Tangential', 'R':'Radial', 'Z':'Vertical'}
-
-        # Get a list of the stations from the data
-        stations = []
-        for k in sorted(stachan_traces.iterkeys()):
-            sta, chan = k.split('_')
-            if sta not in stations:
-                stations.append(sta)
-
-        rows = len(stations)
-        cols = len(plot_title_mapping)
-        no_of_subs = len(stations) * len(rotated_components)
-        axis_num = 0
-        my_plot.suptitle('Station data vs.synthetics for orid: %s' % self.orid, fontsize=12, fontweight='bold')
-        for i, s in enumerate(stations):
-            for j, rc in enumerate(rotated_components):
-                axis_num += 1
-                new_sta_chan = s+'_'+rc
-                if new_sta_chan in stachan_traces:
-                    # Only plotting the first synthetic matrix
-                    simple_synthetic = [(v) for k, v in synthetics[rc][0].iteritems()]
-                    ax = plt.subplot(len(rotated_components), len(stations), axis_num)
-                    plt.plot(stachan_traces[new_sta_chan], 'b', simple_synthetic, 'r--')
-                    plt.grid(True)
-                    ax.text(0.05, 0.95, '%s_%s' % (s, rc), 
-                            verticalalignment='top', horizontalalignment='left',
-                            transform=ax.transAxes,
-                            color='green', fontsize=15)
-                    ax.set_yticklabels([])
-                    ax.set_xticklabels([])
-                else:
-                    print "Trace (%s) is not in stachan_traces matrix" % new_sta_chan
-        syn_plot_outfile = '%s/%s_synthetics_fit.png' % (mt_images_dir, self.orid)
-        my_plot.savefig(syn_plot_outfile)
-        if os.path.isfile(syn_plot_outfile) and self.verbosity > 0:
-            logmt(1, 'Data vs. synthetics plot (%s) successfully saved' % syn_plot_outfile)
-        elif not os.path.isfile(syn_plot_outfile):
-            logmt(3, 'Data vs. synthetics plot (%s) unsuccessfully saved!' % syn_plot_outfile)
-        return True
-
     # }}}
 
 class GreensFuncs():
@@ -1360,7 +1412,9 @@ def main():
     (chan_to_use, trim_value, isoflag, 
      model_type, statmax, use_inc, event_db, 
      wave_db, green_file, green_pf, resp_db, 
-     mag_filters, mt_images_dir, obspy_beachball, distance_weighting) = parse_pf(pf, verbosity)
+     mag_filters, mt_images_dir, 
+     ttfont, obspy_beachball, 
+     distance_weighting) = parse_pf(pf, verbosity)
 
     # !!! NOTE: Instance of Event. RLN (2011-11-21)
     my_event = Event(orid, event_db, verbosity)
@@ -1474,10 +1528,25 @@ def main():
 
     # !!! NOTE: UPDATED TABLES AND CREATE FOCAL MECHANISM IMAGE - DONE. RLN (2011-11-22)
     my_event.update_moment_tbl(strike, dip, rake)
-    my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, strike, dip, rake)
+    focalmech_img = my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, strike, dip, rake)
 
+    # !!! NOTE: Use a list of tuples as order is important. RLN (2011-11-28)
+    image_annotations = [ ('strike', strike[0]), 
+                          ('rake', rake[0]), 
+                          ('dip', dip[0]), 
+                          ('m0', m0), 
+                          ('Mw', Mw), 
+                          ('pcdc', pcdc), 
+                          ('pcclvd', pcclvd), 
+                          ('pciso', pciso), 
+                          ('VR', VR), 
+                          ('VAR', VAR)
+                          ]
     # !!! FIX: CREATE DATA vs. SYNTHETICS PLOTS - DONE. RLN (2011-11-03)
-    my_event.create_data_synthetics_plot(stachan_traces, gg, mt_images_dir)
+    synthetics_img = my_event.create_data_synthetics_plot(stachan_traces, gg, mt_images_dir)
+
+    # !!! NOTE: CREATE THE COMPOSITE (FINAL) IMAGE AND UPDATE DB. RLN (2011-11-28)
+    my_event.create_composite_plot(ttfont, image_annotations, mt_images_dir, synthetics_img, focalmech_img)
 
     print 'M0      = %s' % m0
     print 'Mw      = %s' % Mw 
