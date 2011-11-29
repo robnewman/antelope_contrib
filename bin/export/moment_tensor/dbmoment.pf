@@ -14,6 +14,12 @@ distance_weighting off
 # Maximum number of stations to use in the inversion
 statmax 8
 
+# Clipped value, for Q330s: 2**23 * 80% = 1.6**23
+clip_values &Arr{
+    max    1.6**23
+    min    -1.6**23
+}
+
 # Trim value to get rid of edge effects after filtering/decimation 
 trim_value 0.2
 

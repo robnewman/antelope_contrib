@@ -106,7 +106,10 @@ def parse_pf(pfname, verbosity=0):
     """
     if verbosity > 1:
         print 'Parse parameter file %s' % pfname
-    chan_to_use = stock.pfget_string(pfname, 'chan_to_use')
+    try:
+        chan_to_use = stock.pfget_string(pfname, 'chan_to_use')
+    except:
+        chan_to_use = 'LH.*'
     trim_value = stock.pfget_string(pfname, 'trim_value')
     if stock.pfget_string(pfname, 'isoflag') == 1: 
         isoflag = 6
@@ -114,6 +117,7 @@ def parse_pf(pfname, verbosity=0):
         isoflag = 5
     model_type = stock.pfget_string(pfname, 'model_type')
     statmax = stock.pfget_int(pfname,'statmax')
+    clip_values = stock.pfget_arr(pfname, 'clip_values')
     use_inc = stock.pfget_string(pfname, 'use_inc')
     event_db = stock.pfget_string(pfname,'event_db')
     try:
@@ -147,7 +151,7 @@ def parse_pf(pfname, verbosity=0):
     #         mag_filters, mt_images_dir, obspy_beachball, 
     #         distance_weighting)
     return (chan_to_use, trim_value, isoflag, 
-            model_type, statmax, use_inc, event_db, 
+            model_type, statmax, clip_values, use_inc, event_db, 
             wave_db, green_file, green_pf, resp_db, 
             mag_filters, mt_images_dir, ttfont, obspy_beachball, 
             distance_weighting)
@@ -276,12 +280,13 @@ class MomentTensor():
         """
         if self.verbosity > 0:
             logmt(1, 'Get the time shift and return a list')
+            exit()
         timeshift = []
         for i in range(len(data_dict['T'])):
             shift = 0
             xcor  = 0
             if self.cross_cor(data_dict['T'][i], greens_dict[0][i])[0] > xcor:
-                xcor, shift  = self.cross_cor(data_dict['T'][i], greens_dict[0][i])
+                xcor, shift = self.cross_cor(data_dict['T'][i], greens_dict[0][i])
             if self.cross_cor(data_dict['T'][i], greens_dict[1][i])[0] > xcor:
                 xcor, shift = self.cross_cor(data_dict['T'][i], greens_dict[1][i])
             if self.cross_cor(data_dict['R'][i], greens_dict[2][i])[0] > xcor:
@@ -765,6 +770,7 @@ class MomentTensor():
 class Event():
     """Class for extracting per event 
     data from the database
+    and creating the plots
     """
     # {{{
 
@@ -836,159 +842,89 @@ class Event():
 
             return evdb, evparams, filter_string
 
-    def get_chan_data(self, dbptr, wave_db, filter_string, statmax, size):
+    def get_chan_data(self, dbptr, wave_db, chan_to_use, filter_string, statmax, size, clip_values):
         """Opens waveform database and returns
         trace objects based on sta_chan. Applies
         calibration, splice, filter, decimation
         and rotation of channels
-
-        Gert-Jan resampling BH to LH if LH not available - not currently implemented
         """
 
         if self.verbosity > 0:
-            logmt(1, 'Get channel data (trace objects)')
-
-        #wvdb.subset('samprate>=0.9') # !!! NOTE: Why this hard-coded value here? Just to get rid of all BH chans. RLN (2011-07-28)
-        #try:
-        #    wvdb.subset('chan =~/%s/' % self.chan_to_use)
-        #except:
-        #    self.logmt(3, 'No records found in wfdisc table (%s.wfdisc)' % self.wave_db) 
-
-        numrec = dbptr.nrecs()
-        dbptr[3] = 0
-        at = dbptr.getv('arrival.time')[0]
-        st = at - int(size/2)  
-        et = at + int(size/2) 
-        et += 10
-
-        # !!! BUG: Compare numrec to stamax*3 as we are looking at three channels per sta, not just one. RLN (2011-11-03)
-        #if numrec > int(self.statmax*3):
-        #    numrec = int(self.statmax)
-        #    if self.verbosity > 0:
-        #        self.logmt(1, 'The number of records %d is greater than the max number of stations x 3 (for three chans), so only use max number of stations for orid %s' % (numrec, self.orid))
-        #self.logmt(1, 'Processing %s stations for orid %s' % (numrec, self.orid))
-
-        stachan_traces = {}
-        counter = 0
+            logmt(1, 'Get channel data (trace objects) for statmax (%s) stations' % statmax)
+        '''
+        !!! NOTE: Start time and endtime need to be calculated using ptime 
+        Right now we are just getting size/2 either side of first arrival
+        Instead use arrival.time - should be the same thing. RLN (2011-11-29)
+        '''
+        stachan_traces = {} # Holder dict for data
 
         if self.verbosity > 0:
-            logmt(1, 'Processing %s entries ' % dbptr.nrecs())
+            logmt(1, 'There are %s records for this event' % dbptr.nrecs())
 
-        #for i in range(dbptr.nrecs()):
-        for i in range(3):
-            dbptr[3] = i
-
-            logmt(1, 'Get each entry on the table')
-            sta, esaz = dbptr.getv('sta','esaz')
-
-            " Subset secondary table for data extraction "
-            try:
-                wvdb = antdb.dbopen(wave_db, 'r')
-                wvdb.lookup(table='wfdisc')
-            except:
-                logmt(3, 'Could not open waveform database %s' % wave_db)
-            wvstadb = antdb.dbsubset(wvdb,'sta=~/^%s$/ && chan=~/LH./' % sta)
-
-            #logmt(1, 'Looking for channels with a sample rate >= 1 Hz for sta = %s' % sta)
-            #try:
-            #    chans = self.choose_chan(wvstadb)
-            #except:
-            #    logmt(1, 'No channels found with a sample-rate >= 1 Hz for sta = %s' % sta)
-
-            #" Subset for channels "
-            #logmt(1, 'Channels found: %s %s %s' % (chans[0], chans[1], chans[2]))
-            #wvstadb.subset('chan =~ /%s|%s|%s/' % (chans[0], chans[1], chans[2]))
-
-            resample = 0
-            #for j in range(wvstadb.nrecs()):
-            #    wvstadb[3] = j
-            #    if wvstadb.getv('samprate')[0] != 1: # !!! FIX: Why hard-coded sample rate here just to remove BH chans? RLN (2011-11-03)
-            #        logmt(0, 'Samplerate higher than 1.0 --> resample')
-            #        resample = 1
-            #    break
-
-            #if self.use_inc == 1:
-            #    vang = dbptr.getv('vang')[0]
-            #if self.use_inc == 1:
+        if dbptr.nrecs() < statmax*3:
             if self.verbosity > 0:
-                logmt(1, 'Need to join dbptr to some table in dbmaster to get VANG value for sta:chan')
-            vang = 0
+                logmt(1, 'Only %s station channel records available.' % dbptr.nrecs())
+            statmax = dbptr.nrecs()
 
+        # !!! NOTE: Need to get a fresh view of the wfdisc as subsetted for P arrivals
+        #           which are only done on the BH.* channels. RLN (2011-11-29)
+        try:
+            wvdb = antdb.dbopen(wave_db, 'r')
+            wvdb.lookup(table='wfdisc')
+        except:
+            logmt(3, 'Could not open waveform database %s' % wave_db)
+        else:
             if self.verbosity > 0:
-                logmt(1, 'Load data into memory for (%s,%s)' % (st, et))
-            trace = wvstadb.load_css(st, et)
-            trace.apply_calib()
-            trace.splice()
-            trace.filter(filter_string)
-            rotchan = ('R', 'T', 'Z') # !!! NOTE: Hard-coded as moment tensor uses these rotated channel codes. RLN (2011-11-03)
-            trace.rotate(esaz, vang, rotchan)
-            trace.subset('chan =~ /R|T|Z/') # !!! NOTE: Hard-coded as moment tensor uses these rotated channel codes. RLN (2011-07-28)
-            if self.verbosity > 0:
-                logmt(1, 'Trace : [%s]' % trace.nrecs())
-            foundchans = []
-            #for j in range(trace.nrecs()):
-            for j in range(3):
-                trace[3] = j
-                sta, chan, ns, sr = trace.getv('sta', 'chan', 'nsamp', 'samprate')
-                stachan = '%s_%s' % (sta, chan)
-                ns_tra = 0
-                ns_req = 0
+                logmt(1, 'Get each entry in the table for (%s) stations' % statmax)
+            for i in range(statmax):
+                dbptr[3] = i
+                sta, esaz, at = dbptr.getv('sta', 'esaz', 'arrival.time')
+                st = at - int(size/2)  
+                et = at + int(size/2) 
+                et += 10 # Give 10s of endtime buffer (10 samples @ 1Hz)
+                resample = 0
+                vang = 0
                 if self.verbosity > 0:
-                    logmt(1, "Extract the data")
-                samples = trace.data()
-
-                #for k in range(len(samples)):
-                #    ns_tra += ns
-                #    ns_req += int((et-st)*sr)
-
-                #if not ns_tra == ns_req:
-                #    logmt(0, 'Incorrect number of samples for %s, skipping %s' % (stachan, sta))
-                #    for delchan in foundchans:
-                #        if stachan_traces[delchan]:
-                #            del stachan_traces[delchan]
-                #            self.logmt(0, 'Deleting channel %s' % delchan)
-                #            counter -= 1
-
-                stachan_traces[stachan] = samples[0:size]  
-                if self.verbosity > 0:
-                    logmt(1, 'Trace extracted for %s samples:[%s] wanted:[%s]' % (stachan,len(stachan_traces[stachan]),size))
-                foundchans.append(stachan)
-                counter += 1
-
-            trace.trdestroy()
-            if counter == statmax*3:
-                break
+                    logmt(1, ' - Retrieve %s data with time range (%s, %s)' % (sta, st, et))
+                wvstadb = antdb.dbsubset(wvdb, 'sta=~/^%s$/ && chan=~/%s/' % (sta, chan_to_use))
+                trace = wvstadb.load_css(st, et)
+                trace.apply_calib()
+                trace.splice()
+                trace.filter(filter_string)
+                rotchan = ('R', 'T', 'Z')
+                trace.rotate(esaz, vang, rotchan)
+                trace.subset('chan =~ /R|T|Z/')
+                if self.verbosity > 1:
+                    logmt(1, ' - Number of traces for %s: %s' % (sta, trace.nrecs()))
+                for j in range(trace.nrecs()):
+                    trace[3] = j
+                    sta, chan, ns, sr = trace.getv('sta', 'chan', 'nsamp', 'samprate')
+                    stachan = '%s_%s' % (sta, chan)
+                    ns_tra = 0
+                    ns_req = 0
+                    samples = trace.data()
+                    use_data = 0
+                    # Test for clipped data
+                    for i in samples:
+                        if i > float(clip_values['max']):
+                            use_data = 1
+                        elif i < float(clip_values['min']):
+                            use_data = -1
+                    if use_data == 1:
+                        logmt(1, ' - %s: One or more samples > clip_values[max] (%s)' % (stachan, clip_values['max']))
+                    elif use_data == -1:
+                        logmt(1, ' - %s: One or more samples < clip_values[min] (%s)' % (stachan, clip_values['min']))
+                    else:
+                        if self.verbosity > 1 and len(samples) > size:
+                            logmt(1, '  - Sample size for %s: %s. Max: %s. Trimming.' % (stachan, len(samples), size))
+                        stachan_traces[stachan] = samples[0:size]  
+                        if self.verbosity > 0:
+                            logmt(1, ' - Trace extracted for %s samples:[%s], wanted:[%s]' % (stachan,len(stachan_traces[stachan]),size))
+                trace.trdestroy()
+                wvstadb.free()
+            wvdb.free()
+            wvdb.close()
         return stachan_traces
-
-    def choose_chan(self, dbptr):
-        """Get all channels for a given station. 
-        Returns the channels with samplerate 
-        closest to and bigger than 1
-        !!! NOTE: Not currently used. RLN (2011-11-21)
-        """
-        '''
-        if self.verbosity:
-            logmt(1, 'Choosing channels')
-        view = antdb.dbsort(dbptr, 'samprate', unique=True)
-        for i in range(view.nrecs()):
-            view[3] = i
-            chan = view.getv('chan')
-            chanview = antdb.dbsubset(dbptr,'chan =~ /%s.*/' % chan[0][:2]) # !!! NOTE: Just get the first two chan letters, so LH.*. RLN (2011-11-03)
-            chanview.sort('chan', unique=True)
-            channels = []
-            if chanview.nrecs() == 3:
-                for j in range(chanview.nrecs()):
-                    chanview[3] = j
-                    chan = chanview.getv('chan')[0]
-                    channels.append(chan)
-            else:
-                logmt(1, 'Did not find 3 components for %s, trying higher sample rate' % chan)
-                channels = []
-                continue
-            if len(channels) == 3:
-                break
-        return channels
-        '''
 
     def update_moment_tbl(self, strike, dip, rake):
         """Write out results to 
@@ -1332,14 +1268,17 @@ class GreensFuncs():
         """
         this_dict = defaultdict(lambda: defaultdict(defaultdict))
 
-        print green_file
-
         if self.verbosity > 0:
-            logmt(1, 'Constructing Greens function matrix from hard-coded file in %s' % green_file)
+            logmt(1, 'Constructing Greens function matrix from hard-coded file (%s)' % green_file)
         # !!! NOTE: Container list for parsed file object values. RLN (2011-11-03)
         greens = []
         # !!! NOTE: Open up the Green function file as specified in the pf (for now). RLN (2011-11-03)
         green = open(green_file, 'r')
+        '''
+        nl = number of lines
+        dt = sample rate
+        t1 = time period
+        '''
         nl, dt, t1 = (green.readline()).split() # !!! NOTE: Only in PGC Greens functions, there are three starting numbers. RLN (2011-11-03)
         for line in green:
             one_line = line.rstrip('\n')
@@ -1410,7 +1349,7 @@ def main():
 
     # Parse the parameter file
     (chan_to_use, trim_value, isoflag, 
-     model_type, statmax, use_inc, event_db, 
+     model_type, statmax, clip_values, use_inc, event_db, 
      wave_db, green_file, green_pf, resp_db, 
      mag_filters, mt_images_dir, 
      ttfont, obspy_beachball, 
@@ -1424,14 +1363,16 @@ def main():
     green_db = '0' # Holder for now as we don't have an active Greens function db
     my_greens = GreensFuncs(green_db, green_pf, verbosity)
     greens_file = my_greens.retrieve_file(evdbptr)
-    greens_file = 'greens/0060_001_SFZ3.gv'
+    greens_file = 'greens/1419_008_PDS1.gn'
     nl, gg = my_greens.parse_data_file(greens_file)
     nl = int(nl)
 
-    stachan_traces = my_event.get_chan_data(evdbptr, wave_db, filter_string, statmax, nl)
+    stachan_traces = my_event.get_chan_data(evdbptr, wave_db, chan_to_use, filter_string, statmax, nl, clip_values)
 
-    print stachan_traces
-    print gg
+    if verbosity > 1:
+        print '\n***************\nStachan traces:\n***************'
+        pprint(stachan_traces)
+        pprint(gg)
 
     # !!! NOTE: Works up to here. RLN (2011-11-21)
 
@@ -1447,7 +1388,7 @@ def main():
     # nl, gg = my_mt.get_greens_functions_hard_coded(g)
 
     if len(gg[1][1]) != nl:
-        print "Size of Green's functions (%s) does not match the reported value (%s)" % (len(gg[1][1]), nl)
+        logmt(3, "Size of Green's functions (%s) does not match the reported value (%s)" % (len(gg[1][1]), nl))
 
     """
     Pull the data from the db into stachan_traces
@@ -1458,9 +1399,7 @@ def main():
     #          event when pulling from the db?
     #          It needs to match the length of the Green's 
     #          function to ensure we are comparing apples to apples
-    # RLN (2011-11-03)
-    print '\n\nStachan traces:\n'
-    pprint(stachan_traces)
+    #          RLN (2011-11-03)
 
     # !!! NOTE: Now we instantiate MomentTensor. RLN (2011-11-21)
     my_mt = MomentTensor(distance_weighting, isoflag, trim_value, verbosity)
@@ -1472,7 +1411,6 @@ def main():
         print "Number of Green's functions (%d) does not match the number of stations (%d)" % (len(gg[1]), len(ss['T']))
     else:
         print 'Matrix S (data) and G (synthetics) created'
-    pprint(ss.items())
 
     '''
     !!! NOTE: The assumption here is that the size of both
