@@ -325,45 +325,45 @@ class MomentTensor():
             cnt1 = cnt2 = cnt3
             cnt2 += len(dict_s['T'][0]) - trim
             cnt3 += 2*len(dict_s['T'][0]) - 2*trim
-            list_az[i] *= math.pi/180
+            list_az[i][1] *= math.pi/180 # list_az is a tuple
             # Index over time
             for j in range(len(dict_s['T'][0])-trim):
                 # Mxx term
-                AJ[0][cnt1] =  math.sin(2*list_az[i])*dict_g[0][i][j]/2
+                AJ[0][cnt1] =  math.sin(2*list_az[i][1])*dict_g[0][i][j]/2
 
                 # Myy term
-                AJ[1][cnt1] = -math.sin(2*list_az[i])*dict_g[0][i][j]/2
+                AJ[1][cnt1] = -math.sin(2*list_az[i][1])*dict_g[0][i][j]/2
 
                 # Mxy term
-                AJ[2][cnt1] = -math.cos(2*list_az[i])*dict_g[0][i][j]
-                AJ[2][cnt2] = -math.sin(2*list_az[i])*dict_g[2][i][j]
-                AJ[2][cnt3] = -math.sin(2*list_az[i])*dict_g[5][i][j]
+                AJ[2][cnt1] = -math.cos(2*list_az[i][1])*dict_g[0][i][j]
+                AJ[2][cnt2] = -math.sin(2*list_az[i][1])*dict_g[2][i][j]
+                AJ[2][cnt3] = -math.sin(2*list_az[i][1])*dict_g[5][i][j]
 
                 # Mxz term
-                AJ[3][cnt1] = -math.sin(list_az[i])*dict_g[1][i][j]
-                AJ[3][cnt2] =  math.cos(list_az[i])*dict_g[3][i][j]
-                AJ[3][cnt3] =  math.cos(list_az[i])*dict_g[6][i][j]
+                AJ[3][cnt1] = -math.sin(list_az[i][1])*dict_g[1][i][j]
+                AJ[3][cnt2] =  math.cos(list_az[i][1])*dict_g[3][i][j]
+                AJ[3][cnt3] =  math.cos(list_az[i][1])*dict_g[6][i][j]
 
                 # Myz term
-                AJ[4][cnt1] =  math.cos(list_az[i])*dict_g[1][i][j]
-                AJ[4][cnt2] =  math.sin(list_az[i])*dict_g[3][i][j]
-                AJ[4][cnt3] =  math.sin(list_az[i])*dict_g[6][i][j]
+                AJ[4][cnt1] =  math.cos(list_az[i][1])*dict_g[1][i][j]
+                AJ[4][cnt2] =  math.sin(list_az[i][1])*dict_g[3][i][j]
+                AJ[4][cnt3] =  math.sin(list_az[i][1])*dict_g[6][i][j]
 
                 # Vary the other values depending on isoflag value
                 if self.isoflag == 5:
                     # Mxx term
-                    AJ[0][cnt2] = (dict_g[4][i][j])/2 - (math.cos(2*list_az[i])*dict_g[2][i][j])/2
-                    AJ[0][cnt3] = (dict_g[7][i][j])/2 - (math.cos(2*list_az[i])*dict_g[5][i][j])/2
+                    AJ[0][cnt2] = (dict_g[4][i][j])/2 - (math.cos(2*list_az[i][1])*dict_g[2][i][j])/2
+                    AJ[0][cnt3] = (dict_g[7][i][j])/2 - (math.cos(2*list_az[i][1])*dict_g[5][i][j])/2
                     # Myy term
-                    AJ[1][cnt2] = (dict_g[4][i][j])/2 + (math.cos(2*list_az[i])*dict_g[2][i][j])/2
-                    AJ[1][cnt3] = (dict_g[7][i][j])/2 + (math.cos(2*list_az[i])*dict_g[5][i][j])/2
+                    AJ[1][cnt2] = (dict_g[4][i][j])/2 + (math.cos(2*list_az[i][1])*dict_g[2][i][j])/2
+                    AJ[1][cnt3] = (dict_g[7][i][j])/2 + (math.cos(2*list_az[i][1])*dict_g[5][i][j])/2
                 if self.isoflag == 6:
                     # Mxx term
-                    AJ[0][cnt2] = (dict_g[4][i][j])/6 - (math.cos(2*list_az[i])*dict_g[2][i][j])/2 + (dict_g[8][i][j])/3
-                    AJ[0][cnt3] = (dict_g[7][i][j])/6 - (math.cos(2*list_az[i])*dict_g[5][i][j])/2 + (dict_g[9][i][j])/3
+                    AJ[0][cnt2] = (dict_g[4][i][j])/6 - (math.cos(2*list_az[i][1])*dict_g[2][i][j])/2 + (dict_g[8][i][j])/3
+                    AJ[0][cnt3] = (dict_g[7][i][j])/6 - (math.cos(2*list_az[i][1])*dict_g[5][i][j])/2 + (dict_g[9][i][j])/3
                     # Myy term
-                    AJ[1][cnt2] = (dict_g[4][i][j])/6 + (math.cos(2*list_az[i])*dict_g[2][i][j])/2 + (dict_g[8][i][j])/3
-                    AJ[1][cnt3] = (dict_g[7][i][j])/6 + (math.cos(2*list_az[i])*dict_g[5][i][j])/2 + (dict_g[9][i][j])/3
+                    AJ[1][cnt2] = (dict_g[4][i][j])/6 + (math.cos(2*list_az[i][1])*dict_g[2][i][j])/2 + (dict_g[8][i][j])/3
+                    AJ[1][cnt3] = (dict_g[7][i][j])/6 + (math.cos(2*list_az[i][1])*dict_g[5][i][j])/2 + (dict_g[9][i][j])/3
                     # RLN (2011-08-24): Where do these values come from and why?
                     AJ[5][cnt1] = 0.0
                     AJ[5][cnt2] = (dict_g[8][i][j])/3  - (dict_g[4][i][j])/3
@@ -857,6 +857,7 @@ class Event():
         Instead use arrival.time - should be the same thing. RLN (2011-11-29)
         '''
         stachan_traces = {} # Holder dict for data
+        ev2sta_azimuths = [] # Holder list - needs to remain sorted
 
         if self.verbosity > 0:
             logmt(1, 'There are %s records for this event' % dbptr.nrecs())
@@ -879,6 +880,7 @@ class Event():
             for i in range(statmax):
                 dbptr[3] = i
                 sta, esaz, at = dbptr.getv('sta', 'esaz', 'arrival.time')
+                ev2sta_azimuths.append((sta, esaz))
                 st = at - int(size/2)  
                 et = at + int(size/2) 
                 et += 10 # Give 10s of endtime buffer (10 samples @ 1Hz)
@@ -924,7 +926,7 @@ class Event():
                 wvstadb.free()
             wvdb.free()
             wvdb.close()
-        return stachan_traces
+        return stachan_traces, ev2sta_azimuths
 
     def update_moment_tbl(self, strike, dip, rake):
         """Write out results to 
@@ -1367,14 +1369,17 @@ def main():
     nl, gg = my_greens.parse_data_file(greens_file)
     nl = int(nl)
 
-    stachan_traces = my_event.get_chan_data(evdbptr, wave_db, chan_to_use, filter_string, statmax, nl, clip_values)
+    stachan_traces, ev2sta_azimuths = my_event.get_chan_data(evdbptr, wave_db, chan_to_use, filter_string, statmax, nl, clip_values)
 
     if verbosity > 1:
-        print '\n***************\nStachan traces:\n***************'
+        print 'Stachan traces:'
         pprint(stachan_traces)
+        print 'Event to station azimuths:'
+        pprint(ev2sta_azimuths)
+        print 'Greens Function:'
         pprint(gg)
 
-    # !!! NOTE: Works up to here. RLN (2011-11-21)
+    # !!! NOTE: Works up to here. RLN (2011-11-29)
 
     """
     Opens Green's database and returns a 
@@ -1430,6 +1435,7 @@ def main():
     # Examples just for the examples
     # - event to station azimuth, in this example used 3 stations
     az = [10, 40, 50]
+    ev2sta_azimuths
 
     # !!! NOTE: What is W? Weighting factor - number of stations, long list of values.
     # If 1 then station fully incorporated into solution. If less than one, don't include. RLN (2011-07-28)
@@ -1469,16 +1475,16 @@ def main():
     focalmech_img = my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, strike, dip, rake)
 
     # !!! NOTE: Use a list of tuples as order is important. RLN (2011-11-28)
-    image_annotations = [ ('strike', strike[0]), 
-                          ('rake', rake[0]), 
-                          ('dip', dip[0]), 
-                          ('m0', m0), 
-                          ('Mw', Mw), 
-                          ('pcdc', pcdc), 
-                          ('pcclvd', pcclvd), 
-                          ('pciso', pciso), 
-                          ('VR', VR), 
-                          ('VAR', VAR)
+    image_annotations = [ ('strike', '%.3f' % strike[0]), 
+                          ('rake', '%.3f' % rake[0]), 
+                          ('dip', '%.3f' % dip[0]), 
+                          ('m0', '%.3f' % m0), 
+                          ('Mw', '%.3f' % Mw), 
+                          ('pcdc', '%.3f' % pcdc), 
+                          ('pcclvd', '%.3f' % pcclvd), 
+                          ('pciso', '%.3f' % pciso), 
+                          ('VR', '%.3f' % VR), 
+                          ('VAR', '%.3f' % VAR)
                           ]
     # !!! FIX: CREATE DATA vs. SYNTHETICS PLOTS - DONE. RLN (2011-11-03)
     synthetics_img = my_event.create_data_synthetics_plot(stachan_traces, gg, mt_images_dir)
