@@ -2,10 +2,12 @@ import os
 import sys
 import re
 import getopt
-import numpy
+#import numpy
 import pprint 
-from numpy.linalg import inv
+#from numpy.linalg import inv
+from numpy.fft  import ifft
 from collections import defaultdict
+import matplotlib.pyplot as plt
 from math import exp, log, sqrt, acos, asin, cos, sin
 import  math 
 from cmath import log as clog
@@ -152,6 +154,8 @@ class green_functions():
         #
         self.IB  = 100
         self.IFREQ = 0
+        self.DATA = defaultdict(lambda: defaultdict(dict))
+        self.ALLOMEGA = defaultdict(lambda: defaultdict(dict))
 
         self.verbose = verbose
         self.debug = debug
@@ -167,6 +171,7 @@ class green_functions():
         if self.source:
             self._setup_vars()
             self._excit()
+            self._wvint9()
 
 
 #}}}
@@ -559,8 +564,12 @@ class green_functions():
         if self.debug: print 'NSKIP = %s' % self.NSKIP
         if self.debug: print 'DF = %s' % self.DF
 
-        for x in range(self.N1,self.N2,self.NSKIP):
+        #for x in range(self.N2):
+        #for x in range(self.N1,self.N2,self.NSKIP):
+        for x in range(self.N1,self.N2+1):
             if self.debug: print 'I=%s' % x
+
+            #self.I = x
             self.FREQ = (x-1) * self.DF
             if self.FREQ < self.DF: self.FREQ = 0.01 * self.DF
             if self.debug: print 'FREQ => %s' % self.FREQ
@@ -583,14 +592,17 @@ class green_functions():
             if self.debug: print 'WVCN => %s' % self.WVCN
 
             self._excit()
+            self.ALLOMEGA[x-1] = [self.OMEGA,self.NK]
             print "\t\t\t\t%s  F =  %12.4E NBLOCK =  %5s IBLOCK= %3s" % (x,self.FREQ,self.NBLOCK,self.IBLOCK)
-            if x >= self.M1 and x <= self.M2:
-                if self.PRNTA or self.verbose:
-                    for y in range(self.NRANGE):
-                        print "\tDIST =>    %s" % y
-                        for z in range(10):
-                            #print "\t\t%-10s%-16.9E%-4s%-16.9E" % self.GG[y][z]
-                            print "\t\t%16.9E\t%16.9E" % (self.GG[y][z].real,self.GG[y][z].imag)
+            #print "\t\t\t\t%s  DATA :  %s" % (x,self.DATA[x])
+            #if x >= self.M1 and x <= self.M2:
+            if self.PRNTA or self.verbose:
+                for y in range(self.NRANGE):
+                    print "\tDIST =>    %s" % y
+                    for z in range(10):
+                        #print "\t\t%-10s%-16.9E%-4s%-16.9E" % self.GG[y][z]
+                        self.DATA[y][x-1][z] = self.GG[y][z]
+                        print "\t\t%16.9E\t%16.9E" % (self.GG[y][z].real,self.GG[y][z].imag)
 
 
         self.XX = -999.0
@@ -851,6 +863,7 @@ class green_functions():
         if self.debug: print 'NK => %s' % self.NK
         if self.debug: print 'OMEGA => %s' % self.OMEGA
         if self.debug: print 'OMEGA:%s NK:%s' % (self.OMEGA,self.NK)
+        print '\t\t\tOMEGA:%s NK:%s' % (self.OMEGA,self.NK)
 
         #
         # DETERMINE INDEX FOR INTEGRATION  I.E., WHEN KR IS GT. 3.0
@@ -2821,7 +2834,7 @@ class green_functions():
         #}}} B
 
         if self.debug: print "%s" % self.GG
-        return 
+        #return self.GG 
 
 #}}}
 
@@ -2880,9 +2893,19 @@ class green_functions():
         if self.debug: print ""
         #}}}
 
-    def wvint9(self):
+    def _wvint9(self):
 #{{{
-        self.NM = self.N2
+        for i in range(self.N2):
+            print 'OMEGA(%s):   %s' % ( i, self.ALLOMEGA[i])
+            for j in range(self.NRANGE):
+                for k in range(10):
+                    try:
+                        print 'DATA(%s,%s,%s):   %s' % ( j, i, k, self.DATA[j][i][k])
+                    except Exception,e:
+                        self.DATA[j][i][k] = complex(0.0,0.0)
+                        print 'DATA(%s,%s,%s):   %s' % ( j, i, k, Exception)
+
+
         self.REP = 'n'
 
         """
@@ -2891,9 +2914,10 @@ class green_functions():
         self.IVEL = 'd'
 
 
-        self.N = 2 * (self.NYQ-1)
+        self.N = 2 * (self.NYQ - 1)
+        #print "N => %s" % self.N
+        #exit()
 
-        self.NPOINT = self.N
         self.TAU = self.DT
 
         self.FMAX = self.FU
@@ -2910,49 +2934,48 @@ class green_functions():
 
 
 
+        #for nd in range(self.N1,self.N2,self.NSKIP):
         for nd in range(self.NRANGE):
-            T0X = self.RANGE(nd)/self.VRED(nd)
+            T0X = self.RANGE[nd]/self.VRED[nd]
             yr = 0.0
 
-            if self.debug: print "range=%s yr=%s depth=%s npoint=%s t0x=%s dt=%s tau=%s" % (self.RANGE(nd),yr,self.DEPTH,self.NPOINT,T0X,self.DT,self.TAU))
-            #write(11) range(nd),yr,depth,npoint,t0x,dt,tau
+            print "nd=%s" % nd
+            print "range=%s yr=%s depth=%s" % (self.RANGE[nd],yr,self.DEPTH)
+            print "npoint=%s t0x=%s dt=%s tau=%s" % (self.N,T0X,self.DT,self.TAU)
 
+            if self.debug: print "range=%s yr=%s depth=%s npoint=%s t0x=%s dt=%s tau=%s" % (self.RANGE[nd],yr,self.DEPTH,self.N,T0X,self.DT,self.TAU)
             for l in range(10):
 
+                #self.TEMPDATA = {}
+                self.TEMPDATA = dict()
+
                 if self.ISRC[l] != 1:
-                    for j in range(n):
-                        self.DATA[j] = complex(0.0,0.0)
+                    for j in range(self.N):
+                        self.TEMPDATA[j] = complex(0.0,0.0)
+                        #print "TEST 1: TEMPDATA[j] => %s" % self.TEMPDATA[j]
                 else:
-                    #if(isrc(l).ne.1) go to 444
-                    for j in range(self.NM):
-                        self.DATA[j]=self.GG(nd,j,l)
+                    for j in range(self.NYQ+1):
 
-                    for j in range(self.NM+1,self.NYQ):
-                        self.DATA[j]=complex(0.0,0.0)
+                        if j < self.N2-1:
 
-                    for j in range(self.NM):
-                        self.FREQ=(j-1)*self.DF
-                        if self.FREQ > self.DF: 
-                            freq=0.01*df
+                            self.TEMPDATA[j]=self.DATA[nd][j][l]
+                            self.TEMPDATA[self.N2-1-j]=self.DATA[nd][j][l].conjugate()
 
-                        self.OM = self.TWPI * self.FREQ
+                        elif j > self.N2-1:
 
-                        if j != 1: 
-                            seld.DATA[n+2-j] = self.DATA[j].conjugate()
+                            self.TEMPDATA[j] = complex(0.0,0.0)
+                            self.TEMPDATA[self.N2-1-j] = complex(0.0,0.0).conjugate()
 
-                    for i in range(self.NM+1,self.NYQ):
-                        self.DATA[i] = complex(0.,0.)
-                        self.DATA[n+2-i] = self.DATA[i].conjugate()
+                        else:
+
+                            self.TEMPDATA[self.N2-1]=self.DATA[nd][j][l]
 
                     #self.DATA[1] = complex(self.DATA[1].real,0.0)
                     #self.DATA[self.NYQ] = complex(seld.DATA[self.NYQ].real,0.0)
-                    self.DATA[1] = complex(0.0,0.0)
-                    self.DATA[self.NYQ] = complex(0.0,0.0)
+                    self.TEMPDATA[0] = complex(0.0,0.0)
+                    self.TEMPDATA[self.NYQ+1] = complex(0.0,0.0)
 
-                    #
-                    #call four(data,n,+1,dt,df)
-                    #
-                    self._four()
+
 
                     """
                     Correct for damping.
@@ -2960,110 +2983,77 @@ class green_functions():
                     fac = exp(self.ALPHA  * T0X)
                     dfac = exp(self.ALPHA*self.DT)
 
-                    for i in range(npoints):
-                        self.DATA[i] = self.DATA[i] * fac
+                    for i in range(self.N2):
+                        self.TEMPDATA[i] = self.TEMPDATA[i] * fac
                         fac = fac * dfac
+
+                    #convert to list
+                    self.TEMPDATA = [ x for x in self.TEMPDATA.values()]
+
+                    self.TEMPDATA = ifft(self.TEMPDATA)
+
+                    #Convert to real values
+                    self.TEMPDATA = self.TEMPDATA.real
+
+                    #plt.plot(self.TEMPDATA)
+                    #text = 'GF: range(%s) block(%s)' % (nd,l)
+                    #plt.legend(text)
+                    #plt.show()
+
+
                 """
                 Time Domain Integration
                 """
                 if self.IVEL == 'd':
-                    totint = 0.0
-                    for i in range(self.NPOINT):
-                        temp[i] = self.DATA[i].real()
-                    for i in range(self.NPOINT-1):
+                    totint = 0
+                    prtint = 0
+
+                    #make dict from list
+                    self.TEMPDATA = dict(zip([x for x in range(len(self.TEMPDATA))],self.TEMPDATA))
+                    temp= self.TEMPDATA
+
+                    for i in range(self.N2-1):
                         prtint = 0.5 * self.DT * (temp[i] + temp[i+1])
-                        totint = totint+printt
+                        totint = totint + prtint
                         temp[i] = totint
-                    for i in range(self.NPOINT-1):
-                        self.DATA[i] = temp[i] - temp[1]
+                        #print '%s' % temp[i]
+                    for i in range(self.N2-1):
+                        self.TEMPDATA[i] = temp[i] - temp[0]
+                        #print '%s' % self.TEMPDATA[i]
 
-                if l == 1:
-                    for i in range(self.NPOINT):
-                       self.DATA[i] = self.DATA[i] * -1.0 
-                    print "\nNPTS %s    DT %s\n" % (self.NPOINT,self.DT)
+                    #back to list
+                    self.TEMPDATA = [ x for x in self.TEMPDATA.values()]
 
-                if l == 4:
-                    for i in range(self.NPOINT):
-                        self.DATA[i] = self.DATA[i] * -1.0
+                if l == 0:
+                    self.TEMPDATA = [x * -1 for x in self.TEMPDATA ]
+                    print "\nNPTS %s    DT %s\n" % (self.N,self.DT)
 
-                if l == 6:
-                    for i in range(self.NPOINT):
-                        self.DATA[i] = self.DATA[i] * -1.0
+                if l == 3:
+                    self.TEMPDATA = [x * -1 for x in self.TEMPDATA ]
 
-                if l == 8:
-                    for i in range(self.NPOINT):
-                        self.DATA[i] = self.DATA[i] * -1.0
+                if l == 5:
+                    self.TEMPDATA = [x * -1 for x in self.TEMPDATA ]
 
-                for i in range(self.NPOINT):
-                    dataout = self.DATA[i].real()
+                if l == 7:
+                    self.TEMPDATA = [x * -1 for x in self.TEMPDATA ]
 
-                print "DATAOUT: %s\n" dataout
-                print "NPOINT: %s\n" self.NPOINT
-                print "ND: %s\n" self.ND
-                print "l: %s\n" l
+                #print "\n"
+                #for i in range(self.N):
+                #    try:
+                #        print "%s " % self.TEMPDATA[i]
+                #    except: 
+                #        print "0.0 "
 
-#}}}
 
-    def _four(self):
-#{{{
-        """ 
-        subroutine four(data,nn,isign,dt,df)
-        """ 
+                #print "NPOINT: %s\n" % self.N
+                #print "ND: %s\n" % nd
+                #print "l: %s\n\n" % l
 
-        n = 2 * self.NN
+                plt.plot(self.TEMPDATA)
+                text = 'range(%s) block(%s)' % (nd,l)
+                plt.legend(text)
+                plt.show()
 
-        if self.DT == 0.0: self.DT = 1/(self.NN*self.DF)
-        if self.DF == 0.0: self.DF = 1/(self.NN*self.DT)
-        if self.DT != (self.NN * self.DF): self.DF = 1/(self.NN*self.DT)
-
-        j = 1
-        for i in range(1,n,2):
-            if (i - j) < 0:
-                tempr = self.DATA[j]
-                tempi = self.DATA[j+1]
-                self.DATA[j] = self.DATA[i]
-                self.DATA[j+1] = self.DATA[i+1]
-                self.DATA[i] = tempr
-                self.DATA[i] = tempi
-
-            m = n / 2
-            while (m - 2) >= 0:
-                if (j - m) <= 0:
-                    break
-                j = j - m
-                m = m / 2
-
-            j = j + m
-            mmax = 2
-
-            while (mmax - n) < 0:
-                istep = 2 * mmax
-                theta = 6.283185307/mmax
-                sinth = sin(theta/2)
-                wstpr = -2 * sinth * sinth
-                wstpi = sin(theta)
-                wr = 1
-                wi = 0
-                for m in range(1,mmax,2):
-                    for i in range(m,n,istep):
-                        j = i + mmax
-                        tempr = wr * self.DATA[j] - wi * self.DATA[j+1]
-                        tempi = wr * self.DATA[j+1] + wi * self.DATA[j]
-                        self.DATA[j] = self.DATA[i] - tempr
-                        self.DATA[j+1] = self.DATA[i+1] - tempi
-                        self.DATA[i] = self.DATA[i] + tempr
-                        self.DATA[i+1] = self.DATA[i+1] + tempi 
-
-                    tempr = wr
-                    wr = wr * wstpr - wi * wstpi + wr
-                    wi = wi * wstpr + tempr * wstpi + wi
-                mmax = istep
-
-            #
-            # time to frequency domain
-            #
-            for h in range(n):
-                self.DATA[h] = self.DATA[h] * self.DT
 #}}}
 
 
