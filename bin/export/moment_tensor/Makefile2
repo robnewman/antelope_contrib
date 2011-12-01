@@ -2,10 +2,14 @@ BIN = fkrprog dbmoment
 PF = dbmoment.pf create_green.pf
 MAN1 = dbmoment.1
 
+DATADIR = python/moment_tensor
+DATA = fkrprog.py
+
 #CLEAN = *.py
 #UNINSTALL = $(ANTELOPE)/data/$(DATADIR)/*.pyc
 
 ANTELOPEMAKELOCAL = $(ANTELOPE)/local/include/antelopemake.local
+
 
 SUBDIR=/local
 
