@@ -37,8 +37,12 @@ try:
 except ImportError:
     print "Import Error: Do you have MatplotLib installed correctly?"
 else:
+    mpl.use('tkagg')
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MultipleLocator, FormatStrFormatter
+
+# FKRPROG
+import moment_tensor.fkrprog as fkr
 
 # OBSPY
 try:
@@ -1209,6 +1213,7 @@ class Event():
         return True
     # }}}
 
+#{{{
 class GreensFuncs():
     """Methods for working with the
     Greens functions, whether hard
@@ -1340,6 +1345,7 @@ class GreensFuncs():
         '''
         return (nl, this_dict)
     # }}}
+#}}}
 
 def main():
     """Get the moment tensor solution
@@ -1362,12 +1368,22 @@ def main():
     evdbptr, evparams, filter_string = my_event.extract_data(mag_filters)
 
     # !!! NOTE: Instance of GreensFuncs. RLN (2011-11-21)
+    '''
     green_db = '0' # Holder for now as we don't have an active Greens function db
     my_greens = GreensFuncs(green_db, green_pf, verbosity)
     greens_file = my_greens.retrieve_file(evdbptr)
     greens_file = 'greens/1419_008_PDS1.gn'
     nl, gg = my_greens.parse_data_file(greens_file)
     nl = int(nl)
+    '''
+    green = fkr.GreenFunctions('greens/MODEL1')
+    green.generate(8, 1)
+    green.plot()
+    gg = green.ALL
+    pprint(gg)
+    exit()
+
+
 
     stachan_traces, ev2sta_azimuths = my_event.get_chan_data(evdbptr, wave_db, chan_to_use, filter_string, statmax, nl, clip_values)
 
