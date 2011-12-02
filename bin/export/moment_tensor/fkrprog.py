@@ -2870,31 +2870,31 @@ class GreenFunctions():
                     self.ZDD = [x * -1 for x in self.TEMPDATA ]
 
                 elif l == 1:
-                    self.XDD = self.TEMPDATA
+                    self.XDD = [x for x in self.TEMPDATA]
 
                 elif l == 2:
-                    self.ZDS = self.TEMPDATA
+                    self.ZDS = [x for x in self.TEMPDATA]
 
                 elif l == 3:
                     self.XDS = [x * -1 for x in self.TEMPDATA ]
 
                 elif l == 4:
-                    self.TDS = self.TEMPDATA
+                    self.TDS = [x for x in self.TEMPDATA]
 
                 elif l == 5:
                     self.ZSS = [x * -1 for x in self.TEMPDATA ]
 
                 elif l == 6:
-                    self.XSS = self.TEMPDATA
+                    self.XSS = [x for x in self.TEMPDATA]
 
                 elif l == 7:
                     self.TSS = [x * -1 for x in self.TEMPDATA ]
 
                 elif l == 8:
-                    self.REX = self.TEMPDATA
+                    self.REX = [x for x in self.TEMPDATA]
 
                 elif l == 9:
-                    self.ZEX = self.TEMPDATA
+                    self.ZEX = [x for x in self.TEMPDATA]
 
                 #print "\n"
                 #for i in range(self.N):
@@ -2972,18 +2972,80 @@ class GreenFunctions():
 
     def __getitem__(self,i):
 #{{{
-        try:
-            return vars(self)[i]
-        except:
-            raise SystemExit('Wrong name of element. (%s)\n'% i)
+        i.upper()
+        if i == 'ALL':
+            temp = {}
+            temp['TSS'] = self.TSS
+            temp['TDS'] = self.TDS
+            temp['XSS'] = self.XSS
+            temp['XDS'] = self.XDS
+            temp['XDD'] = self.XDD
+            temp['ZSS'] = self.ZSS
+            temp['ZDS'] = self.ZDS
+            temp['ZDD'] = self.ZDD
+            temp['REX'] = self.REX
+            temp['ZEX'] = self.ZEX
+
+            return temp
+
+        else:
+
+            try:
+                return vars(self)[i]
+            except:
+                raise SystemExit('Wrong name of element. (%s)\n'% i)
 #}}}
 
     def __call__(self,i):
 #{{{
-        try:
-            return vars(self)[i]
-        except:
-            raise SystemExit('Wrong name of element. (%s)\n'% i)
+        i.upper()
+        if i == 'ALL':
+            temp = {}
+            temp['TSS'] = self.TSS
+            temp['TDS'] = self.TDS
+            temp['XSS'] = self.XSS
+            temp['XDS'] = self.XDS
+            temp['XDD'] = self.XDD
+            temp['ZSS'] = self.ZSS
+            temp['ZDS'] = self.ZDS
+            temp['ZDD'] = self.ZDD
+            temp['REX'] = self.REX
+            temp['ZEX'] = self.ZEX
+
+            return temp
+
+        else:
+
+            try:
+                return vars(self)[i]
+            except:
+                raise SystemExit('Wrong name of element. (%s)\n'% i)
+#}}}
+
+    def __getattr__(self,i):
+#{{{
+        i.upper()
+        if i == 'ALL':
+            temp = {}
+            temp['TSS'] = self.TSS
+            temp['TDS'] = self.TDS
+            temp['XSS'] = self.XSS
+            temp['XDS'] = self.XDS
+            temp['XDD'] = self.XDD
+            temp['ZSS'] = self.ZSS
+            temp['ZDS'] = self.ZDS
+            temp['ZDD'] = self.ZDD
+            temp['REX'] = self.REX
+            temp['ZEX'] = self.ZEX
+
+            return temp
+
+        else:
+
+            try:
+                return vars(self)[i]
+            except:
+                raise SystemExit('Wrong name of element. (%s)\n'% i)
 #}}}
 
 
@@ -3038,9 +3100,10 @@ if __name__ == "__main__":
     Generate GF's for depth of 8km and distance of 1km.
     """
     GF.generate(depth=8,distance=1)
-    GF.plot()
     print GF('TSS')
     print GF['XDS']
+    print GF.ALL
+    GF.plot()
     if verbose: print 'Done!'
 
 #}}}

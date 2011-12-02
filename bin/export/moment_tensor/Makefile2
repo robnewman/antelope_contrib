@@ -1,5 +1,7 @@
-BIN = fkrprog dbmoment
-PF = dbmoment.pf create_green.pf
+BIN = run_fkrprog_wrapper \
+      dbmoment
+PF = dbmoment.pf \
+     create_green.pf
 MAN1 = dbmoment.1
 
 DATADIR = python/moment_tensor
