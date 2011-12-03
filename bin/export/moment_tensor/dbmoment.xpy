@@ -37,8 +37,12 @@ try:
 except ImportError:
     print "Import Error: Do you have MatplotLib installed correctly?"
 else:
+    mpl.use('tkagg')
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MultipleLocator, FormatStrFormatter
+
+# FKRPROG
+import moment_tensor.fkrprog as fkr
 
 # OBSPY
 try:
@@ -46,7 +50,7 @@ try:
 except ImportError:
     print "Import Error: Do you have ObsPy installed correctly?"
 
-# {{{
+# {{{ Global functions
 def configure():
     """Function to configure parameters 
     from command-line and the pf-file
@@ -223,46 +227,15 @@ class MomentTensor():
 
         return this_dict
 
-    def construct_data_matrix_hard_coded(self, stachan_traces):
-        """Construct data matrix from files
-        containing trace_objects per sta_chan
-        Returns matrix s, which is a 3D matrix, 
-        containing all data per channel
-        """
-        '''
-        this_dict = defaultdict(lambda: defaultdict(defaultdict))
-        if self.debug:
-            logmt(1, 'Constructing data matrix from hard-coded files in db/data/data1-3')
-        for j in range(3): # Forced to be 3
-            file_suffix = j+1
-            data = open('db/data/data%d' % file_suffix, 'r')
-            samples = []
-            for line in data:
-                tmp = line.split()
-                for samp in tmp:
-                    samples.append(float(samp))
-            data.close()
-            # RLN (2011-07-28): 
-            # len(samples) = 600
-            # Three channels of 200 samples as per Dregers format
-            for i in range(200):
-                this_dict['T'][j][i] = samples.pop(0)
-            for i in range(200):
-                this_dict['R'][j][i] = samples.pop(0)
-            for i in range(200):
-                this_dict['Z'][j][i] = samples.pop(0)
-        return this_dict
-        '''
-
     def cross_cor(self, a, b):
         """Calculate cross correlation 
         between data and accompanying 
         Green's function. Returns the 
         max_cor and the shift
         """
-        if self.verbosity > 0:
-            logmt(1, 'Calculate cross correlation between data and Greens function')
-        xcor = np.correlate(a.values(), b.values(), 'full')
+        if self.verbosity > 1:
+            logmt(1, ' - Calculating cross correlation between station data and Greens function')
+        xcor = np.correlate(a.values(), b, 'full')
         pr = len(xcor)/2 
         maxval = 0
         maxcoef = 0
@@ -271,107 +244,126 @@ class MomentTensor():
                 maxval = abs(xcor[j+pr])
                 #maxcoef = j+1
                 maxcoef = j
-        print "maxval %s maxcoef %s" % (maxval,maxcoef)
+        if self.verbosity > 1:
+            logmt(1, "  - maxval %s, maxcoef %s" % (maxval,maxcoef))
         return (maxval, maxcoef)
 
     def get_time_shift(self, data_dict, greens_dict):
-        """Get the time shift 
-        and return a list
+        """Get time shift for each station
+        using cross correlation of station 
+        data points and the Green's Function
+        data points. Return a list.
         """
         if self.verbosity > 0:
             logmt(1, 'Get the time shift and return a list')
-            exit()
         timeshift = []
+        '''
+        !!! NOTE: Loop over each stations data points. RLN (2011-02-12)
+                  Remember that the Green's Function matrix is just two
+                  dimensional - not replicating the number of stations
+                  (3D matrix). RLN (2011-12-02)
+        '''
         for i in range(len(data_dict['T'])):
             shift = 0
-            xcor  = 0
-            if self.cross_cor(data_dict['T'][i], greens_dict[0][i])[0] > xcor:
-                xcor, shift = self.cross_cor(data_dict['T'][i], greens_dict[0][i])
-            if self.cross_cor(data_dict['T'][i], greens_dict[1][i])[0] > xcor:
-                xcor, shift = self.cross_cor(data_dict['T'][i], greens_dict[1][i])
-            if self.cross_cor(data_dict['R'][i], greens_dict[2][i])[0] > xcor:
-                xcor, shift = self.cross_cor(data_dict['R'][i], greens_dict[2][i])
-            if self.cross_cor(data_dict['R'][i], greens_dict[3][i])[0] > xcor:
-                xcor,shift = self.cross_cor(data_dict['R'][i], greens_dict[3][i])
-            if self.cross_cor(data_dict['R'][i], greens_dict[4][i])[0] > xcor:
-                xcor,shift = self.cross_cor(data_dict['R'][i], greens_dict[4][i])
-            if self.cross_cor(data_dict['Z'][i], greens_dict[5][i])[0] > xcor:
-                xcor, shift = self.cross_cor(data_dict['Z'][i], greens_dict[5][i])
-            if self.cross_cor(data_dict['Z'][i], greens_dict[6][i])[0] > xcor:
-                xcor,shift = self.cross_cor(data_dict['Z'][i], greens_dict[6][i])
-            if self.cross_cor(data_dict['Z'][i], greens_dict[7][i])[0] > xcor:
-                xcor,shift = self.cross_cor(data_dict['Z'][i], greens_dict[7][i])
+            xcor = 0
+            if self.cross_cor(data_dict['T'][i], greens_dict['TSS'])[0] > xcor:
+                xcor, shift = self.cross_cor(data_dict['T'][i], greens_dict['TSS'])
+            if self.cross_cor(data_dict['T'][i], greens_dict['TDS'])[0] > xcor:
+                xcor, shift = self.cross_cor(data_dict['T'][i], greens_dict['TDS'])
+            if self.cross_cor(data_dict['R'][i], greens_dict['XSS'])[0] > xcor:
+                xcor, shift = self.cross_cor(data_dict['R'][i], greens_dict['XSS'])
+            if self.cross_cor(data_dict['R'][i], greens_dict['XDS'])[0] > xcor:
+                xcor,shift = self.cross_cor(data_dict['R'][i], greens_dict['XDS'])
+            if self.cross_cor(data_dict['R'][i], greens_dict['XDD'])[0] > xcor:
+                xcor,shift = self.cross_cor(data_dict['R'][i], greens_dict['XDD'])
+            if self.cross_cor(data_dict['Z'][i], greens_dict['ZSS'])[0] > xcor:
+                xcor, shift = self.cross_cor(data_dict['Z'][i], greens_dict['ZSS'])
+            if self.cross_cor(data_dict['Z'][i], greens_dict['ZDS'])[0] > xcor:
+                xcor,shift = self.cross_cor(data_dict['Z'][i], greens_dict['ZDS'])
+            if self.cross_cor(data_dict['Z'][i], greens_dict['ZDD'])[0] > xcor:
+                xcor,shift = self.cross_cor(data_dict['Z'][i], greens_dict['ZDD'])
             timeshift.append(shift)
         return timeshift
 
     def matrix_AIV_B(self, dict_s, dict_g, list_az, this_timeshift):
-        """Inversion routine
+        """INVERSION ROUTINE
+
         Construct matrices AIV and B using 
         the data and Green's function matrices
         Return AIV and B for further processing 
+        This is to normalize the two signals
         """
         if self.verbosity > 0:
-            logmt(1, 'Construct matrices AIV and B using the data and Greens function matrices')
+            logmt(1, 'INVERSION ROUTINE: Construct matrices AIV and B using the data and Greens function matrices')
+
         AJ = defaultdict(dict) # RLN (2011-07-29): What is AJ? COPY OF DREGER
         trim = 0
         cnt1 = cnt2 = cnt3 = 0
         #trim = int(len(dict_s['T'][0]) * float(self.trim_value)) 
-        if self.verbosity > 1:
-            logmt(1, 'Timeshift: %s' % this_timeshift)
-            logmt(1, 'Number of stations used in calculation: %s' % len(dict_s))
+        if self.verbosity > 0:
+            logmt(1, ' - Timeshift: %s' % this_timeshift)
+            logmt(1, ' - Azimuthal distances tuple: %s' % list_az)
+            logmt(1, ' - Number of stations used in calculation: %s' % len(dict_s['T']))
 
-        # Loop over the number of stations in the dictionary
-        for i in range(len(dict_s)):
+        for i in range(len(dict_s['T'])):
             cnt1 = cnt2 = cnt3
             cnt2 += len(dict_s['T'][0]) - trim
             cnt3 += 2*len(dict_s['T'][0]) - 2*trim
-            list_az[i][1] *= math.pi/180 # list_az is a tuple
-            # Index over time
-            for j in range(len(dict_s['T'][0])-trim):
+            if self.verbosity > 0:
+                logmt(1, '  - Working on inversion for station (%s)' % list_az[i][0])
+            this_azimuth = list_az[i][1] * math.pi/180
+            
+            '''
+            !!! NOTE: len(dict_s['T'][0]) is the number of 
+                      the datapoints for the first station. 
+                      RLN (2011-12-02)
+            '''
+            for j in range(len(dict_s['T'][0]) - trim):
                 # Mxx term
-                AJ[0][cnt1] =  math.sin(2*list_az[i][1])*dict_g[0][i][j]/2
+                AJ[0][cnt1] =  math.sin(2*this_azimuth)*dict_g['TSS'][j]/2
 
                 # Myy term
-                AJ[1][cnt1] = -math.sin(2*list_az[i][1])*dict_g[0][i][j]/2
+                AJ[1][cnt1] = -math.sin(2*this_azimuth)*dict_g['TSS'][j]/2
 
                 # Mxy term
-                AJ[2][cnt1] = -math.cos(2*list_az[i][1])*dict_g[0][i][j]
-                AJ[2][cnt2] = -math.sin(2*list_az[i][1])*dict_g[2][i][j]
-                AJ[2][cnt3] = -math.sin(2*list_az[i][1])*dict_g[5][i][j]
+                AJ[2][cnt1] = -math.cos(2*this_azimuth)*dict_g['TSS'][j]
+                AJ[2][cnt2] = -math.sin(2*this_azimuth)*dict_g['XSS'][j]
+                AJ[2][cnt3] = -math.sin(2*this_azimuth)*dict_g['ZSS'][j]
 
                 # Mxz term
-                AJ[3][cnt1] = -math.sin(list_az[i][1])*dict_g[1][i][j]
-                AJ[3][cnt2] =  math.cos(list_az[i][1])*dict_g[3][i][j]
-                AJ[3][cnt3] =  math.cos(list_az[i][1])*dict_g[6][i][j]
+                AJ[3][cnt1] = -math.sin(this_azimuth)*dict_g['TDS'][i]
+                AJ[3][cnt2] =  math.cos(this_azimuth)*dict_g['XDS'][i]
+                AJ[3][cnt3] =  math.cos(this_azimuth)*dict_g['ZDS'][i]
 
                 # Myz term
-                AJ[4][cnt1] =  math.cos(list_az[i][1])*dict_g[1][i][j]
-                AJ[4][cnt2] =  math.sin(list_az[i][1])*dict_g[3][i][j]
-                AJ[4][cnt3] =  math.sin(list_az[i][1])*dict_g[6][i][j]
+                AJ[4][cnt1] =  math.cos(this_azimuth)*dict_g['TDS'][i]
+                AJ[4][cnt2] =  math.sin(this_azimuth)*dict_g['XDS'][i]
+                AJ[4][cnt3] =  math.sin(this_azimuth)*dict_g['ZDS'][i]
 
                 # Vary the other values depending on isoflag value
                 if self.isoflag == 5:
                     # Mxx term
-                    AJ[0][cnt2] = (dict_g[4][i][j])/2 - (math.cos(2*list_az[i][1])*dict_g[2][i][j])/2
-                    AJ[0][cnt3] = (dict_g[7][i][j])/2 - (math.cos(2*list_az[i][1])*dict_g[5][i][j])/2
+                    AJ[0][cnt2] = (dict_g['XDD'][j])/2 - (math.cos(2*this_azimuth)*dict_g['XSS'][j])/2
+                    AJ[0][cnt3] = (dict_g['ZDD'][j])/2 - (math.cos(2*this_azimuth)*dict_g['ZSS'][j])/2
                     # Myy term
-                    AJ[1][cnt2] = (dict_g[4][i][j])/2 + (math.cos(2*list_az[i][1])*dict_g[2][i][j])/2
-                    AJ[1][cnt3] = (dict_g[7][i][j])/2 + (math.cos(2*list_az[i][1])*dict_g[5][i][j])/2
+                    AJ[1][cnt2] = (dict_g['XDD'][j])/2 + (math.cos(2*this_azimuth)*dict_g['XSS'][j])/2
+                    AJ[1][cnt3] = (dict_g['ZDD'][j])/2 + (math.cos(2*this_azimuth)*dict_g['ZSS'][j])/2
                 if self.isoflag == 6:
                     # Mxx term
-                    AJ[0][cnt2] = (dict_g[4][i][j])/6 - (math.cos(2*list_az[i][1])*dict_g[2][i][j])/2 + (dict_g[8][i][j])/3
-                    AJ[0][cnt3] = (dict_g[7][i][j])/6 - (math.cos(2*list_az[i][1])*dict_g[5][i][j])/2 + (dict_g[9][i][j])/3
+                    AJ[0][cnt2] = (dict_g['XDD'][j])/6 - (math.cos(2*this_azimuth)*dict_g['XSS'][j])/2 + (dict_g['REX'][j])/3
+                    AJ[0][cnt3] = (dict_g['ZDD'][j])/6 - (math.cos(2*this_azimuth)*dict_g['ZSS'][j])/2 + (dict_g['ZEX'][j])/3
                     # Myy term
-                    AJ[1][cnt2] = (dict_g[4][i][j])/6 + (math.cos(2*list_az[i][1])*dict_g[2][i][j])/2 + (dict_g[8][i][j])/3
-                    AJ[1][cnt3] = (dict_g[7][i][j])/6 + (math.cos(2*list_az[i][1])*dict_g[5][i][j])/2 + (dict_g[9][i][j])/3
-                    # RLN (2011-08-24): Where do these values come from and why?
+                    AJ[1][cnt2] = (dict_g['XDD'][j])/6 + (math.cos(2*this_azimuth)*dict_g['XSS'][j])/2 + (dict_g['REX'][j])/3
+                    AJ[1][cnt3] = (dict_g['ZDD'][j])/6 + (math.cos(2*this_azimuth)*dict_g['ZSS'][j])/2 + (dict_g['ZEX'][j])/3
+                    # Explosion-related values
                     AJ[5][cnt1] = 0.0
-                    AJ[5][cnt2] = (dict_g[8][i][j])/3  - (dict_g[4][i][j])/3
-                    AJ[5][cnt3] = (dict_g[9][i][j])/3 - (dict_g[7][i][j])/3
-
+                    AJ[5][cnt2] = (dict_g['REX'][j])/3  - (dict_g['XDD'][j])/3
+                    AJ[5][cnt3] = (dict_g['ZEX'][j])/3 - (dict_g['ZDD'][j])/3
                 cnt1 += 1
                 cnt2 += 1
                 cnt3 += 1
+
+        # !!! NOTE: Make placeholder AIV (or reset it like Dreger? RLN (2011-12-02)
         AIV = defaultdict(dict) 
         for i in range(self.isoflag):
             for j in range(self.isoflag):
@@ -383,34 +375,45 @@ class MomentTensor():
                 for k in range(cnt3):
                     AIV[i][j] += AJ[i][k]*AJ[j][k]
 
+        # !!! NOTE: Make placeholder AIV (or reset it like Dreger? RLN (2011-12-02)
         B = defaultdict(dict) 
         for i in range(self.isoflag):
             B[i][0] = 0.0
 
+        if self.verbosity > 0:
+            logmt(1, ' - Now apply the timeshift if needed')
+
         cnt1 = cnt2 = cnt3 = 0
         tmp = defaultdict(dict) 
-        for i in range(len(dict_s)):
-            # print "i is %d" % i
+
+        for i in range(len(dict_s['T'])):
+            logmt(1, '  - Applying timeshift to station (%s)' % list_az[i][0])
             cnt1 = cnt2 = cnt3
-            cnt2 += len(dict_s['T'][0])-trim
-            cnt3 += 2*(len(dict_s['T'][0])-trim)
-            for j in range(len(dict_s['T'][0])-trim):
-                #print "\nj is %s" % j
-                #print "i is %s" % i
-                #print "trim is %s" % trim
-                #print "this_timeshift[i] is %s" % this_timeshift[i]
-                #print "dict_s['T'][i] is %s" % len(dict_s['T'][i])
-                #print "cnt1 is %s" % cnt1
-                #print "tmp[cnt1] is %s" % tmp[cnt1]
+            cnt2 += len(dict_s['T'][i]) - trim
+            cnt3 += 2*len(dict_s['T'][i]) - 2*trim
+            for j in range(len(dict_s['T'][i]) - trim):
+                # print "\nj is %s" % j
+                if self.verbosity > 1:
+                    logmt(1, '  - Station: %s' % list_az[i][0])
+                    logmt(1, '   - Trim is %s' % trim)
+                    logmt(1, '   - this_timeshift[i]: %d' % this_timeshift[i])
+                # print "dict_s['T'][i] is %s" % len(dict_s['T'][i])
+                # print "cnt1 is %s" % cnt1
+                # print "tmp[cnt1] is %s" % tmp[cnt1]
                 #print "cnt2 is %s" % cnt2
                 #print "cnt3 is %s" % cnt3
-                #tmp[cnt1] = dict_s['T'][i][j + this_timeshift[i]]
-                #tmp[cnt2] = dict_s['R'][i][j + this_timeshift[i]]
-                #tmp[cnt3] = dict_s['Z'][i][j + this_timeshift[i]]
+                '''
+                !!! FIX: This timeshift code does not currently work
+                         as you may shift more than the number of 
+                         elements in the station channel trace and 
+                         error out. RLN (2011-12-02)
+                '''
+                # tmp[cnt1] = dict_s['T'][i][j + this_timeshift[i]]
+                # tmp[cnt2] = dict_s['R'][i][j + this_timeshift[i]]
+                # tmp[cnt3] = dict_s['Z'][i][j + this_timeshift[i]]
                 tmp[cnt1] = dict_s['T'][i][j]
                 tmp[cnt2] = dict_s['R'][i][j]
                 tmp[cnt3] = dict_s['Z'][i][j]
-                #print "\n#### tmp[cnt1] is %s\n" % tmp[cnt1]
                 cnt1 += 1
                 cnt2 += 1
                 cnt3 += 1
@@ -449,7 +452,7 @@ class MomentTensor():
         of eigenvectors v
         """
         if self.verbosity > 0:
-            logmt(1, 'Compute the dyadic matrix of vector v')
+            logmt(1, ' - Compute the dyadic matrix of vector v')
         tmp = np.matrix([[0., 0., 0.], [0., 0., 0.], [0., 0., 0.]])
         for i in range(3):
             for j in range(3):
@@ -521,7 +524,7 @@ class MomentTensor():
         if len(M) != 3:
             logmt(3, 'Wrong dimension returned for matrix M after inversion')
         elif self.verbosity > 0:
-            logmt(1, 'Moment tensor matrix M[3,3] created')
+            logmt(1, ' - Moment tensor matrix M[3,3] created')
         return M
 
     def decompose_moment_tensor(self, matrix_M):
@@ -530,6 +533,12 @@ class MomentTensor():
         Return M0, Mw, strike, slip, rake and precentages of present
         source characteristics
         From Dreger source: fmap_subs_linux.f
+        Mxx = matrix_M[0, 0]
+        Mxy = matrix_M[0, 1]
+        Mxz = matrix_M[0, 2]
+        Myy = matrix_M[1, 1]
+        Myz = matrix_M[1, 2]
+        Mzz = matrix_M[2, 2]
         """
         if self.verbosity > 0:
             logmt(1, 'Decompose moment tensor into eigenvector/values')
@@ -680,7 +689,7 @@ class MomentTensor():
         pciso = abs(miso[0,0])/m0
 
         if self.verbosity > 0:
-            logmt(1, 'Decomposition of moment tensor succesful')
+            logmt(1, ' - Decomposition of moment tensor succesful!')
 
         return m0, Mw, strike, dip, slip, pcdc, pcclvd, pciso
 
@@ -702,31 +711,31 @@ class MomentTensor():
             trimrange = int(len(dict_s['T'][0])*float(self.trim_value))
             for j in range(trimrange):
                 etmp  = dict_s['T'][i][j+timeshift[i]] 
-                etmp -= matrix_M[0,0]*0.5*dict_g[0][i][j]*math.sin(2*az[i]) 
-                etmp += matrix_M[1,1]*0.5*dict_g[0][i][j]*math.sin(2*az[i]) 
-                etmp += matrix_M[0,1]*dict_g[0][i][j]*math.cos(2*az[i]) 
-                etmp += matrix_M[0,2]*dict_g[1][i][j]*math.sin(az[i]) 
-                etmp -= matrix_M[1,2]*dict_g[1][i][j]*math.cos(az[i])
+                etmp -= matrix_M[0,0]*0.5*dict_g['TSS'][j]*math.sin(2*az[i][1]) 
+                etmp += matrix_M[1,1]*0.5*dict_g['TSS'][j]*math.sin(2*az[i][1]) 
+                etmp += matrix_M[0,1]*dict_g['TSS'][j]*math.cos(2*az[i][1]) 
+                etmp += matrix_M[0,2]*dict_g['TDS'][j]*math.sin(az[i][1]) 
+                etmp -= matrix_M[1,2]*dict_g['TDS'][j]*math.cos(az[i][1])
                 
                 e += etmp*etmp
                 
                 etmp  = dict_s['R'][i][j+timeshift[i]] 
-                etmp -= matrix_M[0,0]*(0.5*dict_g[4][i][j] - 0.5*dict_g[2][i][j]*math.cos(2*az[i]) + dict_g[8][i][j]/3)
-                etmp -= matrix_M[1,1]*(0.5*dict_g[4][i][j] + 0.5*dict_g[2][i][j]*math.cos(2*az[i]) + dict_g[8][i][j]/3)
-                etmp -= matrix_M[2,2]*dict_g[8][i][j]/3 
-                etmp += matrix_M[0,1]*dict_g[2][i][j]*math.sin(2*az[i]) 
-                etmp -= matrix_M[0,2]*dict_g[3][i][j]*math.cos(az[i])
-                etmp -= matrix_M[1,2]*dict_g[3][i][j]*math.sin(az[i])
+                etmp -= matrix_M[0,0]*(0.5*dict_g['XDD'][j] - 0.5*dict_g['XSS'][j]*math.cos(2*az[i][1]) + dict_g['REX'][j]/3)
+                etmp -= matrix_M[1,1]*(0.5*dict_g['XDD'][j] + 0.5*dict_g['XSS'][j]*math.cos(2*az[i][1]) + dict_g['REX'][j]/3)
+                etmp -= matrix_M[2,2]*dict_g['REX'][j]/3 
+                etmp += matrix_M[0,1]*dict_g['XSS'][j]*math.sin(2*az[i][1]) 
+                etmp -= matrix_M[0,2]*dict_g['XDS'][j]*math.cos(az[i][1])
+                etmp -= matrix_M[1,2]*dict_g['XDS'][j]*math.sin(az[i][1])
                 
                 e += etmp*etmp
                 
                 etmp  = dict_s['Z'][i][j+timeshift[i]] 
-                etmp -= matrix_M[0,0]*(0.5*dict_g[7][i][j] - 0.5*dict_g[5][i][j]*math.cos(2*az[i]) + dict_g[9][i][j]/3)
-                etmp -= matrix_M[1,1]*(0.5*dict_g[7][i][j] + 0.5*dict_g[5][i][j]*math.cos(2*az[i]) + dict_g[9][i][j]/3)
-                etmp -= matrix_M[2,2]*dict_g[9][i][j]/3 
-                etmp += matrix_M[0,1]*dict_g[5][i][j]*math.sin(2*az[i]) 
-                etmp -= matrix_M[0,2]*dict_g[6][i][j]*math.cos(az[i])
-                etmp -= matrix_M[1,2]*dict_g[6][i][j]*math.sin(az[i])
+                etmp -= matrix_M[0,0]*(0.5*dict_g['ZDD'][j] - 0.5*dict_g['ZSS'][j]*math.cos(2*az[i][1]) + dict_g['ZEX'][j]/3)
+                etmp -= matrix_M[1,1]*(0.5*dict_g['ZDD'][j] + 0.5*dict_g['ZSS'][j]*math.cos(2*az[i][1]) + dict_g['ZEX'][j]/3)
+                etmp -= matrix_M[2,2]*dict_g['ZEX'][j]/3 
+                etmp += matrix_M[0,1]*dict_g['ZSS'][j]*math.sin(2*az[i][1]) 
+                etmp -= matrix_M[0,2]*dict_g['ZDS'][j]*math.cos(az[i][1])
+                etmp -= matrix_M[1,2]*dict_g['ZDS'][j]*math.sin(az[i][1])
                 
                 e += etmp*etmp
                 dpower += dict_s['T'][i][j+timeshift[i]]*dict_s['T'][i][j+timeshift[i]]
@@ -921,7 +930,7 @@ class Event():
                             logmt(1, '  - Sample size for %s: %s. Max: %s. Trimming.' % (stachan, len(samples), size))
                         stachan_traces[stachan] = samples[0:size]  
                         if self.verbosity > 0:
-                            logmt(1, ' - Trace extracted for %s samples:[%s], wanted:[%s]' % (stachan,len(stachan_traces[stachan]),size))
+                            logmt(1, ' - Trace extracted for %s samples:[%s], wanted:[%s]' % (stachan, len(stachan_traces[stachan]), size))
                 trace.trdestroy()
                 wvstadb.free()
             wvdb.free()
@@ -934,9 +943,9 @@ class Event():
         """
         if self.verbosity > 0:
             logmt(1, 'Write out moment tensor for orid %s to database table %s.moment' % (self.orid, self.event_db))
-            logmt(1, '## MT for orid %s strike => %s' % (self.orid, strike))
-            logmt(1, '## MT for orid %s dip => %s' % (self.orid, dip))
-            logmt(1, '## MT for orid %s rake => %s' % (self.orid, rake))
+            logmt(1, ' - MT for orid %s strike => %s' % (self.orid, strike))
+            logmt(1, ' - MT for orid %s dip => %s' % (self.orid, dip))
+            logmt(1, ' - MT for orid %s rake => %s' % (self.orid, rake))
         moment_dbptr = antdb.dbopen(self.event_db, 'r+')
         try:
             moment_dbptr.lookup(table='moment')
@@ -983,7 +992,7 @@ class Event():
             moment_dbptr.close()
             return True
 
-    def create_focal_mechanism(self, obspy_beachball, mt_images_dir, strike, dip, rake):
+    def create_focal_mechanism(self, obspy_beachball, mt_images_dir, matrix_M):
         """Write out focal mechanism
         to images directory
         """
@@ -998,7 +1007,22 @@ class Event():
             except:
                 logmt(3, 'Moment tensor images dir (%s) does not exist and cannot be created!' % mt_images_dir)
 
+        '''
+        !!! NOTE: Focal mechanism can be defined in two ways:
         focal_mechanism = [strike[0], dip[0], rake[0]]
+        - or -
+        focal_mechanism = [Mxx, Myy, Mzz, Mxy, Mxz, Myz]
+        Try the second way for comparison.
+        RLN (2011-12-02)
+        '''
+        focal_mechanism = [ matrix_M[0, 0], 
+                            matrix_M[1, 1],  
+                            matrix_M[2, 2], 
+                            matrix_M[0, 1], 
+                            matrix_M[0, 2],
+                            matrix_M[1, 2]
+                          ]
+
         if self.verbosity > 0:
             logmt(1, 'Try to plot focal mechanism: %s' % focal_mechanism)
 
@@ -1061,7 +1085,66 @@ class Event():
                 logmt(1, 'Successfully created focal mechanism image (%s)' % my_outpath)
             return my_outpath
 
-    def create_data_synthetics_plot(self, stachan_traces, synthetics, mt_images_dir):
+    def calculate_synthetics_to_plot(self, gg, azimuth_list, matrix_M):
+        """Calculate the data series
+        to plot against the station
+        data in the plots
+
+        Mxx = matrix_M[0, 0]
+        Mxy = matrix_M[0, 1]
+        Mxz = matrix_M[0, 2]
+        Myy = matrix_M[1, 1]
+        Myz = matrix_M[1, 2]
+        Mzz = matrix_M[2, 2]
+        """
+        if self.verbosity > 1:
+            logmt(1, 'Calculating synthetics for the plot for station (%s)' % station)
+
+        syn_plot_dict = defaultdict(lambda: defaultdict(defaultdict))
+        rotated_comps = ['T', 'R', 'Z']
+
+        for sta_tup in azimuth_list:
+            sta = sta_tup[0]
+            az = sta_tup[1]
+            if self.verbosity > 0:
+                logmt(1, ' - Determine plot synthetics for station (%s)' % sta)
+            for rc in rotated_comps:
+                sta_rc = '%s_%s' % (sta, rc)
+                if self.verbosity > 0:
+                    logmt(1, '  - Work on rotated channel (%s)' % rc)
+                for j in range(len(gg['TSS'])):
+                    if rc == 'T':
+                        syn_plot_dict[sta_rc][j] = (matrix_M[0, 0]*0.5*gg['TSS'][j]*math.sin(2*az) 
+                                                - matrix_M[1, 1]*0.5*gg['TSS'][j]*math.sin(2*az)
+                                                - matrix_M[0, 1]*gg['TSS'][j]*math.cos(2*az)
+                                                - matrix_M[0, 2]*gg['TDS'][j]*math.sin(az)
+                                                + matrix_M[1, 2]*gg['TDS'][j]*math.cos(az))
+                    elif rc == 'R':
+                        syn_plot_dict[sta_rc][j] = (matrix_M[0, 0]*0.5*gg['XDD'][j]
+                                                - matrix_M[0, 0]*0.5*gg['XSS'][j]*math.cos(2*az)
+                                                + matrix_M[0, 0]*0.3333*gg['REX'][j]
+                                                + matrix_M[1, 1]*0.5*gg['XDD'][j]
+                                                + matrix_M[1, 1]*0.5*gg['XSS'][j]*math.cos(2*az)
+                                                + matrix_M[1, 1]*0.3333*gg['REX'][j]
+                                                + matrix_M[2, 2]*0.3333*gg['REX'][j]
+                                                - matrix_M[0, 1]*gg['XSS'][j]*math.sin(2*az)
+                                                + matrix_M[0, 2]*gg['XDS'][j]*math.cos(az)
+                                                + matrix_M[1, 2]*gg['XDS'][j]*math.sin(az))
+                    elif rc == 'Z':
+                        syn_plot_dict[sta_rc][j] = (matrix_M[0, 0]*0.5*gg['ZDD'][j]
+                                                - matrix_M[0, 0]*0.5*gg['ZSS'][j]*math.cos(2*az)
+                                                + matrix_M[0, 0]*0.3333*gg['ZEX'][j]
+                                                + matrix_M[1, 1]*0.5*gg['ZDD'][j]
+                                                + matrix_M[1, 1]*0.5*gg['ZSS'][j]*math.cos(2*az)
+                                                + matrix_M[1, 1]*0.3333*gg['ZEX'][j]
+                                                + matrix_M[2, 2]*0.3333*gg['ZEX'][j]
+                                                - matrix_M[0, 1]*gg['ZSS'][j]*math.sin(2*az)
+                                                + matrix_M[0, 2]*gg['ZDS'][j]*math.cos(az)
+                                                + matrix_M[1, 2]*gg['ZDS'][j]*math.sin(az))
+        return syn_plot_dict
+
+
+    def create_data_synthetics_plot(self, stachan_traces, azimuth_list, mod_gg, mt_images_dir):
         """Create and save data vs. 
         synthetic waveform plots. 
         Equivalent to Dreger's function 
@@ -1073,6 +1156,9 @@ class Event():
         There should be as many TRZ 
         plots as stations
         """
+        if self.verbosity > 0:
+            logmt(1, 'Create plots of data vs. synthetics')
+
         # Init figure
         my_plot = plt.figure(figsize=(9, 8.5), dpi=100)
         my_plot.subplots_adjust(hspace=0.05, wspace=0.02,
@@ -1086,30 +1172,26 @@ class Event():
             print "Synthetics (Green's functions) used in calculations:"
             print synthetics
 
-        # Get a list of the stations from the data
-        stations = []
-        for k in sorted(stachan_traces.iterkeys()):
-            sta, chan = k.split('_')
-            if sta not in stations:
-                stations.append(sta)
-
-        rows = len(stations)
+        rows = len(azimuth_list)
         cols = len(rotated_components)
-        no_of_subs = len(stations) * len(rotated_components)
         axis_num = 0
         my_plot.text(0.22, 0.985, 'Tangential', ha='center', va='top')
         my_plot.text(0.525, 0.985, 'Radial', ha='center', va='top')
         my_plot.text(0.83, 0.985, 'Vertical', ha='center', va='top')
 
-        for i, s in enumerate(stations):
+        for i in azimuth_list:
+            s = i[0]
+            if self.verbosity > 0:
+                logmt(1, 'Creating plots for station (%s)' % s)
             for j, rc in enumerate(rotated_components):
                 axis_num += 1
-                new_sta_chan = s+'_'+rc
+                new_sta_chan = '%s_%s' % (s, rc)
+                if self.verbosity > 0:
+                    logmt(1, ' - Processing (%s)' % new_sta_chan)
                 if new_sta_chan in stachan_traces:
                     # Only plotting the first synthetic matrix
-                    simple_synthetic = [(v) for k, v in synthetics[rc][0].iteritems()]
-                    ax = plt.subplot(len(rotated_components), len(stations), axis_num)
-                    plt.plot(stachan_traces[new_sta_chan], 'b', simple_synthetic, 'r--')
+                    ax = plt.subplot(len(azimuth_list), len(rotated_components), axis_num)
+                    plt.plot(stachan_traces[new_sta_chan], 'b', mod_gg[new_sta_chan].values(), 'r--')
                     ax.set_yticklabels([])
                     ax.set_xticklabels([])
                     if j == 0:
@@ -1209,138 +1291,6 @@ class Event():
         return True
     # }}}
 
-class GreensFuncs():
-    """Methods for working with the
-    Greens functions, whether hard
-    coded or via a db"""
-    # {{{
-
-    def __init__(self, green_db, green_pf, verbosity=0):
-        """Initialize"""
-        self.green_db = green_db
-        self.green_pf = green_pf
-        self.verbosity = verbosity
-
-    def retrieve_file(self, dbptr):
-        """Open Green's functions db and return
-        dictionary which describes the path to 
-        the Green's function per station. Based on azimuth
-        and distance. Some settings required from 
-        parameter-file for the Green's function creation.
-
-        RLN (2011-07-28): Need to get this working
-        NOT CURRENTLY IN USE
-        """
-        tmp = {}
-
-        if not os.path.isfile(self.green_pf):
-            if not os.path.isfile('%s/data/%s' % (os.environ['ANTELOPE'], self.green_pf)):
-                logmt(1, 'Cannot open up Greens functions parameter file %s' % self.green_pf)
-                return False
-        ddist = stock.pfget_string(self.green_pf, 'ddist')
-        dazim = stock.pfget_string(self.green_pf, 'dazim')
-        ddip = stock.pfget_string(self.green_pf, 'ddip')
-        ddepth = stock.pfget_string(self.green_pf, 'ddepth')
-
-        if not os.path.isfile(self.green_db):
-            logmt(3, 'Database (%s) does not exist' % self.green_db)
-        gdb = antdb.dbopen(green_db, 'r')
-        gdb.lookup(table = 'moment_tensor_greensfuncs')
-        for i in range(dbptr.nrecs()):
-            dbptr[3] = i
-            sta, delta, seaz = evdb.getv('sta', 'delta', 'seaz')
-            ddist = float(ddist)
-            dazim = float(dazim)
-            expr = 'delta > %s && delta <= %s ' % (delta-ddist/2, delta+ddist/2)
-            expr += '&& azimuth > %s && azimuth <= %s ' % (seaz-dazim/2, seaz+dazim/2)
-            try:
-                subgdb = gdb.subset(expr)
-            except:
-                logmt(1, 'No Greens function found for %s' % sta)
-            else:
-                subgdb[3] = 0
-                file = subgdb.extfile()       
-                tmp[sta] = file
-        return tmp
-
-    def parse_data_file(self, green_file):
-        """Hard coded way of getting synthetics (Green's
-        function) from a file, not db. Remove before production,
-        unless we can't get Green's functions auto-generated!!!
-        """
-        this_dict = defaultdict(lambda: defaultdict(defaultdict))
-
-        if self.verbosity > 0:
-            logmt(1, 'Constructing Greens function matrix from hard-coded file (%s)' % green_file)
-        # !!! NOTE: Container list for parsed file object values. RLN (2011-11-03)
-        greens = []
-        # !!! NOTE: Open up the Green function file as specified in the pf (for now). RLN (2011-11-03)
-        green = open(green_file, 'r')
-        '''
-        nl = number of lines
-        dt = sample rate
-        t1 = time period
-        '''
-        nl, dt, t1 = (green.readline()).split() # !!! NOTE: Only in PGC Greens functions, there are three starting numbers. RLN (2011-11-03)
-        for line in green:
-            one_line = line.rstrip('\n')
-            vals = one_line.split()
-            for j in vals:
-                greens.append(float(j))
-        green.close()
-        tarr = greens.pop() # !!! NOTE: Only in PGC Greens functions, there is a trailing float on the last line. RLN (2011-11-03)
-        if self.verbosity > 0:
-            logmt(1, 'nl: %s, dt: %s, t1: %s, tarr: %s' % (nl, dt, t1, tarr))
-
-        # !!! NOTE: Just force into two dimensional matrix. RLN (2011-11-03)
-        #           'blockettes': separate chunks (components) of the Greens functions
-        #           In the PGC: blockettes = 12, number of elements (nl) = 101
-        #           In Dreger:  blockettes = 8, number of elements (nl) = 200
-        blockettes = len(greens) / int(nl)
-        for i in range(3):
-            for j in range(blockettes):
-                for k in range(int(nl)):
-                    this_dict[j][i][k] = float(greens[k + j*int(nl)])
-
-        '''
-        !!! NOTE: The section below is Gert-Jan's original code - which takes into account
-                  if the Green's function is isotropic, which you define in dbmoment.pf.
-                  He forces the matrix into a certain format if it is isotropic,
-                  but this does not play nice with the PGC Green's functions which
-                  already have the isotropic components in them, but in a DIFFERENT
-                  part of the matrix. I am pretty sure this has knock on effects in
-                  the code, but I am not sure where or how yet. RLN (2011-11-03)
-        '''
-
-        '''
-        # !!! NOTE: Open up the Green function file
-        green = open('db/data/green', 'r')
-        for line in green:
-            # !!! NOTE: Each value is a float of twelve (12) significant figures with 
-            #           no spaces, so split line into units of twelve. RLN (2011-11-03)
-            for j in range(len(line)/12):
-                # !!! NOTE: Append one value at a time. RLN (2011-11-03)
-                greens.append(line[j*12:j*12+12])
-        green.close()
-
-        for i in range(3):
-            for k in range(8):
-                for j in range(200):
-                    this_dict[k][i][j] = float(greens[j + k*200])
-                    if k in [5,6,7]:
-                        this_dict[k][i][j] *= -1 # Note the vertical GF's are flipped in earqt1.f and TW's Blackbox.f DVH conv. z + down
-            if self.isoflag == 5:
-                for k in [8,9]:
-                    for j in range(200):
-                        this_dict[k][i][j] = 0.0
-            if self.isoflag == 6:
-                for k in [8,9]:
-                    for j in range(200):
-                        this_dict[k][i][j] = float(greens[j + k*200])
-        '''
-        return (nl, this_dict)
-    # }}}
-
 def main():
     """Get the moment tensor solution
     for a particular origin
@@ -1357,17 +1307,20 @@ def main():
      ttfont, obspy_beachball, 
      distance_weighting) = parse_pf(pf, verbosity)
 
-    # !!! NOTE: Instance of Event. RLN (2011-11-21)
+    # !!! NOTE: Instantiate Event. RLN (2011-11-21)
     my_event = Event(orid, event_db, verbosity)
     evdbptr, evparams, filter_string = my_event.extract_data(mag_filters)
 
-    # !!! NOTE: Instance of GreensFuncs. RLN (2011-11-21)
-    green_db = '0' # Holder for now as we don't have an active Greens function db
-    my_greens = GreensFuncs(green_db, green_pf, verbosity)
-    greens_file = my_greens.retrieve_file(evdbptr)
-    greens_file = 'greens/1419_008_PDS1.gn'
-    nl, gg = my_greens.parse_data_file(greens_file)
-    nl = int(nl)
+    '''
+    !!! NOTE: Dynamic creation of Greens Functions
+    using Juan's new Python module. RLN (2011-12-02)
+    '''
+    green = fkr.GreenFunctions('greens/MODEL1')
+    green.generate(8, 1)
+    if verbosity > 1:
+        green.plot()
+    gg = green.ALL
+    nl = len(gg['TSS'])
 
     stachan_traces, ev2sta_azimuths = my_event.get_chan_data(evdbptr, wave_db, chan_to_use, filter_string, statmax, nl, clip_values)
 
@@ -1379,79 +1332,56 @@ def main():
         print 'Greens Function:'
         pprint(gg)
 
-    # !!! NOTE: Works up to here. RLN (2011-11-29)
+    '''
+    !!! FIX: Why only 24 values for T,R,Z from the Texas 
+             event when pulling from the db?
+             It needs to match the length of the Green's 
+             function to ensure we are comparing apples to apples
+             RLN (2011-11-03)
+    '''
 
-    """
-    Opens Green's database and returns a 
-    dictionary which the 10 component ascii series.
-    """
-    # !!! FIX: Read the Green's function from database based on distance and depth. RLN (2011-11-03)
-    # greens_funcs = my_mt.get_greens_functions(evdbptr)
-    #   !!! NOTE: green_funcs dict is not currently 
-    #   used anywhere, so why is it here? Possibly relates to 
-    #   the commented out dict above? RLN (2011-07-28)
-    # nl, gg = my_mt.get_greens_functions_hard_coded(g)
-
-    if len(gg[1][1]) != nl:
-        logmt(3, "Size of Green's functions (%s) does not match the reported value (%s)" % (len(gg[1][1]), nl))
-
-    """
-    Pull the data from the db into stachan_traces
-    then...
-    Name them ss and gg after Dregers code
-    """
-    # !!! FIX: Why only 24 values for T,R,Z from the Texas 
-    #          event when pulling from the db?
-    #          It needs to match the length of the Green's 
-    #          function to ensure we are comparing apples to apples
-    #          RLN (2011-11-03)
-
-    # !!! NOTE: Now we instantiate MomentTensor. RLN (2011-11-21)
+    # !!! NOTE: Instantiate MomentTensor. RLN (2011-11-21)
     my_mt = MomentTensor(distance_weighting, isoflag, trim_value, verbosity)
     ss = my_mt.construct_data_matrix(stachan_traces)
 
     if len(ss) != 0:
-        print 'Data matrix S created --> %s stations used' % len(ss)
-    if len(gg[1]) != len(ss['T']):
-        print "Number of Green's functions (%d) does not match the number of stations (%d)" % (len(gg[1]), len(ss['T']))
+        logmt(1, 'Data matrix S created --> %s stations used' % len(ss['T']))
+    if len(gg['TSS']) != len(ss['T'][0]):
+        logmt(3, "Number of Green's functions data points (%d) does not match the number of station trsample data points (%d)" % (len(gg['TSS']), len(ss['T'][0])))
     else:
-        print 'Matrix S (data) and G (synthetics) created'
+        logmt(1, 'Matrix ss (extracted station data, length:%d) and gg (synthetics, length:%d) created' % (len(ss['T'][0]), len(gg['TSS'])))
 
-    '''
-    !!! NOTE: The assumption here is that the size of both
-    ss and gg is the same as the number of stations that are used
-    in determining the moment tensor. In the hard-coded example
-    this is three. RLN (2011-08-24)
-    '''
-
-    # !!! NOTE: timeshift is a list? RLN (2011-11-03)
+    # !!! NOTE: timeshift is a list of the counts at each station we need to add to get the correlation match. RLN (2011-11-03)
     timeshift = my_mt.get_time_shift(ss, gg)
+
     if len(timeshift) != len(ss['T']):
-        print 'Error in correlating synthetic and measured data'
+        logmt(3, 'Error in correlating synthetic and measured data')
     else:
-        print 'Timeshift between data and synthetics computed for %s stations' % len(timeshift)
+        logmt(1, 'Timeshift between data and synthetics computed for %s stations' % len(timeshift))
 
-    # !!! NOTE: Where does this come from without explanation? Dregers code? RLN (2011-07-28)
-    # Examples just for the examples
-    # - event to station azimuth, in this example used 3 stations
-    az = [10, 40, 50]
-    ev2sta_azimuths
-
-    # !!! NOTE: What is W? Weighting factor - number of stations, long list of values.
-    # If 1 then station fully incorporated into solution. If less than one, don't include. RLN (2011-07-28)
-
-    # Allocate Memory for Station Weights
+    '''
+    !!! NOTE: Weighting factor:
+              number of stations to be used 
+              in solution. If set to 1 then 
+              station fully incorporated into 
+              solution. If < 1, don't include. 
+              For now, use ALL stations.
+              RLN (2011-12-02)
+    '''
     W = []
     for i in range(len(ss['T'])):
         W.append(1.0)
 
-    # !!! NOTE: INVERSION ROUTINE
-    #     Dreger normalizes AtA (B?) and AIV (AIV) matrix. We don't need to - just create default dictionary
-    #     RLN (2011-08-24)
+    '''
+    !!! NOTE: INVERSION ROUTINE
+              Dreger normalizes AtA (B?) and AIV (AIV) matrix. 
+              We don't need to - just create default dictionary
+              RLN (2011-08-24)
+    '''
     AIV = defaultdict(dict)
     B = defaultdict(dict) 
 
-    AIV, B = my_mt.matrix_AIV_B(ss, gg, az, timeshift)
+    AIV, B = my_mt.matrix_AIV_B(ss, gg, ev2sta_azimuths, timeshift)
 
     # !!! NOTE: DETERMINE SOLUTION VECTOR. RLN (2011-08-24)
     M = my_mt.determine_solution_vector(AIV, B)
@@ -1464,15 +1394,23 @@ def main():
 
     # !!! NOTE: DECOMPOSE MOMENT TENSOR INTO VARIOUS REPRESENTATIONS. RLN (2011-11-03)
     m0, Mw, strike, dip, rake, pcdc, pcclvd, pciso = my_mt.decompose_moment_tensor(M)
-    E, VR, VAR, svar, sdpower = my_mt.fitcheck(gg, ss, W, M, m0, timeshift, az)
+    E, VR, VAR, svar, sdpower = my_mt.fitcheck(gg, ss, W, M, m0, timeshift, ev2sta_azimuths)
 
     qlt = my_mt.quality_check(VR)
 
-    evdbptr.close()
+    try:
+        evdbptr.close()
+    except:
+        logmt(1, 'Error closing event database. Already closed?')
 
-    # !!! NOTE: UPDATED TABLES AND CREATE FOCAL MECHANISM IMAGE - DONE. RLN (2011-11-22)
+    '''
+    !!! NOTE: In ObsPy there are two different 
+              ways to create a focal mechanism.
+              Try them both.  RLN (2011-12-02)
+    '''
     my_event.update_moment_tbl(strike, dip, rake)
-    focalmech_img = my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, strike, dip, rake)
+    # focalmech_img = my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, strike, dip, rake)
+    focalmech_img = my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, M)
 
     # !!! NOTE: Use a list of tuples as order is important. RLN (2011-11-28)
     image_annotations = [ ('strike', '%.3f' % strike[0]), 
@@ -1487,7 +1425,8 @@ def main():
                           ('VAR', '%.3f' % VAR)
                           ]
     # !!! FIX: CREATE DATA vs. SYNTHETICS PLOTS - DONE. RLN (2011-11-03)
-    synthetics_img = my_event.create_data_synthetics_plot(stachan_traces, gg, mt_images_dir)
+    mod_gg = my_event.calculate_synthetics_to_plot(gg, ev2sta_azimuths, M)
+    synthetics_img = my_event.create_data_synthetics_plot(stachan_traces, ev2sta_azimuths, mod_gg, mt_images_dir)
 
     # !!! NOTE: CREATE THE COMPOSITE (FINAL) IMAGE AND UPDATE DB. RLN (2011-11-28)
     my_event.create_composite_plot(ttfont, image_annotations, mt_images_dir, synthetics_img, focalmech_img)
