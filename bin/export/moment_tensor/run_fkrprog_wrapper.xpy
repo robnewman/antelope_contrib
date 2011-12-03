@@ -47,10 +47,11 @@ GF =  fkr.GreenFunctions(SOURCE_FILE)
 """
 Generate GF's for depth of 8km and distance of 1km.
 """
-GF.generate(depth=8,distance=1)
+GF.generate(depth=8,distance=80)
 GF.plot()
-print GF('TSS')
-print GF['XDS']
+#print GF('TSS')
+#print GF['XDS']
+#print GF.ALL
 if verbose: print 'Done!'
 
 

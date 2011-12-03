@@ -484,30 +484,8 @@ class GreenFunctions():
         #{{{
 
 #{{{ BUILD VARS 
-        #test = defaultdict(lambda:defaultdict(list))
-        self.XKA = defaultdict(lambda: defaultdict(dict))
-        self.XKB = defaultdict(lambda: defaultdict(dict))
-        self.ATNA = defaultdict(lambda: defaultdict(dict))
-        self.ATNB = defaultdict(lambda: defaultdict(dict))
         self.ICNT = defaultdict(lambda: defaultdict(dict))
-        self.WVNO  = defaultdict(lambda: defaultdict(dict))
-        self.WVNO2 = defaultdict(lambda: defaultdict(dict))
-        self.WVNO3 = defaultdict(lambda: defaultdict(dict))
         self.SMM = defaultdict(lambda: defaultdict(dict))
-        self.R1 = defaultdict(lambda: defaultdict(dict))
-        self.R2 = defaultdict(lambda: defaultdict(dict))
-        self.R3 = defaultdict(lambda: defaultdict(dict))
-        self.R4 = defaultdict(lambda: defaultdict(dict))
-        self.R5 = defaultdict(lambda: defaultdict(dict))
-        self.R6 = defaultdict(lambda: defaultdict(dict))
-        self.R7 = defaultdict(lambda: defaultdict(dict))
-        self.X1 = defaultdict(lambda: defaultdict(dict))
-        self.X2 = defaultdict(lambda: defaultdict(dict))
-        self.X3 = defaultdict(lambda: defaultdict(dict))
-        self.X4 = defaultdict(lambda: defaultdict(dict))
-        self.X5 = defaultdict(lambda: defaultdict(dict))
-        self.X6 = defaultdict(lambda: defaultdict(dict))
-        self.X7 = defaultdict(lambda: defaultdict(dict))
         self.RA = defaultdict(lambda: defaultdict(dict))
         self.RB = defaultdict(lambda: defaultdict(dict))
         self.GAM = defaultdict(lambda: defaultdict(dict))
@@ -523,133 +501,86 @@ class GreenFunctions():
         self.EXEL = defaultdict(lambda: defaultdict(dict))
         self.EXL = defaultdict(lambda: defaultdict(dict))
         self.EXLL = defaultdict(lambda: defaultdict(dict))
-        self.S14 = defaultdict(lambda: defaultdict(dict))
-        self.S21 = defaultdict(lambda: defaultdict(dict))
-        self.S32 = defaultdict(lambda: defaultdict(dict))
-        self.S34 = defaultdict(lambda: defaultdict(dict))
         self.COSQL = defaultdict(lambda: defaultdict(dict))
         self.YL = defaultdict(lambda: defaultdict(dict))
         self.YLI = defaultdict(lambda: defaultdict(dict))
         self.ZL = defaultdict(lambda: defaultdict(dict))
         self.ZX = defaultdict(lambda: defaultdict(dict))
         self.K = defaultdict(lambda: defaultdict(dict))
-        self.Y11 = defaultdict(lambda: defaultdict(dict))
-        self.Y12 = defaultdict(lambda: defaultdict(dict))
-        self.Y31 = defaultdict(lambda: defaultdict(dict))
-        self.Y32 = defaultdict(lambda: defaultdict(dict))
-        self.Y21 = defaultdict(lambda: defaultdict(dict))
-        self.Y22 = defaultdict(lambda: defaultdict(dict))
-        self.Y41 = defaultdict(lambda: defaultdict(dict))
-        self.Y42 = defaultdict(lambda: defaultdict(dict))
-        self.S32E = defaultdict(lambda: defaultdict(dict))
-        self.S34E = defaultdict(lambda: defaultdict(dict))
         self.SNGL = defaultdict(lambda: defaultdict(dict))
-        self.FACX = defaultdict(lambda: defaultdict(dict))
-        self.SUME = defaultdict(lambda: defaultdict(dict))
-        self.SUMC = defaultdict(lambda: defaultdict(dict))
         self.C = defaultdict(lambda: defaultdict(dict))
-        self.S1 = defaultdict(lambda: defaultdict(dict))
-        self.S2 = defaultdict(lambda: defaultdict(dict))
-        self.S3 = defaultdict(lambda: defaultdict(dict))
-        self.S4 = defaultdict(lambda: defaultdict(dict))
-        self.S5 = defaultdict(lambda: defaultdict(dict))
-        self.S6 = defaultdict(lambda: defaultdict(dict))
-        self.S7 = defaultdict(lambda: defaultdict(dict))
-        self.S8 = defaultdict(lambda: defaultdict(dict))
-        self.S9 = defaultdict(lambda: defaultdict(dict))
-        self.S10 = defaultdict(lambda: defaultdict(dict))
-        self.G1 = defaultdict(lambda: defaultdict(dict))
-        self.G2 = defaultdict(lambda: defaultdict(dict))
-        self.G3 = defaultdict(lambda: defaultdict(dict))
-        self.G4 = defaultdict(lambda: defaultdict(dict))
-        self.G5 = defaultdict(lambda: defaultdict(dict))
-        self.G6 = defaultdict(lambda: defaultdict(dict))
-        self.G7 = defaultdict(lambda: defaultdict(dict))
-        self.G8 = defaultdict(lambda: defaultdict(dict))
-        self.G9 = defaultdict(lambda: defaultdict(dict))
-        self.G10 = defaultdict(lambda: defaultdict(dict))
 
-        self.GG = [complex(0) for J in range(100)]
-        for J in range(100): self.GG[J] = [complex(0) for I in range(10)]
-
-        self.S1 = [complex(0) for J in range(100)]
-        self.S2 = [complex(0) for J in range(100)]
-        self.S3 = [complex(0) for J in range(100)]
-        self.S4 = [complex(0) for J in range(100)]
-        self.S5 = [complex(0) for J in range(100)]
-        self.S6 = [complex(0) for J in range(100)]
-        self.S7 = [complex(0) for J in range(100)]
-        self.S8 = [complex(0) for J in range(100)]
-        self.S9 = [complex(0) for J in range(100)]
-        self.S10 = [complex(0) for J in range(100)]
-
-        self.G1 = [complex(0) for J in range(100)]
-        self.G2 = [complex(0) for J in range(100)]
-        self.G3 = [complex(0) for J in range(100)]
-        self.G4 = [complex(0) for J in range(100)]
-        self.G5 = [complex(0) for J in range(100)]
-        self.G6 = [complex(0) for J in range(100)]
-        self.G7 = [complex(0) for J in range(100)]
-        self.G8 = [complex(0) for J in range(100)]
-        self.G9 = [complex(0) for J in range(100)]
-        self.G10 = [complex(0) for J in range(100)]
-
-        self.J0 = [complex(0) for J in range(100)]
-        self.J1 = [complex(0) for J in range(100)]
-        self.J2 = [complex(0) for J in range(100)]
-        self.SUME = [complex(0) for J in range(100)]
-        self.SUMC = [complex(0) for J in range(100)]
-        self.WVNO = [complex(0) for J in range(100)]
-
-
-        self.FACT = [complex(0) for J in range(100)]
-        self.FACX = [complex(0) for J in range(100)]
-        self.S12 = [complex(0) for J in range(100)]
-        self.S21 = [complex(0) for J in range(100)]
-        self.S32 = [complex(0) for J in range(100)]
-        self.S14 = [complex(0) for J in range(100)]
-        self.S23 = [complex(0) for J in range(100)]
-        self.S34 = [complex(0) for J in range(100)]
-        self.S32E = [complex(0) for J in range(100)]
-        self.S34E = [complex(0) for J in range(100)]
-
-        self.R1 = [complex(0) for J in range(100)]
-        self.R2 = [complex(0) for J in range(100)]
-        self.R3 = [complex(0) for J in range(100)]
-        self.R4 = [complex(0) for J in range(100)]
-        self.R5 = [complex(0) for J in range(100)]
-        self.R6 = [complex(0) for J in range(100)]
-        self.R7 = [complex(0) for J in range(100)]
-
-        self.X1 = [complex(0) for J in range(100)]
-        self.X2 = [complex(0) for J in range(100)]
-        self.X3 = [complex(0) for J in range(100)]
-        self.X4 = [complex(0) for J in range(100)]
-        self.X5 = [complex(0) for J in range(100)]
-        self.X6 = [complex(0) for J in range(100)]
-        self.X7 = [complex(0) for J in range(100)]
-
-        self.Y11 = [complex(0) for J in range(100)]
-        self.Y12 = [complex(0) for J in range(100)]
-        self.Y21 = [complex(0) for J in range(100)]
-        self.Y31 = [complex(0) for J in range(100)]
-        self.Y41 = [complex(0) for J in range(100)]
-        self.Y42 = [complex(0) for J in range(100)]
-        self.Y32 = [complex(0) for J in range(100)]
-        self.Y22 = [complex(0) for J in range(100)]
+        self.GG = defaultdict(lambda: defaultdict(complex)) 
+        self.J0 = defaultdict(complex) 
+        self.J1 = defaultdict(complex) 
+        self.J2 = defaultdict(complex) 
+        self.SUME = defaultdict(complex) 
+        self.SUMC = defaultdict(complex) 
+        self.WVNO  = defaultdict(complex)
+        self.WVNO2 = defaultdict(complex)
+        self.WVNO3 = defaultdict(complex)
+        self.S1 =    defaultdict(complex)
+        self.S2 =    defaultdict(complex)
+        self.S3 =    defaultdict(complex)
+        self.S4 =    defaultdict(complex)
+        self.S5 =    defaultdict(complex)
+        self.S6 =    defaultdict(complex)
+        self.S7 =    defaultdict(complex)
+        self.S8 =    defaultdict(complex)
+        self.S9 =    defaultdict(complex)
+        self.S10=    defaultdict(complex)
+        self.G1 =    defaultdict(complex)
+        self.G2 =    defaultdict(complex)
+        self.G3 =    defaultdict(complex)
+        self.G4 =    defaultdict(complex)
+        self.G5 =    defaultdict(complex)
+        self.G6 =    defaultdict(complex)
+        self.G7 =    defaultdict(complex)
+        self.G8 =    defaultdict(complex)
+        self.G9 =    defaultdict(complex)
+        self.G10=    defaultdict(complex)
+        self.FACT  = defaultdict(complex)
+        self.FACX  = defaultdict(complex)
+        self.S12   = defaultdict(complex)
+        self.S21   = defaultdict(complex)
+        self.S32   = defaultdict(complex)
+        self.S14   = defaultdict(complex)
+        self.S23   = defaultdict(complex)
+        self.S34   = defaultdict(complex)
+        self.S32E  = defaultdict(complex)
+        self.S34E  = defaultdict(complex)
+        self.R1 =    defaultdict(complex)
+        self.R2 =    defaultdict(complex)
+        self.R3 =    defaultdict(complex)
+        self.R4 =    defaultdict(complex)
+        self.R5 =    defaultdict(complex)
+        self.R6 =    defaultdict(complex)
+        self.R7 =    defaultdict(complex)
+        self.X1 =    defaultdict(complex)
+        self.X2 =    defaultdict(complex)
+        self.X3 =    defaultdict(complex)
+        self.X4 =    defaultdict(complex)
+        self.X5 =    defaultdict(complex)
+        self.X6 =    defaultdict(complex)
+        self.X7 =    defaultdict(complex)
+        self.Y11 =   defaultdict(complex)
+        self.Y12 =   defaultdict(complex)
+        self.Y21 =   defaultdict(complex)
+        self.Y31 =   defaultdict(complex)
+        self.Y41 =   defaultdict(complex)
+        self.Y42 =   defaultdict(complex)
+        self.Y32 =   defaultdict(complex)
+        self.Y22 =   defaultdict(complex)
+        self.ATNA =  defaultdict(complex)
+        self.ATNB =  defaultdict(complex)
+        self.XKA  =  defaultdict(complex)
+        self.XKB  =  defaultdict(complex)
+        self.AA =    defaultdict(int)
+        self.BB =    defaultdict(int)
+        self.CC =    defaultdict(int)
 
 
-        self.WVNO = [complex(0) for J in range(100)]
-        self.WVNO2 = [complex(0) for J in range(100)]
-        self.WVNO3 = [complex(0) for J in range(100)]
-        self.ATNA = [complex(0) for J in range(70)]
-        self.ATNB = [complex(0) for J in range(70)]
-        self.XKA = [complex(0) for J in range(70)]
-        self.XKB = [complex(0) for J in range(70)]
 
-        self.AA = [0 for J in range(10)]
-        self.BB = [0 for J in range(10)]
-        self.CC = [0 for J in range(10)]
 #}}}
 
         self.IASYMP = True
@@ -735,18 +666,12 @@ class GreenFunctions():
 
         self.OM     = complex(self.OMEGA, -1 * self.ALPHA)
         self.FOURPI = 12.5663706 * self.OM * self.OM
-        self.ZERO   = complex( 0.0 , 0 )
-        self.ONE    = complex( 1.0 , 0 )
-        self.TWO    = complex( 2.0 , 0 )
         self.PI     = 3.141592654
         self.OM1    = 6.283185307
         self.OML    = 0.06283185307
 
         if self.debug: print 'OM => %s' % self.OM
         if self.debug: print 'FOURPI => %s' % self.FOURPI
-        if self.debug: print 'ZERO => %s' % self.ZERO
-        if self.debug: print 'ONE => %s' % self.ONE
-        if self.debug: print 'TWO => %s' % self.TWO
         if self.debug: print 'PI => %s' % self.PI
         if self.debug: print 'OM1 => %s' % self.OM1
         if self.debug: print 'OML => %s' % self.OML
@@ -756,7 +681,7 @@ class GreenFunctions():
         # COMPUTING THE ATTENUATION OF THE MDEIUM USING QA, QB
         #
 
-        self.AT = self.ZERO
+        self.AT =complex() 
         #print 'OM => %s' % self.OM
         #print 'abs(OM) => %s' % abs(self.OM)
         #print 'OML => %s' % self.OML
@@ -774,15 +699,15 @@ class GreenFunctions():
         if self.debug: print 'FAC => %s' % self.FAC
 
         for I in range(self.MMAX+1):
-            self.ATNA[I] = self.ONE
-            self.ATNB[I] = self.ONE
+            self.ATNA[I] = complex(1)
+            self.ATNB[I] = complex(1)
             if self.debug: print 'ATNA[I] => %s' % self.ATNA[I]
             if self.debug: print 'ATNB[I] => %s' % self.ATNB[I]
             if self.QA[I] > 0.0:
                 self.PAL = complex(self.QA[I],0) * self.AT
                 self.BA = float(0.5 * self.QA[I])
                 self.QAL = complex(0, self.BA)
-                self.ATNA[I] = self.ONE + self.PAL + self.QAL
+                self.ATNA[I] = complex(1) + self.PAL + self.QAL
                 if self.debug: print 'PAL => %s' % self.PAL 
                 if self.debug: print 'BA => %s' % self.BA 
                 if self.debug: print 'QAL => %s' % self.QAL 
@@ -792,7 +717,7 @@ class GreenFunctions():
                 self.PAL = complex(self.QB[I],0) * self.AT
                 self.BA = float(0.5 * self.QB[I])
                 self.QAL = complex(0, self.BA)
-                self.ATNB[I] = self.ONE + self.PAL + self.QAL
+                self.ATNB[I] = complex(1) + self.PAL + self.QAL
                 if self.debug: print 'PAL => %s' % self.PAL 
                 if self.debug: print 'BA => %s' % self.BA 
                 if self.debug: print 'QAL => %s' % self.QAL 
@@ -889,26 +814,20 @@ class GreenFunctions():
                 #print "\tLoop 500: WVNO2[J] = %s" % self.WVNO2[J]
             #}}} D
 
-            #if self.debug: print "self.WVNO2:%s" % self.WVNO2
-            #exit()
-
-            for J in range(self.IBLOCK):
-            #{{{ E
-                self.R1[J] = self.ZERO
-                self.R2[J] = self.ZERO
-                self.R3[J] = self.ZERO
-                self.R4[J] = self.ZERO
-                self.R5[J] = self.ZERO
-                self.R6[J] = self.ZERO
-                self.R7[J] = self.ZERO
-                self.X1[J] = self.ZERO
-                self.X2[J] = self.ZERO
-                self.X3[J] = self.ZERO
-                self.X4[J] = self.ZERO
-                self.X5[J] = self.ZERO
-                self.X6[J] = self.ZERO
-                self.X7[J] = self.ZERO
-            #}}} E
+                self.R1 =    defaultdict(complex)
+                self.R2 =    defaultdict(complex)
+                self.R3 =    defaultdict(complex)
+                self.R4 =    defaultdict(complex)
+                self.R5 =    defaultdict(complex)
+                self.R6 =    defaultdict(complex)
+                self.R7 =    defaultdict(complex)
+                self.X1 =    defaultdict(complex)
+                self.X2 =    defaultdict(complex)
+                self.X3 =    defaultdict(complex)
+                self.X4 =    defaultdict(complex)
+                self.X5 =    defaultdict(complex)
+                self.X6 =    defaultdict(complex)
+                self.X7 =    defaultdict(complex)
 
             #print "self.WVNO2:%s" % self.WVNO2
             if self.debug: print "self.WVNO2:%s" % self.WVNO2
@@ -923,7 +842,7 @@ class GreenFunctions():
                     self.GAM2[I][J] = self.GAM[I][J]**2
                     self.GAM3[I][J] = self.GAM2[I][J] * self.GAM[I][J]
                     self.GAM4[I][J] =  self.GAM3[I][J] * self.GAM[I][J]
-                    self.GAMM1[I][J] =  self.GAM[I][J] - self.ONE
+                    self.GAMM1[I][J] =  self.GAM[I][J] - complex(1)
                     self.GAMM2[I][J] =  self.GAMM1[I][J] * self.GAMM1[I][J]
                     self.GAMM3[I][J] =  self.GAMM1[I][J] * self.GAMM2[I][J]
                     self.GAMX1[I][J] =  self.GAM[I][J] * self.GAMM1[I][J]
@@ -963,15 +882,14 @@ class GreenFunctions():
                 # Computation for P-SV system starts
                 #{{{ H
                 for J in range(self.IBLOCK):
-                    self.S14[J] = -self.TWO * self.WVNO[J] / self.FOURPI
-                    self.S21[J] =  self.TWO * self.XKB2 / self.FRHO
+                    self.S14[J] = -complex(2) * self.WVNO[J] / self.FOURPI
+                    self.S21[J] =  complex(2) * self.XKB2 / self.FRHO
                     self.S32[J] = self.WVNO[J] * 4.0 * self.XKA2 / self.FRHO
                     self.TT = (2.0 * self.B[self.LMAX] / self.A[self.LMAX]) ** 2 - 3.
                     #print "\t\t\t B(LMAX)=>%s" % self.B[self.LMAX]
                     #print "\t\t\t A(LMAX)=>%s" % self.A[self.LMAX]
                     #print "\t\t\t TT=>%s" % self.TT
-                    self.S34[J] = self.TWO * self.WVNO[J] * complex(self.TT) / self.FOURPI 
-                    #print "\t\t\t TWO=>%s" % self.TWO
+                    self.S34[J] = complex(2) * self.WVNO[J] * complex(self.TT) / self.FOURPI 
                     #print "\t\t\t WVNO[J]=>%s" % self.WVNO[J]
                     #print "\t\t\t TT=>%s" % self.TT
                     #print "\t\t\t complex(self.TT)=>%s" % complex(self.TT)
@@ -1014,18 +932,18 @@ class GreenFunctions():
                         if self.debug: print "\n"
                 elif self.JBDRY > 0:
                     for J in range(self.IBLOCK):
-                        self.R1[J] = self.ONE
-                        self.R2[J] = self.ZERO
-                        self.R3[J] = self.ZERO
-                        self.R4[J] = self.ZERO
-                        self.R5[J] = self.ZERO
+                        self.R1[J] = complex(1)
+                        self.R2[J] = complex()
+                        self.R3[J] = complex()
+                        self.R4[J] = complex()
+                        self.R5[J] = complex()
                 elif self.JBDRY > 0:
                     for J in range(self.IBLOCK):
-                        self.R1[J] = self.ZERO
-                        self.R2[J] = self.ZERO
-                        self.R3[J] = self.ZERO
-                        self.R4[J] = self.ZERO
-                        self.R5[J] = self.ONE
+                        self.R1[J] = complex() 
+                        self.R2[J] = complex() 
+                        self.R3[J] = complex() 
+                        self.R4[J] = complex() 
+                        self.R5[J] = complex(1)
 
                 if self.debug: print "Loop 500: RH=> %s" % self.RH
                 if self.debug: print "Loop 500: R1=> %s" % self.R1
@@ -1818,23 +1736,23 @@ class GreenFunctions():
                     for J in range(self.IBLOCK):
                         #if self.debug: print "\nJ:%s \nMMAX:%s \nRB:%s \nRHO:%s" % (J,self.MMAX,self.RB,self.RHO)
                         self.R6[J] = (self.RHO[self.MMAX]) * self.RB[self.MMAX][J]
-                        self.R7[J] = self.ONE / (self.B[self.MMAX] * self.ATNB[self.MMAX]) ** 2
+                        self.R7[J] = complex(1) / (self.B[self.MMAX] * self.ATNB[self.MMAX]) ** 2
                         if self.debug: print ""
                         if self.debug: print "Loop 500 300 19: R6[J]=> %s" % self.R6[J]
                         if self.debug: print "Loop 500 300 19: R7[J]=> %s" % self.R7[J]
 
                 elif self.JBDRY < 0:
                     for J in range(self.IBLOCK):
-                        self.R6[J] = self.ONE
-                        self.R7[J] = self.ZERO
+                        self.R6[J] = complex(1)
+                        self.R7[J] = complex()
                         if self.debug: print ""
                         if self.debug: print "Loop 500 300 20: R6[J]=> %s" % self.R6[J]
                         if self.debug: print "Loop 500 300 20: R7[J]=> %s" % self.R7[J]
 
                 elif self.JBDRY > 0:
                     for J in range(self.IBLOCK):
-                        self.R6[J] = self.ZERO
-                        self.R7[J] = self.ONE
+                        self.R6[J] = complex()
+                        self.R7[J] = complex(1)
                         if self.debug: print ""
                         if self.debug: print "Loop 500 300 21: R6[J]=> %s" % self.R6[J]
                         if self.debug: print "Loop 500 300 21: R7[J]=> %s" % self.R7[J]
@@ -2143,15 +2061,14 @@ class GreenFunctions():
 
                 self.IB = 100
                 self.NR = 100
-                self.ZERO = complex(0.0,0.0)
                 self.PI = acos(-1.0)
                 self.NN1 = 1
 
                 if self.debug: print ""
                 if self.debug: print "++++++++++++++++++++ WVINT ++++++++++++++++++"
                 for J in range(self.IB):
-                    self.SUME[J] = self.ZERO
-                    self.SUMC[J] = self.ZERO
+                    self.SUME[J] = complex()
+                    self.SUMC[J] = complex()
 
                 #{{{ INIT
                 #print 'NBL = %s' % self.NBLK
@@ -2258,9 +2175,9 @@ class GreenFunctions():
                                 if self.debug: print "\t WVINT 101: J => %s" % J
                                 if self.debug: print "\t WVINT 101: ISRC[J] => %s" % self.ISRC[J]
                                 if self.ISRC[J] != 1: 
-                                    self.AA[J] = self.ZERO
-                                    self.BB[J] = self.ZERO
-                                    self.CC[J] = self.ZERO
+                                    self.AA[J] = complex()
+                                    self.BB[J] = complex()
+                                    self.CC[J] = complex()
                                 if self.debug: print "WVINT  101 :   AA[J]=> %s" % self.AA[J]
                                 if self.debug: print "WVINT  101 :   BB[J]=> %s" % self.BB[J]
                                 if self.debug: print "WVINT  101 :   CC[J]=> %s" % self.CC[J]
@@ -2486,6 +2403,11 @@ class GreenFunctions():
                     if self.IASYMP:
                         for K in range(10):
                             if self.ISRC[K] == 1:
+                                #print "    ############ WVNO => %s  " % self.WVNO
+                                #print "    ############ len(WVNO) => %s  " % len(self.WVNO)
+                                #print "    ############ IBLOCK => %s  " % self.IBLOCK
+                                #print "    ############ NK => %s  " % self.NK
+                                #print "    ############ IB => %s  " % self.IB
                                 self.AK = self.WVNO[self.IBLOCK].real
                                 self.EX = exp(-self.AK )* self.DEPTH
                                 self.ASM = self.EX * ( self.AA[K] + self.AK * (self.BB[K] + self.AK * self.CC[K]) )
