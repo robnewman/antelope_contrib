@@ -1,7 +1,8 @@
 BIN = run_fkrprog_wrapper \
       dbmoment
 PF = dbmoment.pf \
-     create_green.pf
+     create_green.pf \
+     SOCAL_MODEL.pf
 MAN1 = dbmoment.1
 
 DATADIR = python/moment_tensor

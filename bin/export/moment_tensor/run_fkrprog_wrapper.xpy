@@ -1,5 +1,10 @@
 import getopt
 import moment_tensor.fkrprog as fkr
+try:
+    import antelope.stock as stock
+except Exception,e:
+    print  "Import Error: Cannot import Antelope's stock lib."
+    exit()
 
 
 """
@@ -8,50 +13,40 @@ and verify the source file is accessible.
 """
 try:
 
-    opts, pargs = getopt.getopt(sys.argv[1:], 'vd')
+    opts, pargs = getopt.getopt(sys.argv[1:], 'vp:')
 
 except getopt.GetoptError:
 
-    print "Usage: fkrprog [-v] [-d] file\n"
+    print "Usage: fkrprog [-v] [-p model_pf_file]\n"
     sys.exit(-1)
 
-if( len(pargs) != 1):
+if( len(pargs) != 0):
 
-    print "Usage: fkrprog [-v] [-d] file\n"
+    print "Usage: fkrprog [-v] [-p model_pf_file]\n"
     sys.exit(-1)
 
-else:
 
-    SOURCE_FILE = pargs[0]
-
-debug = False
 verbose = False
+pf_file = 'SOCAL_MODEL'
 
 for option, value in opts:
 
+    if '-p' in option:
+        pf_file = str(value)
+
     if '-v' in option:
-        debug = False
         verbose = True
-
-    if '-d' in option:
-        debug = True
-        verbose = True
-
-if not os.path.isfile(SOURCE_FILE):
-    raise SystemExit('\n\nCannot find specified file! (%s)\n'% SOURCE_FILE)
 
 """
 Build object for GF's.
 """
-GF =  fkr.GreenFunctions(SOURCE_FILE)
+#GF =  fkr.GreenFunctions(pf_file,verbose=verbose)
+GF =  fkr.GreenFunctions(pf_file)
 """
 Generate GF's for depth of 8km and distance of 1km.
 """
-GF.generate(depth=8,distance=80)
+GF.generate(depth=8,distance=8)
 GF.plot()
-#print GF('TSS')
-#print GF['XDS']
-#print GF.ALL
 if verbose: print 'Done!'
 
 

@@ -10,6 +10,8 @@ from math import exp, log, sqrt, acos, asin, cos, sin
 from cmath import log as clog
 from cmath import sqrt as csqrt
 from cmath import exp as cexp
+import antelope.stock as stock
+
 
 
 """
@@ -21,7 +23,7 @@ from cmath import exp as cexp
 
 class GreenFunctions():
     " Build class to produce Green Functions "
-    def __init__(self,model,verbose=False,debug=False):
+    def __init__(self,model,verbose=False):
 #{{{
         if verbose: print "green_functions(): init..."
 
@@ -34,31 +36,134 @@ class GreenFunctions():
         self.ALLOMEGA = defaultdict(lambda: defaultdict(dict))
 
         self.verbose = verbose
-        self.debug = debug
 
-        self.model = model
+        self.pf = model
 
-        if self.model: 
-            if not os.path.isfile(self.model):
-                raise SystemExit('\n\nCannot find specified file! (%s)\n'% self.model)
-
-            self.source = self._read_file(self.model)
-
-        if not self.source:
-            self._file_format()
-            raise SystemExit('\n\nCannot find specified model for Green Functions! (%s)\n'% model)
-
+        self._read_pf()
 
 #}}}
 
     def generate(self,depth,distance):
 #{{{
-        if self.source:
-            self._setup_vars()
-            self.DEPTH = depth
-            self.RANGE = [distance]
-            self._excit()
-            self._wvint9()
+        self.DEPTH = depth
+        self.DISTANCE = distance
+
+        tempD =  self.D
+        tempA =  self.A
+        tempB =  self.B
+        tempRHO =  self.RHO
+        tempQA =  self.QA
+        tempQB =  self.QB
+
+        # Init vars for model layers
+        self.D   = defaultdict(int)
+        self.A   = defaultdict(int)
+        self.B   = defaultdict(int)
+        self.RHO = defaultdict(int)
+        self.QA  = defaultdict(int)
+        self.QB  = defaultdict(int)
+
+        d = 0
+        delta = 0
+        for y in range(len(tempD)):
+            if self.DEPTH == (d + tempD[y]):
+                delta  = 1
+
+                self.LMAX = y + 2
+                for x in range(len(tempD)):
+                    if x < y:
+                        self.D[x]   =  tempD[x]
+                        self.A[x]   =  tempA[x]
+                        self.B[x]   =  tempB[x]
+                        self.RHO[x] =  tempRHO[x]
+                        self.QA[x]  =  tempQA[x]
+                        self.QB[x]  =  tempQB[x]
+                    elif x == y:
+                        # new layer
+                        self.D[x]   =  tempD[x] - delta
+                        self.A[x]   =  tempA[x]
+                        self.B[x]   =  tempB[x]
+                        self.RHO[x] =  tempRHO[x]
+                        self.QA[x]  =  tempQA[x]
+                        self.QB[x]  =  tempQB[x]
+                        # old layer
+                        self.D[x+1]   =  delta
+                        self.A[x+1]   =  tempA[x+1]
+                        self.B[x+1]   =  tempB[x+1]
+                        self.RHO[x+1] =  tempRHO[x+1]
+                        self.QA[x+1]  =  tempQA[x+1]
+                        self.QB[x+1]  =  tempQB[x+1]
+                    else:
+                        self.D[x+1]   =  tempD[x]
+                        self.A[x+1]   =  tempA[x]
+                        self.B[x+1]   =  tempB[x]
+                        self.RHO[x+1] =  tempRHO[x]
+                        self.QA[x+1]  =  tempQA[x]
+                        self.QB[x+1]  =  tempQB[x]
+                break
+
+            elif self.DEPTH < (d + tempD[y]):
+                self.LMAX = y + 1
+                delta = d + tempD[y] - self.DEPTH
+
+                for x in range(len(tempD)):
+                    if x < y:
+                        self.D[x]   =  tempD[x]
+                        self.A[x]   =  tempA[x]
+                        self.B[x]   =  tempB[x]
+                        self.RHO[x] =  tempRHO[x]
+                        self.QA[x]  =  tempQA[x]
+                        self.QB[x]  =  tempQB[x]
+                    elif x == y:
+                        # new layer
+                        self.D[x]   =  tempD[x] - delta
+                        self.A[x]   =  tempA[x]
+                        self.B[x]   =  tempB[x]
+                        self.RHO[x] =  tempRHO[x]
+                        self.QA[x]  =  tempQA[x]
+                        self.QB[x]  =  tempQB[x]
+                        # old layer
+                        self.D[x+1]   =  delta
+                        self.A[x+1]   =  tempA[x]
+                        self.B[x+1]   =  tempB[x]
+                        self.RHO[x+1] =  tempRHO[x]
+                        self.QA[x+1]  =  tempQA[x]
+                        self.QB[x+1]  =  tempQB[x]
+                    else:
+                        self.D[x+1]   =  tempD[x]
+                        self.A[x+1]   =  tempA[x]
+                        self.B[x+1]   =  tempB[x]
+                        self.RHO[x+1] =  tempRHO[x]
+                        self.QA[x+1]  =  tempQA[x]
+                        self.QB[x+1]  =  tempQB[x]
+                break
+
+            else:
+                d += tempD[y]
+
+
+        if self.verbose:
+            for I in range(len(self.D)):
+                print "%s: %s\t%s\t%s\t%s\t%s\t%s" % (self.LMAX,self.D[I],self.A[I],self.B[I],self.RHO[I],self.QA[I],self.QB[I])
+
+        
+        if self.verbose: print "LMAX => %s" % self.LMAX
+
+        self.MMAX = len(self.D) - 1
+        if self.verbose: print "MMAX => %s" % self.MMAX
+
+        if self.verbose: print "DEPTH => %s" % self.DEPTH
+        if self.verbose: print "RANGE => %s" % self.DISTANCE
+
+        self._setup_vars()
+
+        # NEED TO FIX...
+        # LMAX
+        # Layer number below the source
+        #    self.LMAX = 3
+
+        self._excit()
+        self._wvint9()
 #}}}
 
     def _file_format(self):
@@ -80,183 +185,92 @@ class GreenFunctions():
                 10.00      0.0      10.0 \n \ "
     #}}}
 
-    def _read_file(self, file_name):
+    def _read_pf(self):
     #{{{
+        # NEED TO FIX...
+        #    self.MMAX   = int(self.MMAX) total number of layers
+        # LMAX
+        # Layer number below the source
+        #    self.LMAX = 3
+
         #
         # Read data from file
         #
-        if self.debug: print "%s: Open file." % file_name
+        if self.verbose: print "Read PF file: %s.pf" % self.pf
 
-        try: file = open(file_name)
-        except Exception,e: raise SystemExit('\n\nCannot open input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        # First line. Verbosity
-        if self.debug: print "%s: Read verbose flag."
-        try: (PRNTA) = file.readline().strip()
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        if PRNTA == '.F.' or PRNTA == 'False' or PRNTA == '.FALSE.'  or PRNTA == '0':
-            self.PRNTA = False
-        elif PRNTA == '.T.' or PRNTA == 'True' or PRNTA == '.TRUE.'  or PRNTA == '1':
-            self.PRNTA = True
-        else:
-            raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        # M line
-        if self.debug: print "%s: Read frequency range M1 and M2."
-        try: (self.M1, self.M2) = [ int(s) for s in file.readline().strip().split() ]
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        try: (self.M1,self.M2)
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        if self.debug: print "%s: M1=%s, M2=%s" % (file_name,self.M1,self.M2)
-
-        # Name2
-        if self.debug: print "%s: Read name of output file NAME2"
-
-        try: (self.NAME2) = file.readline().strip()
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        try: self.NAME2
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        if self.debug: print "%s: NAME2=%s" % (file_name,self.NAME2)
-
-        #DECAY,DEPTH,N1,N2,N,DT,MMAX,NSKIP 
-        try: (self.DECAY,self.DEPTH,self.N1,self.N2,self.N,self.DT,self.MMAX,self.NSKIP) = file.readline().strip().split()
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
 
         try:
-            self.DECAY  = float(self.DECAY)
-            self.DEPTH  = float(self.DEPTH)
-            self.N      = int(self.N)
-            self.N1     = int(self.N1)
-            self.N2     = int(self.N2)
-            self.DT     = float(self.DT)
-            self.MMAX   = int(self.MMAX)
-            self.NSKIP   = int(self.NSKIP)
+            self.DECAY  = stock.pfget_double(self.pf,'decay')
+            self.N1     = stock.pfget_int(self.pf,'start_frequency') 
+            self.N2     = stock.pfget_int(self.pf,'end_frequency') 
+            self.N      = (self.N2-self.N1+1)*2 # 2 times the total number of freqs
+            self.DT     = stock.pfget_double(self.pf,'samplerate') 
         except Exception,e: 
-            raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
+            raise SystemExit('\n\nWrong Format of PF file[%s]. %s %s\n'% (self.pf,Exception,e))
 
-        try: (self.DECAY,self.DEPTH,self.N1,self.N2,self.N,self.DT,self.MMAX,self.NSKIP)
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        if self.debug: print "%s: DECAY=%s DEPTH=%s N1=%s N2=%s N=%s DT=%s MMAX=%s NSKIP=%s" % (file_name,self.DECAY,self.DEPTH,self.N1,self.N2,self.N,self.DT,self.MMAX,self.NSKIP)
+        if self.verbose: print "%s: DECAY=%s N1=%s N2=%s N=%s DT=%s " % (self.pf,self.DECAY,self.N1,self.N2,self.N,self.DT)
 
 
         # ISRC, JBDRY 
-        try:
-            self.ISRC = [ int(x) for x in file.readline().strip().split() ]
-            self.JBDRY = self.ISRC.pop()
-            #self.JBDRY = 0
-        except Exception,e: 
-            raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-        
-        try: (self.ISRC,self.JBDRY)
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        if self.debug: print "%s: ISRC=%s JBDRY=%s" % (file_name,self.ISRC,self.JBDRY)
+        self.ISRC = [ 1 for x in range(10) ]
+        self.JBDRY = 0
+        if self.verbose: print "%s: ISRC=%s JBDRY=%s" % (self.pf,self.ISRC,self.JBDRY)
 
 
-        # D(I),A(I),B(I),RHO(I),QA(I),QB(I)
-        self.D   = [0 for x in range(self.MMAX)]
-        self.A   = [0 for x in range(self.MMAX)]
-        self.B   = [0 for x in range(self.MMAX)]
-        self.RHO = [0 for x in range(self.MMAX)]
-        self.QA  = [0 for x in range(self.MMAX)]
-        self.QB  = [0 for x in range(self.MMAX)]
-
-        if self.debug: print "ORIGINAL:"
-        try:
-            for I in range(self.MMAX):
-                (self.D[I],self.A[I],self.B[I],self.RHO[I],self.QA[I],self.QB[I])= [float(x) for x in file.readline().strip().split()]
-                if self.debug: print "%s: %E %E %E %E %s %s" % (file_name,self.D[I],self.A[I],self.B[I],self.RHO[I],self.QA[I],self.QB[I])
-
-            self.QA = [ 1/x for x in self.QA ]
-            self.QB = [ 1/x for x in self.QB ]
-        except Exception,e: 
-            raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-
-        try: (self.D,self.A,self.B,self.RHO,self.QA,self.QB)
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        #if self.debug: 
-            #print "CONVERTED:"
-            #for I in range(self.MMAX):
-                #print "%s: %E %E %E %E %s %s" % (file_name,self.D[I],self.A[I],self.B[I],self.RHO[I],self.QA[I],self.QB[I])
-
-        # LMAX
-        try: self.LMAX = int(file.readline().strip())
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        try: self.LMAX
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        if self.debug: print "%s: LMAX=%s" % (file_name,self.LMAX)
-
-        # XLENG XFAC XXX
-        try: temp =  file.readline().strip().split()
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        if len(temp) == 2:
-            (self.XLENG,self.XFAC) = [ float(x) for x in temp ]
-            self.XXX = 0
-        elif len(temp) == 3: 
-            (self.XLENG,self.XFAC,self.XXX) = [ float(x) for x in temp ]
-
-        try: (self.XLENG,self.XFAC,self.XXX)
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        if self.debug: print "%s: XLENG=%s XFAC=%s XXX=%s" % (file_name,self.XLENG,self.XFAC,self.XXX)
-
-        # NRANGE,CMAX,C1,C2,CMIN
-        try: (self.NRANGE,self.CMAX,self.C1,self.C2,self.CMIN)= [ float(x) for x in file.readline().strip().split() ]
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        try: self.NRANGE = int(self.NRANGE)
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        try: (self.NRANGE,self.CMAX,self.C1,self.C2,self.CMIN)
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
-
-        if self.debug: print "%s: NRANGE=%s CMAX=%s C1=%s C2=%s CMIN=%s" % (file_name,self.NRANGE,self.CMAX,self.C1,self.C2,self.CMIN)
-
-        # RANGE(I), T0(I), VRED(I)
-        self.RANGE = [0 for x in range(self.NRANGE)]
-        self.T0    = [0 for x in range(self.NRANGE)]
-        self.VRED  = [0 for x in range(self.NRANGE)]
+        # Init vars for model layers
+        self.D   = defaultdict(int)
+        self.A   = defaultdict(int)
+        self.B   = defaultdict(int)
+        self.RHO = defaultdict(int)
+        self.QA  = defaultdict(int)
+        self.QB  = defaultdict(int)
 
         try:
-            for I in range(self.NRANGE):
-                (self.RANGE[I],self.T0[I],self.VRED[I])= [ float(x) for x in file.readline().strip().split() ]
-                if self.debug: print "RANGE(%s)=%s" % (I,self.RANGE[I])
-                if self.debug: print "T0(%s)=%s" % (I,self.T0[I])
-                if self.debug: print "VRED(%s)=%s" % (I,self.VRED[I])
+            temp  = stock.pfget_string(self.pf,'model').splitlines()
+            t  = defaultdict(int)
+            for x in range(len(temp)):
+                t = temp[x].split()
+                if not t: continue
+                if self.verbose: print "%s: RAW MODEL LAYER: %s" % (self.pf,t)
+                self.D[x]   = float(t[0])
+                self.A[x]   = float(t[1])
+                self.B[x]   = float(t[2])
+                self.RHO[x] = float(t[3])
+                self.QA[x]  = 1/float(t[4])
+                self.QB[x]  = 1/float(t[5])
+
         except Exception,e: 
-            raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
+            raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n RAW: %s'% (self.pf,Exception,e,temp))
 
 
-        try: (self.RANGE,self.T0,self.VRED)
-        except Exception,e: raise SystemExit('\n\nWrong Format of input file[%s]. %s(%s) \n'% (file_name,Exception,e))
+        if self.verbose:
+            for I in range(len(self.D)):
+                print "%s: %s\t%s\t%s\t%s\t%s\t%s" % (self.pf,self.D[I],self.A[I],self.B[I],self.RHO[I],self.QA[I],self.QB[I])
 
-        #if self.debug: 
-            #for I in range(self.NRANGE):
-                #print "%s: %f %f %f" % (file_name,self.RANGE[I],self.T0[I],self.VRED[I])
 
-        if self.debug: print '\n\n########## END OF FILE [%s] ############\n\n' % file_name
+        #  NFC...
+        self.XLENG  = 400 
+        self.XFAC  = 1.5
+
+
+        self.CMAX = stock.pfget_double(self.pf,'cmax')
+        self.C1   = stock.pfget_double(self.pf,'c1')
+        self.C2   = stock.pfget_double(self.pf,'c2')
+        self.CMIN = stock.pfget_double(self.pf,'cmin')
+        if self.verbose: print "%s: CMAX=%s C1=%s C2=%s CMIN=%s" % (self.pf,self.CMAX,self.C1,self.C2,self.CMIN)
+
+        # need to fix this while running
+        self.T0    = defaultdict(int) 
 
 
         ##
         ## FIX VALUES TO MATCH PYTHON INDEXING
         ##
-        self.LMAX -= 1 # layer number below the source
-        self.MMAX -= 1 # Total number of layers
-        #self.N1   -= 1 # the starting frequency
-        #self.N2   -= 1 # the total niumber of frequencies
-        #self.N    -= 1 # the total number of time points
-        return True
+        self.LMAX = len(self.D)-1 # layer number below the source
+
+        self.MMAX = len(self.D)-1 # Total number of layers
+
+        return
 
     #}}}
 
@@ -274,7 +288,7 @@ class GreenFunctions():
         try: self.CMIN = 1/self.CMIN
         except Exception,e: raise SystemExit('\n\nCMIN. %s(%s) \n'% (Exception,e))
 
-        if self.debug: print "CMAX=%s CMIN=%s C1=%s C2=%s" % (self.CMAX,self.CMIN,self.C1,self.C2)
+        if self.verbose: print "CMAX=%s CMIN=%s C1=%s C2=%s" % (self.CMAX,self.CMIN,self.C1,self.C2)
 
         # FACT(I)
         self.FACT = [0.0 for x in range(self.IB)]
@@ -282,18 +296,18 @@ class GreenFunctions():
             for I in range(self.IB):
                 self.FACT[I] = 1.0
 
-        if self.debug: print "FACT=%s" % self.FACT
+        if self.verbose: print "FACT=%s" % self.FACT
 
         #
         # CHECK IF DEPTH DOES CORRESPOND TO DEPTH INTERFACE
         #
         self.DPH = 0.0
-        if self.debug: print "Adding layers on top of source[%s]" % self.LMAX
+        if self.verbose: print "Adding layers on top of source[%s]" % self.LMAX
 
-        if self.debug: print "\tLMAX= %s" % self.LMAX
+        if self.verbose: print "\tLMAX= %s" % self.LMAX
         for I in range(self.LMAX):
             self.DPH += self.D[I]
-            if self.debug: print "\tDPH= %s" % self.DPH
+            if self.verbose: print "\tDPH= %s" % self.DPH
 
         if abs(self.DPH-self.DEPTH) <= 0.1: self.DEPTH = self.DPH
 
@@ -304,53 +318,51 @@ class GreenFunctions():
         # CALCULATE ALPHA FROM DECAY
         #
         self.TLEN = self.N * self.DT
-        if self.debug: print 'TLEN = %s' % self.TLEN
+        if self.verbose: print 'TLEN = %s' % self.TLEN
 
         try: self.DECAY = 1 / self.DECAY
         except Exception,e: raise SystemExit('\n\nDECAY. %s(%s) \n'% (Exception,e))
 
-        if self.debug: print 'DECAY = %s' % self.DECAY
+        if self.verbose: print 'DECAY = %s' % self.DECAY
 
         try:
             self.ALPHA = -log(self.DECAY)
             self.ALPHA = self.ALPHA / self.TLEN
         except Exception,e: raise SystemExit('\n\nALPHA. %s(%s) \n'% (Exception,e))
 
-        if self.debug: print 'ALPHA = %s' % self.ALPHA
+        if self.verbose: print 'ALPHA = %s' % self.ALPHA
 
         #
         # CHECK BOUCHON'S CRITERIA
         #
         try:
-            self.RMAX  = max(self.RANGE)
-            self.VAMIN = min(self.A)
-            self.VAMAX = max(self.A)
-            self.VBMIN = min(self.B)
-            self.VBMAX = max(self.B)
+            self.RMAX  = self.DISTANCE
+            self.VAMIN = min([x for x in self.A.values()])
+            self.VAMAX = max([x for x in self.A.values()])
+            self.VBMIN = min([x for x in self.B.values()])
+            self.VBMAX = max([x for x in self.B.values()])
         except Exception,e: raise SystemExit('\n\nRMAX VMIN VMAX VBMIN VBMAX. %s(%s) \n'% (Exception,e))
 
-        #if self.debug: print 'A= %s' % self.A
-        #if self.debug: print 'B= %s' % self.B
-        #if self.debug: print 'RANGE= %s' % self.RANGE
-        if self.debug: print 'RMAX = %s' % self.RMAX
-        if self.debug: print 'VAMAX = %s' % self.VAMAX
-        if self.debug: print 'VBMAX = %s' % self.VBMAX
-        if self.debug: print 'VAMIN = %s' % self.VAMIN
-        if self.debug: print 'VBMIN = %s' % self.VBMIN
+        #if self.verbose: print 'A= %s' % self.A
+        #if self.verbose: print 'B= %s' % self.B
+        #if self.verbose: print 'RANGE= %s' % self.DISTANCE
+        if self.verbose: print 'RMAX = %s' % self.RMAX
+        if self.verbose: print 'VAMAX = %s' % self.VAMAX
+        if self.verbose: print 'VBMAX = %s' % self.VBMAX
+        if self.verbose: print 'VAMIN = %s' % self.VAMIN
+        if self.verbose: print 'VBMIN = %s' % self.VBMIN
 
-        #for J in range(self.NRANGE): self.RMAX = max(self.RANGE[I])
-        self.RMAX = max(self.RANGE)
 
-        if self.debug: print 'RANGE= %s' % self.RANGE
+        if self.verbose: print 'RANGE= %s' % self.DISTANCE
         self.YMAX = 2.0 * self.RMAX
-        if self.debug: print 'RMAX= %s' % self.RMAX
-        if self.debug: print 'YMAX = %s' % self.YMAX
+        if self.verbose: print 'RMAX= %s' % self.RMAX
+        if self.verbose: print 'YMAX = %s' % self.YMAX
 
         if self.XLENG < self.YMAX: self.XLENG = self.YMAX
-        if self.debug: print 'XLENG = %s' % self.XLENG
+        if self.verbose: print 'XLENG = %s' % self.XLENG
 
         self.RMAX = self.RMAX + sqrt( self.VAMAX * self.VAMAX * self.TLEN * self.TLEN - self.DEPTH * self.DEPTH )
-        if self.debug: print 'RMAX = %s' % self.RMAX
+        if self.verbose: print 'RMAX = %s' % self.RMAX
 
         if self.XLENG < self.RMAX:
                 self.XLENG=self.RMAX
@@ -358,7 +370,7 @@ class GreenFunctions():
                 self.XLL = int(self.MM) * 100.0
                 if self.XLL != self.XLENG: 
                     self.XLENG = self.XLL + 100.0
-        if self.debug: 
+        if self.verbose: 
             print 'MM = %s' % self.MM
             print 'XLL = %s' % self.XLL
             print 'XLENG = %s' % self.XLENG
@@ -366,62 +378,40 @@ class GreenFunctions():
         try: self.DF = 1 / (self.N * self.DT)
         except Exception,e: raise SystemExit('\n\nDF. %s(%s) \n'% (Exception,e))
 
-        if self.debug: print 'DF = %s' % self.DF
+        if self.verbose: print 'DF = %s' % self.DF
 
         try: self.NYQ = self.N / 2 + 1
         except Exception,e: raise SystemExit('\n\nNYQ. %s(%s) \n'% (Exception,e))
 
-        if self.debug: print 'NYQ = %s' % self.NYQ
+        if self.verbose: print 'NYQ = %s' % self.NYQ
 
         self.FL =0.0
 
-        if self.debug: print 'FL = %s' % self.FL
+        if self.verbose: print 'FL = %s' % self.FL
 
         try: self.FU = (self.NYQ - 1) * self.DF
         except Exception,e: raise SystemExit('\n\nFU. %s(%s) \n'% (Exception,e))
 
-        if self.debug: print 'FU = %s' % self.FU
+        if self.verbose: print 'FU = %s' % self.FU
 
-
-        #
-        # Print values
-        #
-        #print ' FL =%-10.5f\tFU =%-10.5f\tDF =%-10.5f\n\tN1 =%-4s\tN2 =%-4s\tDEPTH =%-10.2f\tN =%-5s\tNSKIP =%-5s' % (self.FL,self.FU,self.DF,self.N1,self.N2,self.DEPTH,self.N,self.NSKIP)
-        #print ' ALFPHA =%-10.5f\tDT =%-10.3f  XLENG= %-12.4E  XFAC = %-6.2f ' % (self.ALPHA,self.DT,self.XLENG,self.XFAC)
-        #for I in range(self.MMAX+1):
-            #print "%-11.4E %-11.4E %-11.4E %-11.4E %-11.4E %-11.4E" % (self.D[I],self.A[I],self.B[I],self.RHO[I],self.QA[I],self.QB[I])
-        #print ' FREQUENCIES FOR WHICH RESPONSE COMPUTED'
-
-        #
-        # Test for file 
-        #
-        if os.path.isfile(self.NAME2):
-            self.ISTAT3 = 'OLD'
-            self.IXST3 = True
-        else:
-            self.ISTAT3 = 'NEW'
-            self.IXST3 = False
 
         if self.IFREQ > self.N1: self.N1 = self.IFREQ + 1
 
-        if not self.NSKIP: self.NSKIP = 1
 
-        if self.debug: print 'N1 = %s' % self.N1
-        if self.debug: print 'N2 = %s' % self.N2
-        if self.debug: print 'NSKIP = %s' % self.NSKIP
-        if self.debug: print 'DF = %s' % self.DF
+        if self.verbose: print 'N1 = %s' % self.N1
+        if self.verbose: print 'N2 = %s' % self.N2
+        if self.verbose: print 'DF = %s' % self.DF
 
         #for x in range(self.N2):
-        #for x in range(self.N1,self.N2,self.NSKIP):
         for x in range(self.N1,self.N2+1):
-            if self.debug: print 'I=%s' % x
+            if self.verbose: print 'I=%s' % x
 
             #self.I = x
             self.FREQ = (x-1) * self.DF
             if self.FREQ < self.DF: self.FREQ = 0.01 * self.DF
-            if self.debug: print 'FREQ => %s' % self.FREQ
+            if self.verbose: print 'FREQ => %s' % self.FREQ
             self.OMEGA = 2.0 * acos(-1.0) * self.FREQ
-            if self.debug: print 'OMEGA => %s' % self.OMEGA
+            if self.verbose: print 'OMEGA => %s' % self.OMEGA
 
             #print 'X = %s' % x
             #print 'DF = %s' % self.DF
@@ -433,23 +423,21 @@ class GreenFunctions():
             self.WVC2 = self.OMEGA * self.C2
             self.WVCN = self.OMEGA * self.CMIN
 
-            if self.debug: print 'WVCM => %s' % self.WVCM
-            if self.debug: print 'WVC1 => %s' % self.WVC1
-            if self.debug: print 'WVC2 => %s' % self.WVC2
-            if self.debug: print 'WVCN => %s' % self.WVCN
+            if self.verbose: print 'WVCM => %s' % self.WVCM
+            if self.verbose: print 'WVC1 => %s' % self.WVC1
+            if self.verbose: print 'WVC2 => %s' % self.WVC2
+            if self.verbose: print 'WVCN => %s' % self.WVCN
 
             self._excit()
             self.ALLOMEGA[x-1] = [self.OMEGA,self.NK]
             if self.verbose: print "\t\t\t\t%s  F =  %12.4E NBLOCK =  %5s IBLOCK= %3s" % (x,self.FREQ,self.NBLOCK,self.IBLOCK)
             #print "\t\t\t\t%s  DATA :  %s" % (x,self.DATA[x])
-            #if x >= self.M1 and x <= self.M2:
-            if self.PRNTA or self.verbose:
-                for y in range(self.NRANGE):
-                    if self.verbose: print "\tDIST =>    %s" % y
-                    for z in range(10):
-                        #print "\t\t%-10s%-16.9E%-4s%-16.9E" % self.GG[y][z]
-                        self.DATA[y][x-1][z] = self.GG[y][z]
-                        if self.verbose: print "\t\t%16.9E\t%16.9E" % (self.GG[y][z].real,self.GG[y][z].imag)
+            if self.verbose:
+                if self.verbose: print "\tDIST =>    1"
+            for z in range(10):
+                #print "\t\t%-10s%-16.9E%-4s%-16.9E" % self.GG[y][z]
+                self.DATA[x-1][z] = self.GG[1][z]
+                if self.verbose: print "\t\t%16.9E\t%16.9E" % (self.GG[1][z].real,self.GG[1][z].imag)
 
 
         self.XX = -999.0
@@ -588,10 +576,10 @@ class GreenFunctions():
         self.ISYST = 0
         for I in range(8):
             if self.ISRC[I] == 1: self.ID = 1
-        if self.debug: print 'ISRC => %s' % self.ISRC
+        if self.verbose: print 'ISRC => %s' % self.ISRC
 
         if self.ID == 1: self.ISYST = 1
-        if self.debug: print 'ISYST => %s' % self.ISYST
+        if self.verbose: print 'ISYST => %s' % self.ISYST
         self.ID = 0
         if self.ISRC[8] == 1: self.ID=1
         if self.ISRC[9] == 1: self.ID=1
@@ -599,18 +587,18 @@ class GreenFunctions():
         if self.ID == 1 and self.ISYST == 0: self.ISYST = 2
         if self.ID == 1 and self.ISYST == 1: self.ISYST = 3
 
-        if self.debug: print 'ISYST => %s' % self.ISYST
+        if self.verbose: print 'ISYST => %s' % self.ISYST
 
         self.DK = 2.0 * acos(-1.0) / self.XLENG
-        if self.debug: print 'DK => %s' % self.DK
+        if self.verbose: print 'DK => %s' % self.DK
 
         self.WVBM = self.OMEGA/self.VBMIN
         self.WVMM = (5.0/self.DEPTH)+self.XFAC*self.WVBM
         self.NK   = self.WVMM/self.DK
         self.NK   = int(self.NK+2)
-        if self.debug: print 'WVBM => %s' % self.WVBM
-        if self.debug: print 'WVMM => %s' % self.WVMM
-        if self.debug: print 'NK => %s' % self.NK
+        if self.verbose: print 'WVBM => %s' % self.WVBM
+        if self.verbose: print 'WVMM => %s' % self.WVMM
+        if self.verbose: print 'NK => %s' % self.NK
 
         self.V = 6.0 / self.DEPTH
 
@@ -619,28 +607,28 @@ class GreenFunctions():
         self.WVNO3[1] = self.WVNO2[1] * self.WVNO[1]
         self.AKL      = ( self.NK - 3 ) * self.DK + 0.218 * self.DK
 
-        if self.debug: print 'WVNO[1] => %s' % self.WVNO[1]
-        if self.debug: print 'WVNO2[1] => %s' % self.WVNO2[1]
-        if self.debug: print 'WVNO3[1] => %s' % self.WVNO3[1]
-        if self.debug: print 'AKL => %s' % self.AKL
+        if self.verbose: print 'WVNO[1] => %s' % self.WVNO[1]
+        if self.verbose: print 'WVNO2[1] => %s' % self.WVNO2[1]
+        if self.verbose: print 'WVNO3[1] => %s' % self.WVNO3[1]
+        if self.verbose: print 'AKL => %s' % self.AKL
 
 
         if self.AKL > self.V: self.IASYMP = False
-        if self.debug: print 'IASYMP => %s' % self.IASYMP
+        if self.verbose: print 'IASYMP => %s' % self.IASYMP
 
         self.V = 2.5 / self.DEPTH
-        if self.debug: print 'V => %s' % self.V
+        if self.verbose: print 'V => %s' % self.V
         self.WVNO[0]  = complex( self.V , 0 )
         self.WVNO2[0] = self.WVNO[0] * self.WVNO[0]
-        if self.debug: print 'WVNO[1] => %s' % self.WVNO[0]
-        if self.debug: print 'WVNO2[1] => %s' % self.WVNO2[0]
+        if self.verbose: print 'WVNO[1] => %s' % self.WVNO[0]
+        if self.verbose: print 'WVNO2[1] => %s' % self.WVNO2[0]
 
         if self.CMAX > 0.0: self.MM = int(self.WVCN / self.DK) + 2
         if self.NK > self.MM: self.NK = self.MM
-        if self.debug: print 'MM => %s' % self.MM
-        if self.debug: print 'NK => %s' % self.NK
-        if self.debug: print 'OMEGA => %s' % self.OMEGA
-        if self.debug: print 'OMEGA:%s NK:%s' % (self.OMEGA,self.NK)
+        if self.verbose: print 'MM => %s' % self.MM
+        if self.verbose: print 'NK => %s' % self.NK
+        if self.verbose: print 'OMEGA => %s' % self.OMEGA
+        if self.verbose: print 'OMEGA:%s NK:%s' % (self.OMEGA,self.NK)
         if self.verbose: print '\t\t\tOMEGA:%s NK:%s' % (self.OMEGA,self.NK)
 
         #
@@ -648,21 +636,17 @@ class GreenFunctions():
         #
 #{{{
         
-        if self.debug: print 'NRANGE => %s' % self.NRANGE
-        for I in range(self.NRANGE):
-            for J in range(1,50000):
-                self.WVV = ( J - 1 ) * self.DK + 0.218 * self.DK
-                self.AKR = self.WVV * self.RANGE[I]
-                if self.debug: print ''
-                if self.debug: print 'I => %s' % I
-                if self.debug: print 'J => %s' % J
-                if self.debug: print 'RANGE(I) => %s' % self.RANGE[I]
-                if self.debug: print 'WVV => %s' % self.WVV
-                if self.debug: print 'AKR => %s' % self.AKR
-                if self.AKR <= 3.0: self.ICNT[I] = J + 2
-                #if self.AKR <= 3.0: print '\tICNT[%s] = %s' %  (I,self.ICNT[I])
-                if self.AKR > 3.0: break
-        if self.debug: print 'ICNT => %s' % self.ICNT
+        for J in range(1,50000):
+            self.WVV = ( J - 1 ) * self.DK + 0.218 * self.DK
+            self.AKR = self.WVV * self.DISTANCE
+            if self.verbose: print ''
+            if self.verbose: print 'J => %s' % J
+            if self.verbose: print 'RANGE => %s' % self.DISTANCE
+            if self.verbose: print 'WVV => %s' % self.WVV
+            if self.verbose: print 'AKR => %s' % self.AKR
+            if self.AKR <= 3.0: self.ICNT[1] = J + 2
+            if self.AKR > 3.0: break
+        if self.verbose: print 'ICNT => %s' % self.ICNT
 
         self.OM     = complex(self.OMEGA, -1 * self.ALPHA)
         self.FOURPI = 12.5663706 * self.OM * self.OM
@@ -670,11 +654,11 @@ class GreenFunctions():
         self.OM1    = 6.283185307
         self.OML    = 0.06283185307
 
-        if self.debug: print 'OM => %s' % self.OM
-        if self.debug: print 'FOURPI => %s' % self.FOURPI
-        if self.debug: print 'PI => %s' % self.PI
-        if self.debug: print 'OM1 => %s' % self.OM1
-        if self.debug: print 'OML => %s' % self.OML
+        if self.verbose: print 'OM => %s' % self.OM
+        if self.verbose: print 'FOURPI => %s' % self.FOURPI
+        if self.verbose: print 'PI => %s' % self.PI
+        if self.verbose: print 'OM1 => %s' % self.OM1
+        if self.verbose: print 'OML => %s' % self.OML
 #}}}
 
         #
@@ -688,72 +672,74 @@ class GreenFunctions():
         #print 'OM => %s' % self.OM
         #print 'OM1 => %s' % self.OM1
         if (abs(self.OM) > self.OML ): self.AT=log(self.OM.real/self.OM1.real)/self.PI.real
-        if self.debug: print 'AT => %s' % self.AT
+        if self.verbose: print 'AT => %s' % self.AT
         if (abs(self.OM) < self.OML ):
             self.FA = sqrt(self.OML**2 + self.ALPHA**2)/self.OML
             self.FAC = float( self.FA )
             self.AT = clog(complex( self.OML, -self.ALPHA)/(self.OM1*self.FAC)) / self.PI
 
-        if self.debug: print 'AT => %s' % self.AT
-        if self.debug: print 'FA => %s' % self.FA
-        if self.debug: print 'FAC => %s' % self.FAC
+        if self.verbose: print 'AT => %s' % self.AT
+        if self.verbose: print 'FA => %s' % self.FA
+        if self.verbose: print 'FAC => %s' % self.FAC
 
         for I in range(self.MMAX+1):
             self.ATNA[I] = complex(1)
             self.ATNB[I] = complex(1)
-            if self.debug: print 'ATNA[I] => %s' % self.ATNA[I]
-            if self.debug: print 'ATNB[I] => %s' % self.ATNB[I]
+            if self.verbose: print 'ATNA[I] => %s' % self.ATNA[I]
+            if self.verbose: print 'ATNB[I] => %s' % self.ATNB[I]
             if self.QA[I] > 0.0:
                 self.PAL = complex(self.QA[I],0) * self.AT
                 self.BA = float(0.5 * self.QA[I])
                 self.QAL = complex(0, self.BA)
                 self.ATNA[I] = complex(1) + self.PAL + self.QAL
-                if self.debug: print 'PAL => %s' % self.PAL 
-                if self.debug: print 'BA => %s' % self.BA 
-                if self.debug: print 'QAL => %s' % self.QAL 
-                if self.debug: print 'ATNA[I] => %s' % self.ATNA[I]
+                if self.verbose: print 'PAL => %s' % self.PAL 
+                if self.verbose: print 'BA => %s' % self.BA 
+                if self.verbose: print 'QAL => %s' % self.QAL 
+                if self.verbose: print 'ATNA[I] => %s' % self.ATNA[I]
 
             if self.QB[I] > 0.0:
                 self.PAL = complex(self.QB[I],0) * self.AT
                 self.BA = float(0.5 * self.QB[I])
                 self.QAL = complex(0, self.BA)
                 self.ATNB[I] = complex(1) + self.PAL + self.QAL
-                if self.debug: print 'PAL => %s' % self.PAL 
-                if self.debug: print 'BA => %s' % self.BA 
-                if self.debug: print 'QAL => %s' % self.QAL 
-                if self.debug: print 'ATNB[I] => %s' % self.ATNB[I]
+                if self.verbose: print 'PAL => %s' % self.PAL 
+                if self.verbose: print 'BA => %s' % self.BA 
+                if self.verbose: print 'QAL => %s' % self.QAL 
+                if self.verbose: print 'ATNB[I] => %s' % self.ATNB[I]
 
-            self.XKA[I] = self.OM / ( float(self.A[I]) * self.ATNA[I] )
-            self.XKB[I] = self.OM / ( float(self.B[I]) * self.ATNB[I] )
-            if self.debug: print 'XKA[I] => %s' % self.XKA[I]
-            if self.debug: print 'XKB[I] => %s' % self.XKB[I]
+            if self.verbose: print 'A[I] => %s' % self.A[I]
+            if self.verbose: print 'ATNA[I] => %s' % self.ATNA[I]
+            self.XKA[I] = self.OM / (self.A[I] * self.ATNA[I] )
+            self.XKB[I] = self.OM / (self.B[I] * self.ATNB[I] )
+            if self.verbose: print 'XKA[I] => %s' % self.XKA[I]
+            if self.verbose: print 'XKB[I] => %s' % self.XKB[I]
 
-        if self.debug: print 'PAL => %s' % self.PAL
-        if self.debug: print 'BA => %s' % self.BA
-        if self.debug: print 'QAL => %s' % self.QAL
-        if self.debug: print 'ATNA => %s' % self.ATNA
-        if self.debug: print 'ATNB => %s' % self.ATNB
-        if self.debug: print 'XKA => %s' % self.XKA
-        if self.debug: print 'XKB => %s' % self.XKB
+        if self.verbose: print 'PAL => %s' % self.PAL
+        if self.verbose: print 'BA => %s' % self.BA
+        if self.verbose: print 'QAL => %s' % self.QAL
+        if self.verbose: print 'ATNA => %s' % self.ATNA
+        if self.verbose: print 'ATNB => %s' % self.ATNB
+        if self.verbose: print 'XKA => %s' % self.XKA
+        if self.verbose: print 'XKB => %s' % self.XKB
 
 
-        if self.debug: print 'LMAX => %s' % self.LMAX
-        if self.debug: print 'RHO => %s' % self.RHO
-        if self.debug: print 'RHO[0] => %s' % self.RHO[0]
-        if self.debug: print 'RHO[3] => %s' % self.RHO[3]
-        if self.debug: print 'RHO[LMAX] => %s' % self.RHO[self.LMAX]
-        if self.debug: print 'complex(RHO[LMAX]) => %s' % complex(self.RHO[self.LMAX])
+        if self.verbose: print 'LMAX => %s' % self.LMAX
+        if self.verbose: print 'RHO => %s' % self.RHO
+        if self.verbose: print 'RHO[0] => %s' % self.RHO[0]
+        if self.verbose: print 'RHO[3] => %s' % self.RHO[3]
+        if self.verbose: print 'RHO[LMAX] => %s' % self.RHO[self.LMAX]
+        if self.verbose: print 'complex(RHO[LMAX]) => %s' % complex(self.RHO[self.LMAX])
         self.FRHO = complex( self.RHO[self.LMAX] ) * self.FOURPI
         self.XKA2 = self.XKA[self.LMAX] * self.XKA[self.LMAX]
         self.XKB2 = self.XKB[self.LMAX] * self.XKB[self.LMAX]
         self.XKK = self.ATNB[self.LMAX] * self.ATNB[self.LMAX]
         self.FACXX = 1.0 / ( 12.5663706 * self.B[self.LMAX] ** 2 )
 
-        if self.debug: print 'FRHO => %s' % self.FRHO
-        if self.debug: print 'XKA2 => %s' % self.XKA2
-        if self.debug: print 'XKB2 => %s' % self.XKB2
-        if self.debug: print 'XKK => %s' % self.XKK
-        if self.debug: print 'FACXX => %s' % self.FACXX
+        if self.verbose: print 'FRHO => %s' % self.FRHO
+        if self.verbose: print 'XKA2 => %s' % self.XKA2
+        if self.verbose: print 'XKB2 => %s' % self.XKB2
+        if self.verbose: print 'XKK => %s' % self.XKK
+        if self.verbose: print 'FACXX => %s' % self.FACXX
 
         if self.NK < self.IB:
             self.IBLOCK = self.NK
@@ -765,10 +751,10 @@ class GreenFunctions():
             self.LEFT = self.NK - self.NBLOCK * self.IB
             if self.LEFT: self.NBLOCK += 1
 
-        if self.debug: print 'IBLOCK => %s' % self.IBLOCK
-        if self.debug: print 'NBLOCK => %s' % self.NBLOCK
-        if self.debug: print 'LEFT => %s' % self.LEFT
-        if self.debug: print '\n\n'
+        if self.verbose: print 'IBLOCK => %s' % self.IBLOCK
+        if self.verbose: print 'NBLOCK => %s' % self.NBLOCK
+        if self.verbose: print 'LEFT => %s' % self.LEFT
+        if self.verbose: print '\n\n'
 
         self.NBLK = 1
         self.LR = 0
@@ -779,21 +765,21 @@ class GreenFunctions():
         self.NN1 = 2
 
         # 500 loop.
-        if self.debug: print "Loop 500: while: %s <= %s" % (self.NBLK,self.NBLOCK)
+        if self.verbose: print "Loop 500: while: %s <= %s" % (self.NBLK,self.NBLOCK)
         while self.NBLK <= self.NBLOCK:
-            if self.debug: print "\tLoop 500: while: self.NBLK[%s] ?< self.NBOCLK[%s]" % (self.NBLK,self.NBLOCK)
+            if self.verbose: print "\tLoop 500: while: self.NBLK[%s] ?< self.NBOCLK[%s]" % (self.NBLK,self.NBLOCK)
         #{{{ A
 
-            if self.debug: print "Loop 500 section AR => self.ISYST:%s" % self.ISYST
+            if self.verbose: print "Loop 500 section AR => self.ISYST:%s" % self.ISYST
             #{{{ AR
 
             if self.NBLK == self.NBLOCK and self.LEFT != 0: self.IBLOCK = self.LEFT
             if self.NBLK > 1: self.NN1 = 0
-            if self.debug: print "\tLoop 500: NBKL = %s" % self.NBLK
-            if self.debug: print "\tLoop 500: IBLOCK = %s" % self.IBLOCK
-            if self.debug: print "\tLoop 500: N1 = %s" % self.NN1
+            if self.verbose: print "\tLoop 500: NBKL = %s" % self.NBLK
+            if self.verbose: print "\tLoop 500: IBLOCK = %s" % self.IBLOCK
+            if self.verbose: print "\tLoop 500: N1 = %s" % self.NN1
 
-            if self.debug: print "\tLoop 500: self.NN1:[%s] self.IBLOCK[%s]" % (self.NN1,self.IBLOCK)
+            if self.verbose: print "\tLoop 500: self.NN1:[%s] self.IBLOCK[%s]" % (self.NN1,self.IBLOCK)
             #print "\tLoop 500: self.NN1 = %s" % self.NN1
             #print "\tLoop 500: self.IBLOCK = %s" % self.IBLOCK
             for J in range(self.NN1,self.IBLOCK):
@@ -804,12 +790,12 @@ class GreenFunctions():
                 self.WVNO[J] = complex(self.WV)
                 self.WVNO2[J] = self.WVNO[J]**2
                 self.WVNO3[J] = self.WVNO2[J] * self.WVNO[J]
-                if self.debug: print "\tLoop 500: J = %s" % J
-                if self.debug: print "\tLoop 500: LR = %s" % self.LR
-                if self.debug: print "\tLoop 500: WVNO[J] = %s" % self.WVNO[J]
-                if self.debug: print "\tLoop 500: WVNO2[J] = %s" % self.WVNO2[J]
-                if self.debug: print "\tLoop 500: WVNO3[J] = %s" % self.WVNO3[J]
-                if self.debug: print "\tLoop 500: WVNO2 = %s" % self.WVNO2
+                if self.verbose: print "\tLoop 500: J = %s" % J
+                if self.verbose: print "\tLoop 500: LR = %s" % self.LR
+                if self.verbose: print "\tLoop 500: WVNO[J] = %s" % self.WVNO[J]
+                if self.verbose: print "\tLoop 500: WVNO2[J] = %s" % self.WVNO2[J]
+                if self.verbose: print "\tLoop 500: WVNO3[J] = %s" % self.WVNO3[J]
+                if self.verbose: print "\tLoop 500: WVNO2 = %s" % self.WVNO2
                 #if J == 4: exit()
                 #print "\tLoop 500: WVNO2[J] = %s" % self.WVNO2[J]
             #}}} D
@@ -830,7 +816,7 @@ class GreenFunctions():
                 self.X7 =    defaultdict(complex)
 
             #print "self.WVNO2:%s" % self.WVNO2
-            if self.debug: print "self.WVNO2:%s" % self.WVNO2
+            if self.verbose: print "self.WVNO2:%s" % self.WVNO2
             for I in range(self.MMAX+1):
                 for J in range(self.IBLOCK):
                 #{{{ F
@@ -847,22 +833,22 @@ class GreenFunctions():
                     self.GAMM3[I][J] =  self.GAMM1[I][J] * self.GAMM2[I][J]
                     self.GAMX1[I][J] =  self.GAM[I][J] * self.GAMM1[I][J]
                     self.GAMX2[I][J] =  self.GAM2[I][J] * self.GAMM2[I][J]
-                    if self.debug: print ""
-                    if self.debug: print "Loop 500: RA[%s][%s]=> %s" % (I,J,self.RA[I][J])
-                    if self.debug: print "Loop 500: RB[%s][%s]=> %s" % (I,J,self.RB[I][J])
-                    if self.debug: print "Loop 500: GAM[%s][%s]=> %s" % (I,J,self.GAM[I][J])
-                    if self.debug: print "Loop 500: GAM2[%s][%s]=> %s" % (I,J,self.GAM2[I][J])
-                    if self.debug: print "Loop 500: GAM3[%s][%s]=> %s" % (I,J,self.GAM3[I][J])
-                    if self.debug: print "Loop 500: GAM4[%s][%s]=> %s" % (I,J,self.GAM4[I][J])
-                    if self.debug: print "Loop 500: GAMM1[%s][%s]=> %s" % (I,J,self.GAMM1[I][J])
-                    if self.debug: print "Loop 500: GAMM2[%s][%s]=> %s" % (I,J,self.GAMM2[I][J])
-                    if self.debug: print "Loop 500: GAMM3[%s][%s]=> %s" % (I,J,self.GAMM3[I][J])
-                    if self.debug: print "Loop 500: GAMX1[%s][%s]=> %s" % (I,J,self.GAMX1[I][J])
-                    if self.debug: print "Loop 500: GAMX2[%s][%s]=> %s" % (I,J,self.GAMX2[I][J])
-                    if self.debug: print ""
+                    if self.verbose: print ""
+                    if self.verbose: print "Loop 500: RA[%s][%s]=> %s" % (I,J,self.RA[I][J])
+                    if self.verbose: print "Loop 500: RB[%s][%s]=> %s" % (I,J,self.RB[I][J])
+                    if self.verbose: print "Loop 500: GAM[%s][%s]=> %s" % (I,J,self.GAM[I][J])
+                    if self.verbose: print "Loop 500: GAM2[%s][%s]=> %s" % (I,J,self.GAM2[I][J])
+                    if self.verbose: print "Loop 500: GAM3[%s][%s]=> %s" % (I,J,self.GAM3[I][J])
+                    if self.verbose: print "Loop 500: GAM4[%s][%s]=> %s" % (I,J,self.GAM4[I][J])
+                    if self.verbose: print "Loop 500: GAMM1[%s][%s]=> %s" % (I,J,self.GAMM1[I][J])
+                    if self.verbose: print "Loop 500: GAMM2[%s][%s]=> %s" % (I,J,self.GAMM2[I][J])
+                    if self.verbose: print "Loop 500: GAMM3[%s][%s]=> %s" % (I,J,self.GAMM3[I][J])
+                    if self.verbose: print "Loop 500: GAMX1[%s][%s]=> %s" % (I,J,self.GAMX1[I][J])
+                    if self.verbose: print "Loop 500: GAMX2[%s][%s]=> %s" % (I,J,self.GAMX2[I][J])
+                    if self.verbose: print ""
                 #}}} F
 
-            #if self.debug: print "self.WVNO2:%s" % self.WVNO2
+            #if self.verbose: print "self.WVNO2:%s" % self.WVNO2
             #exit()
 
             self.EX = 0.0
@@ -876,7 +862,7 @@ class GreenFunctions():
 
             #}}} AR
 
-            if self.debug: print "Loop 500 section BR => self.ISYST:%s" % self.ISYST
+            if self.verbose: print "Loop 500 section BR => self.ISYST:%s" % self.ISYST
             if self.ISYST != 2:
             #{{{ BR
                 # Computation for P-SV system starts
@@ -894,42 +880,42 @@ class GreenFunctions():
                     #print "\t\t\t TT=>%s" % self.TT
                     #print "\t\t\t complex(self.TT)=>%s" % complex(self.TT)
                     #print "\t\t\t FOURPI=>%s" % self.FOURPI
-                    if self.debug: print ""
-                    if self.debug: print "Loop 500: S14=> %s" % self.S14
-                    if self.debug: print "Loop 500: S21=> %s" % self.S21
-                    if self.debug: print "Loop 500: S32=> %s" % self.S32
-                    if self.debug: print "Loop 500: S34=> %s" % self.S34
-                    if self.debug: print ""
+                    if self.verbose: print ""
+                    if self.verbose: print "Loop 500: S14=> %s" % self.S14
+                    if self.verbose: print "Loop 500: S21=> %s" % self.S21
+                    if self.verbose: print "Loop 500: S32=> %s" % self.S32
+                    if self.verbose: print "Loop 500: S34=> %s" % self.S34
+                    if self.verbose: print ""
                 #}}} H
 
                 #     SET UP HALFSPACE BOUNDARY CONDITIONS
                 #     JBDRY=-1 RIGID;  0= ELASTIC;  +1= FREE SURFACE
                 #{{{ I 
                 M = self.MMAX
-                if self.debug: print "M:[%s] " % M
-                if self.debug: print "RHO:%s" % self.RHO
+                if self.verbose: print "M:[%s] " % M
+                if self.verbose: print "RHO:%s" % self.RHO
                 if self.JBDRY == 0:
                     for J in range(self.IBLOCK):
-                        if self.debug: print "M:%s J:%s" % (M,J)
-                        #if self.debug: print " self.GAM2[M][J] :%s" % self.GAM2[M][J]
-                        #if self.debug: print " self.RA[M][J] :%s" % self.RA[M][J]
-                        #if self.debug: print " self.RB[M][J] :%s" % self.RB[M][J]
-                        #if self.debug: print " self.WVNO2[J] :%s" % self.WVNO2[J]
-                        #if self.debug: print " self.GAMM2[M][J] :%s" % self.GAMM2[M][J]
+                        if self.verbose: print "M:%s J:%s" % (M,J)
+                        #if self.verbose: print " self.GAM2[M][J] :%s" % self.GAM2[M][J]
+                        #if self.verbose: print " self.RA[M][J] :%s" % self.RA[M][J]
+                        #if self.verbose: print " self.RB[M][J] :%s" % self.RB[M][J]
+                        #if self.verbose: print " self.WVNO2[J] :%s" % self.WVNO2[J]
+                        #if self.verbose: print " self.GAMM2[M][J] :%s" % self.GAMM2[M][J]
                         self.RH = self.RHO[M]**2
-                        if self.debug: print " self.RH :%s" % self.RH
+                        if self.verbose: print " self.RH :%s" % self.RH
                         self.R1[J] = self.RH * (-self.GAM2[M][J] * self.RA[M][J] * self.RB[M][J] + self.WVNO2[J] * self.GAMM2[M][J])
                         self.R2[J] = -1 * complex(self.RHO[M]) * self.WVNO2[J] * self.RA[M][J]
                         self.R3[J] = -1 * self.GAM[M][J] * self.RA[M][J] * self.RB[M][J] + self.WVNO2[J] * self.GAMM1[M][J]
                         self.R3[J] = complex(self.RHO[M]) * self.R3[J]
                         self.R4[J] = complex(self.RHO[M]) * self.WVNO2[J] * self.RB[M][J]
                         self.R5[J] = self.WVNO2[J] * ( self.WVNO2[J] - self.RA[M][J] * self.RB[M][J])
-                        if self.debug: print "Loop 500: R1[J]=> %s" % self.R1[J]
-                        if self.debug: print "Loop 500: R2[J]=> %s" % self.R2[J]
-                        if self.debug: print "Loop 500: R3[J]=> %s" % self.R3[J]
-                        if self.debug: print "Loop 500: R4[J]=> %s" % self.R4[J]
-                        if self.debug: print "Loop 500: R5[J]=> %s" % self.R5[J]
-                        if self.debug: print "\n"
+                        if self.verbose: print "Loop 500: R1[J]=> %s" % self.R1[J]
+                        if self.verbose: print "Loop 500: R2[J]=> %s" % self.R2[J]
+                        if self.verbose: print "Loop 500: R3[J]=> %s" % self.R3[J]
+                        if self.verbose: print "Loop 500: R4[J]=> %s" % self.R4[J]
+                        if self.verbose: print "Loop 500: R5[J]=> %s" % self.R5[J]
+                        if self.verbose: print "\n"
                 elif self.JBDRY > 0:
                     for J in range(self.IBLOCK):
                         self.R1[J] = complex(1)
@@ -945,44 +931,44 @@ class GreenFunctions():
                         self.R4[J] = complex() 
                         self.R5[J] = complex(1)
 
-                if self.debug: print "Loop 500: RH=> %s" % self.RH
-                if self.debug: print "Loop 500: R1=> %s" % self.R1
-                if self.debug: print "Loop 500: R2=> %s" % self.R2
-                if self.debug: print "Loop 500: R3=> %s" % self.R3
-                if self.debug: print "Loop 500: R4=> %s" % self.R4
-                if self.debug: print "Loop 500: R5=> %s" % self.R5
-                if self.debug: print ""
+                if self.verbose: print "Loop 500: RH=> %s" % self.RH
+                if self.verbose: print "Loop 500: R1=> %s" % self.R1
+                if self.verbose: print "Loop 500: R2=> %s" % self.R2
+                if self.verbose: print "Loop 500: R3=> %s" % self.R3
+                if self.verbose: print "Loop 500: R4=> %s" % self.R4
+                if self.verbose: print "Loop 500: R5=> %s" % self.R5
+                if self.verbose: print ""
                 #}}} I 
 
                 # MATRIX-MULTIPLICATION - LAYERWISE ++++> FROM BOTTOM UPWARD TO LMAX
                 #{{{ J 
-                if self.debug: print "Loop 500: LMAX = >%s" % self.LMAX
-                if self.debug: print "Loop 500: MMAX = >%s" % self.MMAX
+                if self.verbose: print "Loop 500: LMAX = >%s" % self.LMAX
+                if self.verbose: print "Loop 500: MMAX = >%s" % self.MMAX
                 #for I in range(self.LMAX, self.MMAX):
                 for I in range(self.LMAX, self.MMAX):
                     # MATRIX MULTIPLICATION FROM BOTTOM LAYER UPWARD
                     M = self.MMAX -1 + self.LMAX - I
                     self.DPTH = self.D[M]
-                    if self.debug: print "Loop 500: I=> %s" % I
-                    if self.debug: print "Loop 500: M=> %s" % M
-                    if self.debug: print "Loop 500: DPTH=> %s" % self.DPTH
-                    if self.debug: print "Loop 500: D=> %s" % self.D
-                    if self.debug: print "Loop 500: IBLOCK=> %s" % self.IBLOCK
-                    if self.debug: print "" 
+                    if self.verbose: print "Loop 500: I=> %s" % I
+                    if self.verbose: print "Loop 500: M=> %s" % M
+                    if self.verbose: print "Loop 500: DPTH=> %s" % self.DPTH
+                    if self.verbose: print "Loop 500: D=> %s" % self.D
+                    if self.verbose: print "Loop 500: IBLOCK=> %s" % self.IBLOCK
+                    if self.verbose: print "" 
 
-                    if self.debug: print "IBLOCK=%s" % self.IBLOCK
+                    if self.verbose: print "IBLOCK=%s" % self.IBLOCK
                     #print "self.WVNO2 = %s " % self.WVNO2
                     for J in range(self.IBLOCK):
-                        if self.debug: print "J=%s" % J
+                        if self.verbose: print "J=%s" % J
                         #print "self.WVNO2=%s" % self.WVNO2[J]
                         #{{{ K
                         self.P = self.RA[M][J] * complex(self.DPTH)
                         self.Q = self.RB[M][J] * complex(self.DPTH)
-                        #if self.debug: print "Loop 500:   RA[%s][%s]=> %s" % (M,J,self.RA[M][J])
-                        #if self.debug: print "Loop 500:   RB[%s][%s]=> %s" % (M,J,self.RB[M][J])
-                        #if self.debug: print "Loop 500:   complex(DEPTH)=> %s" % complex(self.DEPTH)
-                        if self.debug: print "Loop 500:   P=> %s" % self.P
-                        if self.debug: print "Loop 500:   Q=> %s" % self.Q
+                        #if self.verbose: print "Loop 500:   RA[%s][%s]=> %s" % (M,J,self.RA[M][J])
+                        #if self.verbose: print "Loop 500:   RB[%s][%s]=> %s" % (M,J,self.RB[M][J])
+                        #if self.verbose: print "Loop 500:   complex(DEPTH)=> %s" % complex(self.DEPTH)
+                        if self.verbose: print "Loop 500:   P=> %s" % self.P
+                        if self.verbose: print "Loop 500:   Q=> %s" % self.Q
 
                         self.A0 = 0.0
                         self.PR = self.P.real
@@ -990,11 +976,11 @@ class GreenFunctions():
                         self.QR = self.Q.real
                         self.QI = self.Q.imag
 
-                        if self.debug: print "Loop 500:   A0=> %s" % self.A0
-                        if self.debug: print "Loop 500:   PR=> %s" % self.PR
-                        if self.debug: print "Loop 500:   PI=> %s" % self.PI
-                        if self.debug: print "Loop 500:   QR=> %s" % self.QR
-                        if self.debug: print "Loop 500:   QI=> %s" % self.QI
+                        if self.verbose: print "Loop 500:   A0=> %s" % self.A0
+                        if self.verbose: print "Loop 500:   PR=> %s" % self.PR
+                        if self.verbose: print "Loop 500:   PI=> %s" % self.PI
+                        if self.verbose: print "Loop 500:   QR=> %s" % self.QR
+                        if self.verbose: print "Loop 500:   QI=> %s" % self.QI
 
                         self.EPP = complex(cos(self.PI),sin(self.PI)) / 2.0
                         self.EPM = self.EPP.conjugate()
@@ -1003,15 +989,15 @@ class GreenFunctions():
                         self.EXB = self.QR
                         self.FAC = 0.0
 
-                        if self.debug: print "Loop 500:   FAC=> %s" % self.FAC
-                        if self.debug: print "Loop 500:   EPP=> %s" % self.EPP
-                        if self.debug: print "Loop 500:   EPM=> %s" % self.EPM
-                        if self.debug: print "Loop 500:   EQP=> %s" % self.EQP
-                        if self.debug: print "Loop 500:   EQM=> %s" % self.EQM
-                        if self.debug: print "Loop 500:   EXB=> %s" % self.EXB
+                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500:   EPP=> %s" % self.EPP
+                        if self.verbose: print "Loop 500:   EPM=> %s" % self.EPM
+                        if self.verbose: print "Loop 500:   EQP=> %s" % self.EQP
+                        if self.verbose: print "Loop 500:   EQM=> %s" % self.EQM
+                        if self.verbose: print "Loop 500:   EXB=> %s" % self.EXB
 
                         if self.PR < 15.0: self.FAC = exp(-(2.0) * self.PR).real
-                        if self.debug: print "Loop 500:   FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
 
 
                         self.COSP = self.EPP + self.FAC * self.EPM
@@ -1020,25 +1006,25 @@ class GreenFunctions():
                         self.X = self.RA[M][J] * self.SINP
                         self.FAC = 0.0
 
-                        if self.debug: print "Loop 500:   COSP=> %s" % self.COSP
-                        if self.debug: print "Loop 500:   SINP=> %s" % self.SINP
-                        if self.debug: print "Loop 500:   W=> %s" % self.W
-                        if self.debug: print "Loop 500:   X=> %s" % self.X
+                        if self.verbose: print "Loop 500:   COSP=> %s" % self.COSP
+                        if self.verbose: print "Loop 500:   SINP=> %s" % self.SINP
+                        if self.verbose: print "Loop 500:   W=> %s" % self.W
+                        if self.verbose: print "Loop 500:   X=> %s" % self.X
 
                         if self.QR < 15.0: self.FAC = exp( -(2.0) * self.QR).real
-                        if self.debug: print "Loop 500:   FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
 
-                        if self.debug: print ""
+                        if self.verbose: print ""
 
                         self.COSQL[M][J] = self.EQP + self.FAC * self.EQM
                         self.SINQ = self.EQP - self.FAC * self.EQM
                         self.YL[M][J] = self.SINQ / self.RB[M][J]
-                        if self.debug: print "Loop 500:   M=> %s" % M
-                        if self.debug: print "Loop 500:   J=> %s" % J
-                        if self.debug: print "Loop 500:   COSQL[M][J]=> %s" % self.COSQL[M][J]
-                        if self.debug: print "Loop 500:   SINQ=> %s" % self.SINQ
-                        if self.debug: print "Loop 500:   YL[M][J]=> %s" % self.YL[M][J]
-                        if self.debug: print ""
+                        if self.verbose: print "Loop 500:   M=> %s" % M
+                        if self.verbose: print "Loop 500:   J=> %s" % J
+                        if self.verbose: print "Loop 500:   COSQL[M][J]=> %s" % self.COSQL[M][J]
+                        if self.verbose: print "Loop 500:   SINQ=> %s" % self.SINQ
+                        if self.verbose: print "Loop 500:   YL[M][J]=> %s" % self.YL[M][J]
+                        if self.verbose: print ""
                         #print "Loop 500:   self.YL[%s][%s]=> %s" % (M,J,self.YL[M][J])
                         self.ZL[M][J] = self.RB[M][J] * self.SINQ
                         self.EXA = self.PR + self.QR
@@ -1051,82 +1037,82 @@ class GreenFunctions():
                         self.XZ = self.X * self.ZL[M][J]
                         self.WY = self.W * self.YL[M][J]
                         self.WZ = self.W * self.ZL[M][J]
-                        if self.debug: print "Loop 500:   ZL[M][J]=> %s" % self.ZL[M][J]
-                        if self.debug: print "Loop 500:   EXA=> %s" % self.EXA
-                        if self.debug: print "Loop 500:   CPCQ=> %s" % self.CPCQ
-                        if self.debug: print "Loop 500:   CPY=> %s" % self.CPY
-                        if self.debug: print "Loop 500:   CPZ=> %s" % self.CPZ
-                        if self.debug: print "Loop 500:   CQW=> %s" % self.CQW
-                        if self.debug: print "Loop 500:   CQX=> %s" % self.CQX
-                        if self.debug: print "Loop 500:   XY=> %s" % self.XY
-                        if self.debug: print "Loop 500:   XZ=> %s" % self.XZ
-                        if self.debug: print "Loop 500:   WY=> %s" % self.WY
-                        if self.debug: print "Loop 500:   WZ=> %s" % self.WZ
-                        if self.debug: print ""
+                        if self.verbose: print "Loop 500:   ZL[M][J]=> %s" % self.ZL[M][J]
+                        if self.verbose: print "Loop 500:   EXA=> %s" % self.EXA
+                        if self.verbose: print "Loop 500:   CPCQ=> %s" % self.CPCQ
+                        if self.verbose: print "Loop 500:   CPY=> %s" % self.CPY
+                        if self.verbose: print "Loop 500:   CPZ=> %s" % self.CPZ
+                        if self.verbose: print "Loop 500:   CQW=> %s" % self.CQW
+                        if self.verbose: print "Loop 500:   CQX=> %s" % self.CQX
+                        if self.verbose: print "Loop 500:   XY=> %s" % self.XY
+                        if self.verbose: print "Loop 500:   XZ=> %s" % self.XZ
+                        if self.verbose: print "Loop 500:   WY=> %s" % self.WY
+                        if self.verbose: print "Loop 500:   WZ=> %s" % self.WZ
+                        if self.verbose: print ""
                         self.FAC = 0.0
                         self.QMP = self.QR - self.PR
-                        if self.debug: print "Loop 500:   QMP=> %s" % self.QMP
+                        if self.verbose: print "Loop 500:   QMP=> %s" % self.QMP
 
                         if self.QMP > -40.0: self.FAC = exp(self.QMP)
-                        if self.debug: print "Loop 500:   FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
 
                         self.COSQ = self.COSQL[M][J] * self.FAC
-                        if self.debug: print "Loop 500:   COSQ=> %s" % self.COSQ
+                        if self.verbose: print "Loop 500:   COSQ=> %s" % self.COSQ
                         self.Y = self.FAC * self.YL[M][J]
                         self.Z = self.FAC * self.ZL[M][J]
-                        if self.debug: print "Loop 500:   Y=> %s" % self.Y
-                        if self.debug: print "Loop 500:   Z=> %s" % self.Z
+                        if self.verbose: print "Loop 500:   Y=> %s" % self.Y
+                        if self.verbose: print "Loop 500:   Z=> %s" % self.Z
                         self.FAC = 0.0
 
                         if self.EXA < 60.0: self.A0 = exp(-self.EXA).real
-                        if self.debug: print "Loop 500:   A0=> %s" % self.A0
+                        if self.verbose: print "Loop 500:   A0=> %s" % self.A0
 
                         self.RHO2  = self.RHO[M] * self.RHO[M]
-                        if self.debug: print "Loop 500:   RHO2=> %s" % self.RHO2
-                        if self.debug: print "Loop 500:   WVNO2=%s" % self.WVNO2[J]
-                        if self.debug: print "Loop 500:   WVNO2=%s" % self.WVNO2
-                        if self.debug: print "Loop 500:   J=%s" % J
+                        if self.verbose: print "Loop 500:   RHO2=> %s" % self.RHO2
+                        if self.verbose: print "Loop 500:   WVNO2=%s" % self.WVNO2[J]
+                        if self.verbose: print "Loop 500:   WVNO2=%s" % self.WVNO2
+                        if self.verbose: print "Loop 500:   J=%s" % J
                         self.A0C  = 2.0 * (self.A0 - self.CPCQ)
-                        if self.debug: print "Loop 500:   A0C=> %s" % self.A0C
+                        if self.verbose: print "Loop 500:   A0C=> %s" % self.A0C
                         self.XZ2  = self.XZ / self.WVNO2[J]
-                        if self.debug: print "Loop 500:   XZ2=> %s" % self.XZ2
+                        if self.verbose: print "Loop 500:   XZ2=> %s" % self.XZ2
                         self.WY2  = self.WY * self.WVNO2[J]
-                        if self.debug: print "Loop 500:   WY2=> %s" % self.WY2
+                        if self.verbose: print "Loop 500:   WY2=> %s" % self.WY2
                         self.TEMP = self.A0C * self.WVNO2[J] + self.XZ + self.WY2 * self.WVNO2[J]
-                        if self.debug: print "Loop 500:   TEMP=> %s" % self.TEMP
+                        if self.verbose: print "Loop 500:   TEMP=> %s" % self.TEMP
 
                         self.CA15 = -self.TEMP / self.RHO2
-                        if self.debug: print "Loop 500:   CA15=> %s" % self.CA15
+                        if self.verbose: print "Loop 500:   CA15=> %s" % self.CA15
 
                         self.TEMP = 0.5 * self.A0C * ( self.GAM[M][J] + self.GAMM1[M][J] ) + self.GAM[M][J] * self.XZ2 + self.GAMM1[M][J] * self.WY2
-                        if self.debug: print "Loop 500:   TEMP=> %s" % self.TEMP
+                        if self.verbose: print "Loop 500:   TEMP=> %s" % self.TEMP
 
-                        if self.debug: print ""
+                        if self.verbose: print ""
 
 
                         self.CA13= -self.TEMP / self.RHO[M]
-                        if self.debug: print "Loop 500:   CA13=> %s" % self.CA13
-                        if self.debug: print "Loop 500:   GAMX1[M][J]=> %s" % self.GAMX1[M][J]
-                        if self.debug: print "Loop 500:   GAM2[M][J]=> %s" % self.GAM2[M][J]
-                        if self.debug: print "Loop 500:   GAMM2[M][J]=> %s" % self.GAMM2[M][J]
+                        if self.verbose: print "Loop 500:   CA13=> %s" % self.CA13
+                        if self.verbose: print "Loop 500:   GAMX1[M][J]=> %s" % self.GAMX1[M][J]
+                        if self.verbose: print "Loop 500:   GAM2[M][J]=> %s" % self.GAM2[M][J]
+                        if self.verbose: print "Loop 500:   GAMM2[M][J]=> %s" % self.GAMM2[M][J]
 
                         self.TEMP = self.A0C * self.GAMX1[M][J] + self.GAM2[M][J] * self.XZ2 + self.GAMM2[M][J] * self.WY2
-                        if self.debug: print "Loop 500:   TEMP=> %s" % self.TEMP
+                        if self.verbose: print "Loop 500:   TEMP=> %s" % self.TEMP
 
                         self.CA33 = self.A0 + self.TEMP*2
                         self.CA11 = self.CPCQ - self.TEMP
-                        if self.debug: print "Loop 500:   CA33=> %s" % self.CA33
-                        if self.debug: print "Loop 500:   CA11=> %s" % self.CA11
-                        #if self.debug: print "Loop 500:   CPCQ=> %s" % self.CPCQ
+                        if self.verbose: print "Loop 500:   CA33=> %s" % self.CA33
+                        if self.verbose: print "Loop 500:   CA11=> %s" % self.CA11
+                        #if self.verbose: print "Loop 500:   CPCQ=> %s" % self.CPCQ
 
                         self.TEMP = 0.5 * self.A0C * self.GAMX1[M][J] * ( self.GAM[M][J] + self.GAMM1[M][J]) + self.GAM3[M][J] * self.XZ2 + self.GAMM3[M][J] * self.WY2
-                        if self.debug: print "Loop 500:   TEMP=> %s" % self.TEMP
+                        if self.verbose: print "Loop 500:   TEMP=> %s" % self.TEMP
 
-                        if self.debug: print ""
+                        if self.verbose: print ""
                         self.CA31 = 2.0 * self.TEMP * self.RHO[M]
                         self.TEMP = self.A0C * self.GAMX2[M][J] + self.GAM4[M][J] * self.XZ2 +self.GAMM3[M][J] * self.GAMM1[M][J] * self.WY2
-                        if self.debug: print "Loop 500:   CA31=> %s" % self.CA31
-                        if self.debug: print "Loop 500:   TEMP=> %s" % self.TEMP
+                        if self.verbose: print "Loop 500:   CA31=> %s" % self.CA31
+                        if self.verbose: print "Loop 500:   TEMP=> %s" % self.TEMP
 
                         self.CA51 = -self.RHO2 * self.TEMP / self.WVNO2[J]
                         self.CA14 = (-self.WVNO2[J] * self.CQW + self.CPZ) / self.RHO[M]
@@ -1148,26 +1134,26 @@ class GreenFunctions():
                         self.CA44 = self.CA22
                         self.CA34 = -2.0 * self.WVNO2[J] * self.CA23
                         self.CA35 = -2.0 * self.WVNO2[J] * self.CA13
-                        if self.debug: print "Loop 500:   CA51=> %s" % self.CA51
-                        if self.debug: print "Loop 500:   CA14=> %s" % self.CA14
-                        if self.debug: print "Loop 500:   CA21=> %s" % self.CA21
-                        if self.debug: print "Loop 500:   CA23=> %s" % self.CA23
-                        if self.debug: print "Loop 500:   CA12=> %s" % self.CA12
-                        if self.debug: print "Loop 500:   CA32=> %s" % self.CA32
-                        if self.debug: print "Loop 500:   CA41=> %s" % self.CA41
-                        if self.debug: print "Loop 500:   CA22=> %s" % self.CA22
-                        if self.debug: print "Loop 500:   CA24=> %s" % self.CA24
-                        if self.debug: print "Loop 500:   CA42=> %s" % self.CA42
-                        if self.debug: print "Loop 500:   CA25=> %s" % self.CA25
-                        if self.debug: print "Loop 500:   CA55=> %s" % self.CA55
-                        if self.debug: print "Loop 500:   CA54=> %s" % self.CA54
-                        if self.debug: print "Loop 500:   CA53=> %s" % self.CA53
-                        if self.debug: print "Loop 500:   CA52=> %s" % self.CA52
-                        if self.debug: print "Loop 500:   CA43=> %s" % self.CA43
-                        if self.debug: print "Loop 500:   CA45=> %s" % self.CA45
-                        if self.debug: print "Loop 500:   CA44=> %s" % self.CA44
-                        if self.debug: print "Loop 500:   CA34=> %s" % self.CA34
-                        if self.debug: print "Loop 500:   CA35=> %s" % self.CA35
+                        if self.verbose: print "Loop 500:   CA51=> %s" % self.CA51
+                        if self.verbose: print "Loop 500:   CA14=> %s" % self.CA14
+                        if self.verbose: print "Loop 500:   CA21=> %s" % self.CA21
+                        if self.verbose: print "Loop 500:   CA23=> %s" % self.CA23
+                        if self.verbose: print "Loop 500:   CA12=> %s" % self.CA12
+                        if self.verbose: print "Loop 500:   CA32=> %s" % self.CA32
+                        if self.verbose: print "Loop 500:   CA41=> %s" % self.CA41
+                        if self.verbose: print "Loop 500:   CA22=> %s" % self.CA22
+                        if self.verbose: print "Loop 500:   CA24=> %s" % self.CA24
+                        if self.verbose: print "Loop 500:   CA42=> %s" % self.CA42
+                        if self.verbose: print "Loop 500:   CA25=> %s" % self.CA25
+                        if self.verbose: print "Loop 500:   CA55=> %s" % self.CA55
+                        if self.verbose: print "Loop 500:   CA54=> %s" % self.CA54
+                        if self.verbose: print "Loop 500:   CA53=> %s" % self.CA53
+                        if self.verbose: print "Loop 500:   CA52=> %s" % self.CA52
+                        if self.verbose: print "Loop 500:   CA43=> %s" % self.CA43
+                        if self.verbose: print "Loop 500:   CA45=> %s" % self.CA45
+                        if self.verbose: print "Loop 500:   CA44=> %s" % self.CA44
+                        if self.verbose: print "Loop 500:   CA34=> %s" % self.CA34
+                        if self.verbose: print "Loop 500:   CA35=> %s" % self.CA35
 
 
 
@@ -1179,106 +1165,85 @@ class GreenFunctions():
                         self.ER4 = self.R1[J] * self.CA14 + self.R2[J] * self.CA24 + self.R3[J] * self.CA34 + self.R4[J] * self.CA44 + self.R5[J] * self.CA54
                         self.ER5 = self.R1[J] * self.CA15 + self.R2[J] * self.CA25 + self.R3[J] * self.CA35 + self.R4[J] * self.CA45 + self.R5[J] * self.CA55
 
-                        if self.debug: print ""
-                        #print " TEST ER4 :  self.ER4      => %s" % self.ER4 
-                        #print " TEST ER4 :  self.R1[J]    => %s" % self.R1[J] 
-                        #print " TEST ER4 :  self.CA14     => %s" % self.CA14 
-                        #print " TEST ER4 :  self.R2[J]    => %s" % self.R2[J] 
-                        #print " TEST ER4 :  self.CA24     => %s" % self.CA24 
-                        #print " TEST ER4 :  self.R3[J]    => %s" % self.R3[J] 
-                        #print " TEST ER4 :  self.CA34     => %s" % self.CA34 
-                        #print " TEST ER4 :  self.R4[J]    => %s" % self.R4[J] 
-                        #print " TEST ER4 :  self.CA44     => %s" % self.CA44 
-                        #print " TEST ER4 :  self.R5[J]    => %s" % self.R5[J] 
-                        #print " TEST ER4 :  self.CA54     => %s" % self.CA54
-                        #print ""
 
 
 
-                        if self.debug: print "Loop 500:   ER1=> %s" % self.ER1
-                        if self.debug: print "Loop 500:   ER2=> %s" % self.ER2
-                        if self.debug: print "Loop 500:   ER3=> %s" % self.ER3
-                        if self.debug: print "Loop 500:   ER4=> %s" % self.ER4
-                        if self.debug: print "Loop 500:   ER5=> %s" % self.ER5
-                        if self.debug: print ""
+                        if self.verbose: print "Loop 500:   ER1=> %s" % self.ER1
+                        if self.verbose: print "Loop 500:   ER2=> %s" % self.ER2
+                        if self.verbose: print "Loop 500:   ER3=> %s" % self.ER3
+                        if self.verbose: print "Loop 500:   ER4=> %s" % self.ER4
+                        if self.verbose: print "Loop 500:   ER5=> %s" % self.ER5
+                        if self.verbose: print ""
 
                         self.TESTT = 0.0
                         if abs(self.ER1.real) > self.TESTT: self.TESTT = abs(self.ER1.real)
-                        if self.debug: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
                         if abs(self.ER2.real) > self.TESTT: self.TESTT = abs(self.ER2.real)
-                        if self.debug: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
                         if abs(self.ER3.real) > self.TESTT: self.TESTT = abs(self.ER3.real)
-                        if self.debug: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
                         if abs(self.ER4.real) > self.TESTT: self.TESTT = abs(self.ER4.real)
-                        if self.debug: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
                         if abs(self.ER5.real) > self.TESTT: self.TESTT = abs(self.ER5.real)
-                        if self.debug: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
                         if abs(self.ER1.imag) > self.TESTT: self.TESTT = abs(self.ER1.imag)
-                        if self.debug: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
                         if abs(self.ER2.imag) > self.TESTT: self.TESTT = abs(self.ER2.imag)
-                        if self.debug: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
                         if abs(self.ER3.imag) > self.TESTT: self.TESTT = abs(self.ER3.imag)
-                        if self.debug: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
                         if abs(self.ER4.imag) > self.TESTT: self.TESTT = abs(self.ER4.imag)
-                        if self.debug: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
                         if abs(self.ER5.imag) > self.TESTT: self.TESTT = abs(self.ER5.imag)
-                        if self.debug: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
 
                         if self.TESTT < 1.0E-30: self.TESTT = 1.0
-                        if self.debug: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
 
 
                         self.TEST = 0.0
 
                         self.FAC = abs(self.ER1) / self.TESTT
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.debug: print "Loop 500:   FAC=> %s" % self.FAC
-                        if self.debug: print "Loop 500:   TEST=> %s" % self.TEST
+                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500:   TEST=> %s" % self.TEST
                         self.FAC = abs(self.ER2) / self.TESTT
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.debug: print "Loop 500:   FAC=> %s" % self.FAC
-                        if self.debug: print "Loop 500:   TEST=> %s" % self.TEST
+                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500:   TEST=> %s" % self.TEST
                         self.FAC = abs(self.ER3) / self.TESTT
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.debug: print "Loop 500:   FAC=> %s" % self.FAC
-                        if self.debug: print "Loop 500:   TEST=> %s" % self.TEST
+                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500:   TEST=> %s" % self.TEST
                         self.FAC = abs(self.ER4) / self.TESTT
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.debug: print "Loop 500:   FAC=> %s" % self.FAC
-                        if self.debug: print "Loop 500:   TEST=> %s" % self.TEST
+                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500:   TEST=> %s" % self.TEST
                         self.FAC = abs(self.ER5) / self.TESTT
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.debug: print "Loop 500:   FAC=> %s" % self.FAC
-                        if self.debug: print "Loop 500:   TEST=> %s" % self.TEST
+                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500:   TEST=> %s" % self.TEST
                         self.TEST = self.TEST * self.TESTT
                         if self.TEST < 1.0E-30: self.TEST = 1.0
-                        if self.debug: print "Loop 500:   FAC=> %s" % self.FAC
-                        if self.debug: print "Loop 500:   TEST=> %s" % self.TEST
+                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500:   TEST=> %s" % self.TEST
 
-                        if self.debug: print "self.TEST:%s" % self.TEST
+                        if self.verbose: print "self.TEST:%s" % self.TEST
 
                         self.XNORM = 1.0 / self.TEST
-                        if self.debug: print "Loop 500:   XNORM=> %s" % self.XNORM
+                        if self.verbose: print "Loop 500:   XNORM=> %s" % self.XNORM
                         self.EXA  = -log(self.XNORM)
-                        if self.debug: print "Loop 500:   EXA=> %s" % self.EXA
+                        if self.verbose: print "Loop 500:   EXA=> %s" % self.EXA
                         self.R1[J] = self.ER1 * self.XNORM
                         self.R2[J] = self.ER2 * self.XNORM
                         self.R3[J] = self.ER3 * self.XNORM
                         self.R4[J] = self.ER4 * self.XNORM
                         self.R5[J] = self.ER5 * self.XNORM
-                        #print "Loop 500:        R1(%s)=> %s" % (J,self.R1[J])
-                        #print "Loop 500:        R2(%s)=> %s" % (J,self.R2[J])
-                        #print "Loop 500:        R3(%s)=> %s" % (J,self.R3[J])
-                        #print "Loop 500:        R4(%s)=> %s" % (J,self.R4[J])
-                        #print "Loop 500:        R5(%s)=> %s" % (J,self.R5[J])
-                        #print "Loop 500:        R3(%s)=> %s" % (J,self.R3[J])
-                        #print "Loop 500:        ER3=> %s" % self.ER3
-                        #print "Loop 500:        XNORM=> %s" % self.XNORM
 
                         self.EXE[J] = self.EXE[J] + self.EXA
                         self.EXEL[J] = self.EXEL[J] + self.EXB
-                        if self.debug: print "Loop 500:   EXE[%s]=> %s" % (J,self.EXE[J])
-                        if self.debug: print "Loop 500:   EXEL[%s]=> %s" % (J,self.EXEL[J])
+                        if self.verbose: print "Loop 500:   EXE[%s]=> %s" % (J,self.EXE[J])
+                        if self.verbose: print "Loop 500:   EXEL[%s]=> %s" % (J,self.EXEL[J])
                         #}}} K
                 #}}} J 
 
@@ -1296,14 +1261,14 @@ class GreenFunctions():
                         for L in range(4):
                             self.ZX[J][K][L] = complex(0.0,0.0)
                             if K == L: self.ZX[J][K][L] = complex(1.0,0.0)
-                if self.debug: print "Loop 500: X1=> %s" % self.X1
-                if self.debug: print "Loop 500: X2=> %s" % self.X2
-                if self.debug: print "Loop 500: X3=> %s" % self.X3
-                if self.debug: print "Loop 500: X4=> %s" % self.X4
-                if self.debug: print "Loop 500: X5=> %s" % self.X5
-                if self.debug: print "Loop 500: EXL=> %s" % self.EXL
-                if self.debug: print "Loop 500: EXLL=> %s" % self.EXLL
-                if self.debug: print "Loop 500: ZX=> %s" % self.ZX
+                if self.verbose: print "Loop 500: X1=> %s" % self.X1
+                if self.verbose: print "Loop 500: X2=> %s" % self.X2
+                if self.verbose: print "Loop 500: X3=> %s" % self.X3
+                if self.verbose: print "Loop 500: X4=> %s" % self.X4
+                if self.verbose: print "Loop 500: X5=> %s" % self.X5
+                if self.verbose: print "Loop 500: EXL=> %s" % self.EXL
+                if self.verbose: print "Loop 500: EXLL=> %s" % self.EXLL
+                if self.verbose: print "Loop 500: ZX=> %s" % self.ZX
                 #}}} L
 
                 # MATRIX MULTIPLICATION FROM THE SOURCE INTERFACE UPWARD TO THE SURFACE
@@ -1311,101 +1276,101 @@ class GreenFunctions():
                 for I in range(self.LMAX):
                     M = self.LMAX - I -1 
                     self.DPTH = self.D[M]
-                    if self.debug: print "Loop 500 14: I=> %s" % I
-                    if self.debug: print "Loop 500 14: LMAX=> %s" % self.LMAX
-                    if self.debug: print "Loop 500 14: M=> %s" % M
-                    if self.debug: print "Loop 500 14: DPTH=> %s" % self.DPTH
+                    if self.verbose: print "Loop 500 14: I=> %s" % I
+                    if self.verbose: print "Loop 500 14: LMAX=> %s" % self.LMAX
+                    if self.verbose: print "Loop 500 14: M=> %s" % M
+                    if self.verbose: print "Loop 500 14: DPTH=> %s" % self.DPTH
 
                     #{{{ P
                     for J in range(self.IBLOCK):
                         self.P = self.RA[M][J] * self.DPTH
                         self.Q = self.RB[M][J] * self.DPTH
 
-                        if self.debug: print "Loop 500 15:   J=> %s" % J
-                        if self.debug: print "Loop 500 15:   P=> %s" % self.P
-                        if self.debug: print "Loop 500 15:   P=> %s" % self.Q
+                        if self.verbose: print "Loop 500 15:   J=> %s" % J
+                        if self.verbose: print "Loop 500 15:   P=> %s" % self.P
+                        if self.verbose: print "Loop 500 15:   P=> %s" % self.Q
 
                         A0 = 0.0
                         self.PR = self.P.real
-                        if self.debug: print "Loop 500 15: PR=> %s" % self.PR
+                        if self.verbose: print "Loop 500 15: PR=> %s" % self.PR
                         self.PI = self.P.imag
-                        if self.debug: print "Loop 500 15: PI=> %s" % self.PI
+                        if self.verbose: print "Loop 500 15: PI=> %s" % self.PI
                         self.QR = self.Q.real
-                        if self.debug: print "Loop 500 15: QR=> %s" % self.QR
+                        if self.verbose: print "Loop 500 15: QR=> %s" % self.QR
                         self.QI = self.Q.imag
-                        if self.debug: print "Loop 500 15: QI=> %s" % self.QI
+                        if self.verbose: print "Loop 500 15: QI=> %s" % self.QI
                         self.EPP = complex(cos(self.PI),sin(self.PI)) / 2.0
-                        if self.debug: print "Loop 500 15: EPP=> %s" % self.EPP
+                        if self.verbose: print "Loop 500 15: EPP=> %s" % self.EPP
                         self.EPM = self.EPP.conjugate()
-                        if self.debug: print "Loop 500 15: EPM=> %s" % self.EPM
+                        if self.verbose: print "Loop 500 15: EPM=> %s" % self.EPM
                         self.EQP = complex(cos(self.QI),sin(self.QI)) / 2.0
-                        if self.debug: print "Loop 500 15: EQP=> %s" % self.EQP
+                        if self.verbose: print "Loop 500 15: EQP=> %s" % self.EQP
                         self.EQM = self.EQP.conjugate()
-                        if self.debug: print "Loop 500 15: EQM=> %s" % self.EQM
+                        if self.verbose: print "Loop 500 15: EQM=> %s" % self.EQM
                         self.EX = self.PR
-                        if self.debug: print "Loop 500 15: EX=> %s" % self.EX
+                        if self.verbose: print "Loop 500 15: EX=> %s" % self.EX
                         self.EXB = self.QR
-                        if self.debug: print "Loop 500 15: EXB=> %s" % self.EXB
+                        if self.verbose: print "Loop 500 15: EXB=> %s" % self.EXB
                         self.FAC = 0.0
-                        if self.debug: print ""
+                        if self.verbose: print ""
 
                         if self.PR < 15.0: self.FAC = exp(-2*self.PR).real 
-                        if self.debug: print "Loop 500 15: FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500 15: FAC=> %s" % self.FAC
 
                         self.COSP = self.EPP + self.FAC * self.EPM
-                        if self.debug: print "Loop 500 15: COSP=> %s" % self.COSP
+                        if self.verbose: print "Loop 500 15: COSP=> %s" % self.COSP
                         self.SINP = self.EPP - self.FAC * self.EPM
-                        if self.debug: print "Loop 500 15: SINP=> %s" % self.SINP
+                        if self.verbose: print "Loop 500 15: SINP=> %s" % self.SINP
                         self.W = self.SINP / self.RA[M][J]
-                        if self.debug: print "Loop 500 15: W=> %s" % self.W
+                        if self.verbose: print "Loop 500 15: W=> %s" % self.W
                         self.X = self.RA[M][J] * self.SINP
-                        if self.debug: print "Loop 500 15: X=> %s" % self.X
+                        if self.verbose: print "Loop 500 15: X=> %s" % self.X
                         self.FAC = 0.0
                         if self.QR < 15.0: self.FAC = exp(-2.0 * self.QR)
-                        if self.debug: print "Loop 500 15: FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500 15: FAC=> %s" % self.FAC
                         self.COSQL[M][J] = self.EQP + self.FAC * self.EQM
-                        if self.debug: print "Loop 500 15: COSQL[M][J]=> %s" % self.COSQL[M][J]
+                        if self.verbose: print "Loop 500 15: COSQL[M][J]=> %s" % self.COSQL[M][J]
                         self.SINQ = self.EQP - self.FAC * self.EQM
-                        if self.debug: print "Loop 500 15: SINQ=> %s" % self.SINQ
+                        if self.verbose: print "Loop 500 15: SINQ=> %s" % self.SINQ
                         self.YL[M][J] = self.SINQ / self.RB[M][J]
-                        if self.debug: print "Loop 500 15: YL[M][J]=> %s" % self.YL[M][J]
+                        if self.verbose: print "Loop 500 15: YL[M][J]=> %s" % self.YL[M][J]
                         self.ZL[M][J] = self.RB[M][J] * self.SINQ
-                        if self.debug: print "Loop 500 15: ZL[M][J]=> %s" % self.ZL[M][J]
+                        if self.verbose: print "Loop 500 15: ZL[M][J]=> %s" % self.ZL[M][J]
                         self.EXA = self.PR + self.QR
-                        if self.debug: print "Loop 500 15: EXA=> %s" % self.EXA
+                        if self.verbose: print "Loop 500 15: EXA=> %s" % self.EXA
                         self.CPCQ = self.COSP * self.COSQL[M][J]
-                        if self.debug: print "Loop 500 15: CPCQ=> %s" % self.CPCQ
+                        if self.verbose: print "Loop 500 15: CPCQ=> %s" % self.CPCQ
                         self.CPY = self.COSP * self.YL[M][J]
-                        if self.debug: print "Loop 500 15: CPY=> %s" % self.CPY
+                        if self.verbose: print "Loop 500 15: CPY=> %s" % self.CPY
                         self.CPZ = self.COSP * self.ZL[M][J]
-                        if self.debug: print "Loop 500 15: CPZ=> %s" % self.CPZ
+                        if self.verbose: print "Loop 500 15: CPZ=> %s" % self.CPZ
                         self.CQW = self.COSQL[M][J] * self.W
-                        if self.debug: print "Loop 500 15: CQW=> %s" % self.CQW
+                        if self.verbose: print "Loop 500 15: CQW=> %s" % self.CQW
                         self.CQX = self.COSQL[M][J] * self.X
-                        if self.debug: print "Loop 500 15: CQX=> %s" % self.CQX
+                        if self.verbose: print "Loop 500 15: CQX=> %s" % self.CQX
                         self.XY = self.X * self.YL[M][J]
-                        if self.debug: print "Loop 500 15: XY=> %s" % self.XY
+                        if self.verbose: print "Loop 500 15: XY=> %s" % self.XY
                         self.XZ = self.X * self.ZL[M][J]
-                        if self.debug: print "Loop 500 15: XZ=> %s" % self.XZ
+                        if self.verbose: print "Loop 500 15: XZ=> %s" % self.XZ
                         self.WY = self.W * self.YL[M][J]
-                        if self.debug: print "Loop 500 15: WY=> %s" % self.WY
+                        if self.verbose: print "Loop 500 15: WY=> %s" % self.WY
                         self.WZ = self.W * self.ZL[M][J]
-                        if self.debug: print "Loop 500 15: WZ=> %s" % self.WZ
-                        if self.debug: print ""
+                        if self.verbose: print "Loop 500 15: WZ=> %s" % self.WZ
+                        if self.verbose: print ""
 
                         self.FAC = 0.0
                         self.QMP = self.QR - self.PR
-                        if self.debug: print "Loop 500 15: QMP=> %s" % self.QMP
+                        if self.verbose: print "Loop 500 15: QMP=> %s" % self.QMP
                         if self.QMP > -40.0: self.FAC = exp(self.QMP).real
-                        if self.debug: print "Loop 500 15: FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500 15: FAC=> %s" % self.FAC
                         self.COSQ = self.COSQL[M][J] * self.FAC
-                        if self.debug: print "Loop 500 15: COSQ=> %s" % self.COSQ
+                        if self.verbose: print "Loop 500 15: COSQ=> %s" % self.COSQ
                         self.Y = self.FAC * self.YL[M][J]
-                        if self.debug: print "Loop 500 15: Y=> %s" % self.Y
+                        if self.verbose: print "Loop 500 15: Y=> %s" % self.Y
                         self.Z = self.FAC * self.ZL[M][J]
-                        if self.debug: print "Loop 500 15: Z=> %s" % self.Z
+                        if self.verbose: print "Loop 500 15: Z=> %s" % self.Z
 
-                        if self.debug: print ""
+                        if self.verbose: print ""
 
                         self.FAC=0.0
                         if self.EXA < 60.0: self.A0 = exp(-self.EXA)
@@ -1413,37 +1378,37 @@ class GreenFunctions():
                         self.A0C  = 2.0 * (self.A0 - self.CPCQ)
                         self.XZ2  = self.XZ / self.WVNO2[J]
                         self.WY2  = self.WY * self.WVNO2[J]
-                        if self.debug: print "Loop 500 15: A0=> %s" % self.A0
-                        if self.debug: print "Loop 500 15: RHO2=> %s" % self.RHO2
-                        if self.debug: print "Loop 500 15: A0C=> %s" % self.A0C
-                        if self.debug: print "Loop 500 15: XZ2=> %s" % self.XZ2
-                        if self.debug: print "Loop 500 15: WY2=> %s" % self.WY2
+                        if self.verbose: print "Loop 500 15: A0=> %s" % self.A0
+                        if self.verbose: print "Loop 500 15: RHO2=> %s" % self.RHO2
+                        if self.verbose: print "Loop 500 15: A0C=> %s" % self.A0C
+                        if self.verbose: print "Loop 500 15: XZ2=> %s" % self.XZ2
+                        if self.verbose: print "Loop 500 15: WY2=> %s" % self.WY2
                         self.TEMP = self.A0C * self.WVNO2[J] + self.XZ + self.WY2 * self.WVNO2[J]
-                        if self.debug: print "Loop 500 15: TEMP=> %s" % self.TEMP
+                        if self.verbose: print "Loop 500 15: TEMP=> %s" % self.TEMP
                         self.CA15 = -self.TEMP / self.RHO2
-                        if self.debug: print "Loop 500 15: CA15=> %s" % self.CA15
+                        if self.verbose: print "Loop 500 15: CA15=> %s" % self.CA15
                         self.TEMP = 0.5 * self.A0C * (self.GAM[M][J] + self.GAMM1[M][J]) + self.GAM[M][J] * self.XZ2 + self.GAMM1[M][J] * self.WY2
-                        if self.debug: print "Loop 500 15: TEMP=> %s" % self.TEMP
+                        if self.verbose: print "Loop 500 15: TEMP=> %s" % self.TEMP
                         self.CA13 = -self.TEMP / self.RHO[M]
-                        if self.debug: print "Loop 500 15: CA13=> %s" % self.CA13
+                        if self.verbose: print "Loop 500 15: CA13=> %s" % self.CA13
                         self.TEMP = self.A0C * self.GAMX1[M][J] + self.GAM2[M][J] * self.XZ2 + self.GAMM2[M][J] * self.WY2
-                        if self.debug: print "Loop 500 15: TEMP=> %s" % self.TEMP
+                        if self.verbose: print "Loop 500 15: TEMP=> %s" % self.TEMP
                         self.CA33 = self.A0 + self.TEMP + self.TEMP
-                        if self.debug: print "Loop 500: CA33=> %s" % self.CA33
+                        if self.verbose: print "Loop 500: CA33=> %s" % self.CA33
                         self.CA11 = self.CPCQ - self.TEMP
-                        if self.debug: print "Loop 500 15: CA11=> %s" % self.CA11
+                        if self.verbose: print "Loop 500 15: CA11=> %s" % self.CA11
                         self.TEMP = 0.5 * self.A0C * self.GAMX1[M][J] * (self.GAM[M][J] + self.GAMM1[M][J])+ self.GAM3[M][J] * self.XZ2 + self.GAMM3[M][J] * self.WY2
-                        if self.debug: print "Loop 500 15: TEMP=> %s" % self.TEMP
+                        if self.verbose: print "Loop 500 15: TEMP=> %s" % self.TEMP
                         self.CA31 = 2.0 * self.TEMP * self.RHO[M]
-                        if self.debug: print "Loop 500 15: CA31=> %s" % self.CA31
+                        if self.verbose: print "Loop 500 15: CA31=> %s" % self.CA31
                         self.TEMP = self.A0C * self.GAMX2[M][J] + self.GAM4[M][J] * self.XZ2 + self.GAMM3[M][J] * self.GAMM1[M][J] * self.WY2
-                        #if self.debug: print "Loop 500 15: GAMX2=> %s" % self.GAMX2[M][J]
-                        #if self.debug: print "Loop 500 15: GAM4=> %s" % self.GAM4[M][J]
-                        #if self.debug: print "Loop 500 15: XZ2=> %s" % self.XZ2
-                        #if self.debug: print "Loop 500 15: GAMM3=> %s" % self.GAMM3[M][J]
-                        #if self.debug: print "Loop 500 15: GAMM1=> %s" % self.GAMM1[M][J]
-                        #if self.debug: print "Loop 500 15: WY2=> %s" % self.WY2
-                        if self.debug: print "Loop 500 15: TEMP=> %s" % self.TEMP
+                        #if self.verbose: print "Loop 500 15: GAMX2=> %s" % self.GAMX2[M][J]
+                        #if self.verbose: print "Loop 500 15: GAM4=> %s" % self.GAM4[M][J]
+                        #if self.verbose: print "Loop 500 15: XZ2=> %s" % self.XZ2
+                        #if self.verbose: print "Loop 500 15: GAMM3=> %s" % self.GAMM3[M][J]
+                        #if self.verbose: print "Loop 500 15: GAMM1=> %s" % self.GAMM1[M][J]
+                        #if self.verbose: print "Loop 500 15: WY2=> %s" % self.WY2
+                        if self.verbose: print "Loop 500 15: TEMP=> %s" % self.TEMP
                         self.CA51 = -self.RHO2 * self.TEMP / self.WVNO2[J]
                         self.CA14 = (-self.WVNO2[J] * self.CQW + self.CPZ) / self.RHO[M]
                         self.CA21 = (-self.GAMM2[M][J] * self.CQW + self.GAM2[M][J] * self.CPZ / self.WVNO2[J]) * self.RHO[M]
@@ -1465,123 +1430,123 @@ class GreenFunctions():
                         self.CA34 = -2.0 * self.WVNO2[J] * self.CA23
                         self.CA35 = -2.0 * self.WVNO2[J] * self.CA13
 
-                        if self.debug: print "Loop 500 15: CA51=> %s" % self.CA51
-                        if self.debug: print "Loop 500 15: CA14=> %s" % self.CA14
-                        if self.debug: print "Loop 500 15: CA21=> %s" % self.CA21
-                        if self.debug: print "Loop 500 15: CA23=> %s" % self.CA23
-                        if self.debug: print "Loop 500 15: CA12=> %s" % self.CA12
-                        if self.debug: print "Loop 500 15: CA32=> %s" % self.CA32
-                        if self.debug: print "Loop 500 15: CA41=> %s" % self.CA41
-                        if self.debug: print "Loop 500 15: CA22=> %s" % self.CA22
-                        if self.debug: print "Loop 500 15: CA24=> %s" % self.CA24
-                        if self.debug: print "Loop 500 15: CA42=> %s" % self.CA42
-                        if self.debug: print "Loop 500 15: CA25=> %s" % self.CA25
-                        if self.debug: print "Loop 500 15: CA55=> %s" % self.CA55
-                        if self.debug: print "Loop 500 15: CA54=> %s" % self.CA54
-                        if self.debug: print "Loop 500 15: CA53=> %s" % self.CA53
-                        if self.debug: print "Loop 500 15: CA52=> %s" % self.CA52
-                        if self.debug: print "Loop 500 15: CA43=> %s" % self.CA43
-                        if self.debug: print "Loop 500 15: CA45=> %s" % self.CA45
-                        if self.debug: print "Loop 500 15: CA44=> %s" % self.CA44
-                        if self.debug: print "Loop 500 15: CA34=> %s" % self.CA34
-                        if self.debug: print "Loop 500 15: CA35=> %s" % self.CA35
+                        if self.verbose: print "Loop 500 15: CA51=> %s" % self.CA51
+                        if self.verbose: print "Loop 500 15: CA14=> %s" % self.CA14
+                        if self.verbose: print "Loop 500 15: CA21=> %s" % self.CA21
+                        if self.verbose: print "Loop 500 15: CA23=> %s" % self.CA23
+                        if self.verbose: print "Loop 500 15: CA12=> %s" % self.CA12
+                        if self.verbose: print "Loop 500 15: CA32=> %s" % self.CA32
+                        if self.verbose: print "Loop 500 15: CA41=> %s" % self.CA41
+                        if self.verbose: print "Loop 500 15: CA22=> %s" % self.CA22
+                        if self.verbose: print "Loop 500 15: CA24=> %s" % self.CA24
+                        if self.verbose: print "Loop 500 15: CA42=> %s" % self.CA42
+                        if self.verbose: print "Loop 500 15: CA25=> %s" % self.CA25
+                        if self.verbose: print "Loop 500 15: CA55=> %s" % self.CA55
+                        if self.verbose: print "Loop 500 15: CA54=> %s" % self.CA54
+                        if self.verbose: print "Loop 500 15: CA53=> %s" % self.CA53
+                        if self.verbose: print "Loop 500 15: CA52=> %s" % self.CA52
+                        if self.verbose: print "Loop 500 15: CA43=> %s" % self.CA43
+                        if self.verbose: print "Loop 500 15: CA45=> %s" % self.CA45
+                        if self.verbose: print "Loop 500 15: CA44=> %s" % self.CA44
+                        if self.verbose: print "Loop 500 15: CA34=> %s" % self.CA34
+                        if self.verbose: print "Loop 500 15: CA35=> %s" % self.CA35
 
-                        if self.debug: print ""
+                        if self.verbose: print ""
 
                         self.EXE[J] = self.EXE[J] + self.EXA
-                        if self.debug: print "Loop 500: EXE[J]=> %s" % self.EXE[J]
+                        if self.verbose: print "Loop 500: EXE[J]=> %s" % self.EXE[J]
                         self.ER1 = self.R1[J] * self.CA11 + self.R2[J] * self.CA21 + self.R3[J] * self.CA31 + self.R4[J] * self.CA41 + self.R5[J] * self.CA51
                         self.ER2 = self.R1[J] * self.CA12 + self.R2[J] * self.CA22 + self.R3[J] * self.CA32 + self.R4[J] * self.CA42 + self.R5[J] * self.CA52
                         self.ER3 = self.R1[J] * self.CA13 + self.R2[J] * self.CA23 + self.R3[J] * self.CA33 + self.R4[J] * self.CA43 + self.R5[J] * self.CA53
                         self.ER4 = self.R1[J] * self.CA14 + self.R2[J] * self.CA24 + self.R3[J] * self.CA34 + self.R4[J] * self.CA44 + self.R5[J] * self.CA54
                         self.ER5 = self.R1[J] * self.CA15 + self.R2[J] * self.CA25 + self.R3[J] * self.CA35 + self.R4[J] * self.CA45 + self.R5[J] * self.CA55
-                        if self.debug: print "Loop 500: ER1=> %s" % self.ER1
-                        if self.debug: print "Loop 500: ER2=> %s" % self.ER2
-                        if self.debug: print "Loop 500: ER3=> %s" % self.ER3
-                        if self.debug: print "Loop 500: ER4=> %s" % self.ER4
-                        if self.debug: print "Loop 500: ER5=> %s" % self.ER5
+                        if self.verbose: print "Loop 500: ER1=> %s" % self.ER1
+                        if self.verbose: print "Loop 500: ER2=> %s" % self.ER2
+                        if self.verbose: print "Loop 500: ER3=> %s" % self.ER3
+                        if self.verbose: print "Loop 500: ER4=> %s" % self.ER4
+                        if self.verbose: print "Loop 500: ER5=> %s" % self.ER5
 
                         self.TESTT = 0.0
                         if abs(self.ER1.real) > self.TESTT: self.TESTT = abs(self.ER1.real)
-                        if self.debug: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
                         if abs(self.ER2.real) > self.TESTT: self.TESTT = abs(self.ER2.real)
-                        if self.debug: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
                         if abs(self.ER3.real) > self.TESTT: self.TESTT = abs(self.ER3.real)
-                        if self.debug: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
                         if abs(self.ER4.real) > self.TESTT: self.TESTT = abs(self.ER4.real)
-                        if self.debug: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
                         if abs(self.ER5.real) > self.TESTT: self.TESTT = abs(self.ER5.real)
-                        if self.debug: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
 
                         if abs(self.ER1.imag) > self.TESTT: self.TESTT = abs(self.ER1.imag)
-                        if self.debug: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
                         if abs(self.ER2.imag) > self.TESTT: self.TESTT = abs(self.ER2.imag)
-                        if self.debug: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
                         if abs(self.ER3.imag) > self.TESTT: self.TESTT = abs(self.ER3.imag)
-                        if self.debug: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
                         if abs(self.ER4.imag) > self.TESTT: self.TESTT = abs(self.ER4.imag)
-                        if self.debug: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
                         if abs(self.ER5.imag) > self.TESTT: self.TESTT = abs(self.ER5.imag)
-                        if self.debug: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
                         if self.TESTT < 1.0e-30: self.TESTT = 1.0
-                        if self.debug: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
 
-                        if self.debug: print ""
+                        if self.verbose: print ""
 
 
                         self.TEST = 0.0
                         self.FAC = abs(self.ER1) / self.TESTT
-                        if self.debug: print "Loop 500: FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500: FAC=> %s" % self.FAC
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.debug: print "Loop 500: TEST=> %s" % self.TEST
+                        if self.verbose: print "Loop 500: TEST=> %s" % self.TEST
                         self.FAC = abs(self.ER2) / self.TESTT
-                        if self.debug: print "Loop 500: FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500: FAC=> %s" % self.FAC
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.debug: print "Loop 500: TEST=> %s" % self.TEST
+                        if self.verbose: print "Loop 500: TEST=> %s" % self.TEST
                         self.FAC = abs(self.ER3) / self.TESTT
-                        if self.debug: print "Loop 500: FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500: FAC=> %s" % self.FAC
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.debug: print "Loop 500: TEST=> %s" % self.TEST
+                        if self.verbose: print "Loop 500: TEST=> %s" % self.TEST
                         self.FAC = abs(self.ER4) / self.TESTT
-                        if self.debug: print "Loop 500: FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500: FAC=> %s" % self.FAC
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.debug: print "Loop 500: TEST=> %s" % self.TEST
+                        if self.verbose: print "Loop 500: TEST=> %s" % self.TEST
                         self.FAC = abs(self.ER5) / self.TESTT
-                        if self.debug: print "Loop 500: FAC=> %s" % self.FAC
+                        if self.verbose: print "Loop 500: FAC=> %s" % self.FAC
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.debug: print "Loop 500: TEST=> %s" % self.TEST
+                        if self.verbose: print "Loop 500: TEST=> %s" % self.TEST
                         self.TEST = self.TEST * self.TESTT
-                        if self.debug: print "Loop 500: TEST=> %s" % self.TEST
+                        if self.verbose: print "Loop 500: TEST=> %s" % self.TEST
                         if self.TEST < 1.0e-30: self.TEST = 1.0
-                        if self.debug: print "Loop 500: TEST=> %s" % self.TEST
+                        if self.verbose: print "Loop 500: TEST=> %s" % self.TEST
                         self.XNORM = 1.0 / self.TEST
-                        if self.debug: print "Loop 500: XNORM=> %s" % self.XNORM
+                        if self.verbose: print "Loop 500: XNORM=> %s" % self.XNORM
                         self.EXA = -log(self.XNORM)
-                        if self.debug: print "Loop 500: EXA=> %s" % self.EXA
+                        if self.verbose: print "Loop 500: EXA=> %s" % self.EXA
 
                         self.R1[J] = self.ER1 * self.XNORM
                         self.R2[J] = self.ER2 * self.XNORM
                         self.R3[J] = self.ER3 * self.XNORM
                         self.R4[J] = self.ER4 * self.XNORM
                         self.R5[J] = self.ER5 * self.XNORM
-                        if self.debug: print "Loop 500: R1[J]=> %s" % self.R1[J]
-                        if self.debug: print "Loop 500: R2[J]=> %s" % self.R2[J]
-                        if self.debug: print "Loop 500: R3[J]=> %s" % self.R3[J]
-                        if self.debug: print "Loop 500: R4[J]=> %s" % self.R4[J]
-                        if self.debug: print "Loop 500: R5[J]=> %s" % self.R5[J]
+                        if self.verbose: print "Loop 500: R1[J]=> %s" % self.R1[J]
+                        if self.verbose: print "Loop 500: R2[J]=> %s" % self.R2[J]
+                        if self.verbose: print "Loop 500: R3[J]=> %s" % self.R3[J]
+                        if self.verbose: print "Loop 500: R4[J]=> %s" % self.R4[J]
+                        if self.verbose: print "Loop 500: R5[J]=> %s" % self.R5[J]
 
 
                         self.EXE[J] = self.EXE[J] + self.EXA
                         self.EXEL[J] = self.EXEL[J] + self.EXB
 
-                        if self.debug: print "Loop 500: EXE[J]=> %s" % self.EXE[J]
-                        if self.debug: print "Loop 500: EXEL[J]=> %s" % self.EXEL[J]
+                        if self.verbose: print "Loop 500: EXE[J]=> %s" % self.EXE[J]
+                        if self.verbose: print "Loop 500: EXEL[J]=> %s" % self.EXEL[J]
 
                         #
                         #   self.  PROPAGATION OF 4X4 HASKEL MATRIX UPWARD ++++++++++++>
                         #
                         self.EXL[J] = self.EXL[J] + self.EX
-                        if self.debug: print "Loop 500: EXL=> %s" % self.EXL[J]
+                        if self.verbose: print "Loop 500: EXL=> %s" % self.EXL[J]
                         self.AA11 = self.GAM[M][J] * self.COSP - self.GAMM1[M][J] * self.COSQ
                         self.AA12 = -self.GAMM1[M][J] * self.W + self.GAM[M][J] * self.Z / self.WVNO2[J]
                         self.AA13 = -(self.COSP - self.COSQ) / self.RHO[M]
@@ -1599,25 +1564,25 @@ class GreenFunctions():
                         self.AA43 = -self.AA21 / self.WVNO2[J]
                         self.AA44 = self.AA11
 
-                        if self.debug: print ""
-                        if self.debug: print "Loop 500: J=> %s" % J
-                        if self.debug: print "Loop 500: EXL[J]=> %s" % self.EXL[J]
-                        if self.debug: print "Loop 500: AA11=> %s" % self.AA11
-                        if self.debug: print "Loop 500: AA12=> %s" % self.AA12
-                        if self.debug: print "Loop 500: AA13=> %s" % self.AA13
-                        if self.debug: print "Loop 500: AA14=> %s" % self.AA14
-                        if self.debug: print "Loop 500: AA21=> %s" % self.AA21
-                        if self.debug: print "Loop 500: AA22=> %s" % self.AA22
-                        if self.debug: print "Loop 500: AA23=> %s" % self.AA23
-                        if self.debug: print "Loop 500: AA24=> %s" % self.AA24
-                        if self.debug: print "Loop 500: AA31=> %s" % self.AA31
-                        if self.debug: print "Loop 500: AA32=> %s" % self.AA32
-                        if self.debug: print "Loop 500: AA34=> %s" % self.AA34
-                        if self.debug: print "Loop 500: AA33=> %s" % self.AA33
-                        if self.debug: print "Loop 500: AA41=> %s" % self.AA41
-                        if self.debug: print "Loop 500: AA42=> %s" % self.AA42
-                        if self.debug: print "Loop 500: AA43=> %s" % self.AA43
-                        if self.debug: print "Loop 500: AA44=> %s" % self.AA44
+                        if self.verbose: print ""
+                        if self.verbose: print "Loop 500: J=> %s" % J
+                        if self.verbose: print "Loop 500: EXL[J]=> %s" % self.EXL[J]
+                        if self.verbose: print "Loop 500: AA11=> %s" % self.AA11
+                        if self.verbose: print "Loop 500: AA12=> %s" % self.AA12
+                        if self.verbose: print "Loop 500: AA13=> %s" % self.AA13
+                        if self.verbose: print "Loop 500: AA14=> %s" % self.AA14
+                        if self.verbose: print "Loop 500: AA21=> %s" % self.AA21
+                        if self.verbose: print "Loop 500: AA22=> %s" % self.AA22
+                        if self.verbose: print "Loop 500: AA23=> %s" % self.AA23
+                        if self.verbose: print "Loop 500: AA24=> %s" % self.AA24
+                        if self.verbose: print "Loop 500: AA31=> %s" % self.AA31
+                        if self.verbose: print "Loop 500: AA32=> %s" % self.AA32
+                        if self.verbose: print "Loop 500: AA34=> %s" % self.AA34
+                        if self.verbose: print "Loop 500: AA33=> %s" % self.AA33
+                        if self.verbose: print "Loop 500: AA41=> %s" % self.AA41
+                        if self.verbose: print "Loop 500: AA42=> %s" % self.AA42
+                        if self.verbose: print "Loop 500: AA43=> %s" % self.AA43
+                        if self.verbose: print "Loop 500: AA44=> %s" % self.AA44
                         #print "%s %s %s %s %s %s %s %s" %(self.ZX[J][0][0],self.AA11,self.ZX[J][0][1],self.AA21,self.ZX[J][0][2],self.AA31,self.ZX[J][0][3],self.AA41)
                         self.D11 = self.ZX[J][0][0] * self.AA11 + self.ZX[J][0][1] * self.AA21 + self.ZX[J][0][2] * self.AA31 + self.ZX[J][0][3] * self.AA41
                         self.D21 = self.ZX[J][1][0] * self.AA11 + self.ZX[J][1][1] * self.AA21 + self.ZX[J][1][2] * self.AA31 + self.ZX[J][1][3] * self.AA41
@@ -1636,24 +1601,24 @@ class GreenFunctions():
                         self.D34 = self.ZX[J][2][0] * self.AA14 + self.ZX[J][2][1] * self.AA24 + self.ZX[J][2][2] * self.AA34 + self.ZX[J][2][3] * self.AA44
                         self.D44 = self.ZX[J][3][0] * self.AA14 + self.ZX[J][3][1] * self.AA24 + self.ZX[J][3][2] * self.AA34 + self.ZX[J][3][3] * self.AA44
 
-                        if self.debug: print ""
-                        if self.debug: print "Loop 500: D11=> %s" % self.D11
-                        if self.debug: print "Loop 500: D12=> %s" % self.D12
-                        if self.debug: print "Loop 500: D13=> %s" % self.D13
-                        if self.debug: print "Loop 500: D14=> %s" % self.D14
-                        if self.debug: print "Loop 500: D21=> %s" % self.D21
-                        if self.debug: print "Loop 500: D22=> %s" % self.D22
-                        if self.debug: print "Loop 500: D23=> %s" % self.D23
-                        if self.debug: print "Loop 500: D24=> %s" % self.D24
-                        if self.debug: print "Loop 500: D31=> %s" % self.D31
-                        if self.debug: print "Loop 500: D32=> %s" % self.D32
-                        if self.debug: print "Loop 500: D33=> %s" % self.D33
-                        if self.debug: print "Loop 500: D34=> %s" % self.D34
-                        if self.debug: print "Loop 500: D41=> %s" % self.D41
-                        if self.debug: print "Loop 500: D42=> %s" % self.D42
-                        if self.debug: print "Loop 500: D43=> %s" % self.D43
-                        if self.debug: print "Loop 500: D44=> %s" % self.D44
-                        if self.debug: print ""
+                        if self.verbose: print ""
+                        if self.verbose: print "Loop 500: D11=> %s" % self.D11
+                        if self.verbose: print "Loop 500: D12=> %s" % self.D12
+                        if self.verbose: print "Loop 500: D13=> %s" % self.D13
+                        if self.verbose: print "Loop 500: D14=> %s" % self.D14
+                        if self.verbose: print "Loop 500: D21=> %s" % self.D21
+                        if self.verbose: print "Loop 500: D22=> %s" % self.D22
+                        if self.verbose: print "Loop 500: D23=> %s" % self.D23
+                        if self.verbose: print "Loop 500: D24=> %s" % self.D24
+                        if self.verbose: print "Loop 500: D31=> %s" % self.D31
+                        if self.verbose: print "Loop 500: D32=> %s" % self.D32
+                        if self.verbose: print "Loop 500: D33=> %s" % self.D33
+                        if self.verbose: print "Loop 500: D34=> %s" % self.D34
+                        if self.verbose: print "Loop 500: D41=> %s" % self.D41
+                        if self.verbose: print "Loop 500: D42=> %s" % self.D42
+                        if self.verbose: print "Loop 500: D43=> %s" % self.D43
+                        if self.verbose: print "Loop 500: D44=> %s" % self.D44
+                        if self.verbose: print ""
 
                         self.ZX[J][0][0] = self.D11
                         self.ZX[J][0][1] = self.D12
@@ -1717,10 +1682,10 @@ class GreenFunctions():
 
             #}}} BR
 
-            if self.debug: print "Loop 500 section CR => self.ISYST:%s" % self.ISYST
+            if self.verbose: print "Loop 500 section CR => self.ISYST:%s" % self.ISYST
             if self.ISYST != 1:
             #{{{ CR
-                if self.debug: print "\t ##### 300 #####"
+                if self.verbose: print "\t ##### 300 #####"
 
                 #
                 # SH-MOTION STARTS HERE +++++>
@@ -1728,38 +1693,38 @@ class GreenFunctions():
                 for J in range(self.IBLOCK):
                     self.S32E[J] = 2.0 * self.XKA2 * self.WVNO[J] / self.FRHO
                     self.S34E[J] = 4.0 * self.WVNO[J] * self.XKA2 / (self.FOURPI * self.XKB2)
-                    if self.debug: print ""
-                    if self.debug: print "Loop 500 300 18:   S32E[J]=> %s" % self.S32E[J]
-                    if self.debug: print "Loop 500 300 18:   S34E[J]=> %s" % self.S34E[J]
+                    if self.verbose: print ""
+                    if self.verbose: print "Loop 500 300 18:   S32E[J]=> %s" % self.S32E[J]
+                    if self.verbose: print "Loop 500 300 18:   S34E[J]=> %s" % self.S34E[J]
 
                 if self.JBDRY == 0:
                     for J in range(self.IBLOCK):
-                        #if self.debug: print "\nJ:%s \nMMAX:%s \nRB:%s \nRHO:%s" % (J,self.MMAX,self.RB,self.RHO)
+                        #if self.verbose: print "\nJ:%s \nMMAX:%s \nRB:%s \nRHO:%s" % (J,self.MMAX,self.RB,self.RHO)
                         self.R6[J] = (self.RHO[self.MMAX]) * self.RB[self.MMAX][J]
                         self.R7[J] = complex(1) / (self.B[self.MMAX] * self.ATNB[self.MMAX]) ** 2
-                        if self.debug: print ""
-                        if self.debug: print "Loop 500 300 19: R6[J]=> %s" % self.R6[J]
-                        if self.debug: print "Loop 500 300 19: R7[J]=> %s" % self.R7[J]
+                        if self.verbose: print ""
+                        if self.verbose: print "Loop 500 300 19: R6[J]=> %s" % self.R6[J]
+                        if self.verbose: print "Loop 500 300 19: R7[J]=> %s" % self.R7[J]
 
                 elif self.JBDRY < 0:
                     for J in range(self.IBLOCK):
                         self.R6[J] = complex(1)
                         self.R7[J] = complex()
-                        if self.debug: print ""
-                        if self.debug: print "Loop 500 300 20: R6[J]=> %s" % self.R6[J]
-                        if self.debug: print "Loop 500 300 20: R7[J]=> %s" % self.R7[J]
+                        if self.verbose: print ""
+                        if self.verbose: print "Loop 500 300 20: R6[J]=> %s" % self.R6[J]
+                        if self.verbose: print "Loop 500 300 20: R7[J]=> %s" % self.R7[J]
 
                 elif self.JBDRY > 0:
                     for J in range(self.IBLOCK):
                         self.R6[J] = complex()
                         self.R7[J] = complex(1)
-                        if self.debug: print ""
-                        if self.debug: print "Loop 500 300 21: R6[J]=> %s" % self.R6[J]
-                        if self.debug: print "Loop 500 300 21: R7[J]=> %s" % self.R7[J]
+                        if self.verbose: print ""
+                        if self.verbose: print "Loop 500 300 21: R6[J]=> %s" % self.R6[J]
+                        if self.verbose: print "Loop 500 300 21: R7[J]=> %s" % self.R7[J]
             #}}} CR
 
 
-            if self.debug: print "Loop 500 section DR => self.ISYST:%s" % self.ISYST
+            if self.verbose: print "Loop 500 section DR => self.ISYST:%s" % self.ISYST
             if self.ISYST != 3 and self.ISYST != 1:
             #{{{ DR
                 for M in range(self.MMAX+1):
@@ -1815,20 +1780,20 @@ class GreenFunctions():
 
             #}}} DR
 
-            if self.debug: print "Loop 500 section ER => self.ISYST:%s" % self.ISYST
+            if self.verbose: print "Loop 500 section ER => self.ISYST:%s" % self.ISYST
             if self.ISYST != 1:
             #{{{ ER
-                if self.debug: print " ##### AFTER 302 ####"
-                if self.debug: print "Loop 500:   LMAX=> %s" % self.LMAX
-                if self.debug: print "Loop 500:   MMAX=> %s" % self.MMAX
+                if self.verbose: print " ##### AFTER 302 ####"
+                if self.verbose: print "Loop 500:   LMAX=> %s" % self.LMAX
+                if self.verbose: print "Loop 500:   MMAX=> %s" % self.MMAX
 
                 for I in range(self.LMAX, self.MMAX):
 
-                    if self.debug: print "Loop 500:   I => %s" % I
+                    if self.verbose: print "Loop 500:   I => %s" % I
                     M = self.MMAX + self.LMAX - I -1
                     self.HH = self.RHO[M] * (self.B[M] * self.ATNB[M])**2
-                    if self.debug: print "Loop 500:   M => %s" % M
-                    if self.debug: print "Loop 500:   self.HH => %s" % self.HH
+                    if self.verbose: print "Loop 500:   M => %s" % M
+                    if self.verbose: print "Loop 500:   self.HH => %s" % self.HH
                     for J in range(self.IBLOCK):
                         self.YLI = self.YL[M][J] / self.HH
                         self.ZLI = self.ZL[M][J] * self.HH
@@ -1836,31 +1801,31 @@ class GreenFunctions():
                         self.D12 = self.R7[J]
                         self.R6[J] = self.D11 * self.COSQL[M][J] + self.D12 * self.ZLI
                         self.R7[J] = self.D11 * self.YLI + self.D12 * self.COSQL[M][J]
-                        if self.debug: print "Loop 500:     J => %s" % J
-                        if self.debug: print "Loop 500:     YLI=> %s" % self.YLI
-                        if self.debug: print "Loop 500:     ZLI=> %s" % self.ZLI
-                        if self.debug: print "Loop 500:     D11=> %s" % self.D11
-                        if self.debug: print "Loop 500:     D12=> %s" % self.D12
-                        if self.debug: print "Loop 500:     R6[J]=> %s" % self.R6[J]
-                        if self.debug: print "Loop 500:     R7[J]=> %s" % self.R7[J]
+                        if self.verbose: print "Loop 500:     J => %s" % J
+                        if self.verbose: print "Loop 500:     YLI=> %s" % self.YLI
+                        if self.verbose: print "Loop 500:     ZLI=> %s" % self.ZLI
+                        if self.verbose: print "Loop 500:     D11=> %s" % self.D11
+                        if self.verbose: print "Loop 500:     D12=> %s" % self.D12
+                        if self.verbose: print "Loop 500:     R6[J]=> %s" % self.R6[J]
+                        if self.verbose: print "Loop 500:     R7[J]=> %s" % self.R7[J]
 
 
-                if self.debug: print ""
+                if self.verbose: print ""
                 for J in range(self.IBLOCK):
                     self.X6[J] = self.R6[J]
                     self.X7[J] = self.R7[J]
-                    if self.debug: print "Loop 500:     J => %s" % J
-                    if self.debug: print "Loop 500:     X6[J]=> %s" % self.X6[J]
-                    if self.debug: print "Loop 500:     X7[J]=> %s" % self.X7[J]
+                    if self.verbose: print "Loop 500:     J => %s" % J
+                    if self.verbose: print "Loop 500:     X6[J]=> %s" % self.X6[J]
+                    if self.verbose: print "Loop 500:     X7[J]=> %s" % self.X7[J]
 
-                if self.debug: print ""
+                if self.verbose: print ""
                 for I in range(self.LMAX):
                 #for M in range(self.LMAX,-1,-1):
                     M = self.LMAX - I - 1
-                    if self.debug: print "Loop 500:   I => %s" % I
-                    if self.debug: print "Loop 500:   M => %s" % M
+                    if self.verbose: print "Loop 500:   I => %s" % I
+                    if self.verbose: print "Loop 500:   M => %s" % M
                     self.HH = self.RHO[M] * (self.B[M] * self.ATNB[M])**2
-                    if self.debug: print "Loop 500:   self.HH => %s" % self.HH
+                    if self.verbose: print "Loop 500:   self.HH => %s" % self.HH
                     for J in range(self.IBLOCK):
                         self.YLI = self.YL[M][J] / self.HH
                         self.ZLI = self.ZL[M][J] * self.HH
@@ -1876,24 +1841,24 @@ class GreenFunctions():
                         #print "Loop 500:        R6[J]=> %s" % self.R6[J]
                         #print "Loop 500:        R7[J]=> %s" % self.R7[J]
                 #print "Loop 500:   R6=> %s" % self.R6
-                #if self.debug: print "Loop 500:   M=> %s" % M
-                #if self.debug: print "Loop 500:   HH=> %s" % self.HH
-                #if self.debug: print "Loop 500:   YLI=> %s" % self.YLI
-                #if self.debug: print "Loop 500:   ZLI=> %s" % self.ZLI
-                #if self.debug: print "Loop 500:   D11=> %s" % self.D11
-                #if self.debug: print "Loop 500:   D12=> %s" % self.D12
-                #if self.debug: print "Loop 500:   R6=> %s" % self.R6
-                #if self.debug: print "Loop 500:   R7=> %s" % self.R7
+                #if self.verbose: print "Loop 500:   M=> %s" % M
+                #if self.verbose: print "Loop 500:   HH=> %s" % self.HH
+                #if self.verbose: print "Loop 500:   YLI=> %s" % self.YLI
+                #if self.verbose: print "Loop 500:   ZLI=> %s" % self.ZLI
+                #if self.verbose: print "Loop 500:   D11=> %s" % self.D11
+                #if self.verbose: print "Loop 500:   D12=> %s" % self.D12
+                #if self.verbose: print "Loop 500:   R6=> %s" % self.R6
+                #if self.verbose: print "Loop 500:   R7=> %s" % self.R7
             #}}} ER
 
-            if self.debug: print "Loop 500 section FR => self.ISYST:%s" % self.ISYST
+            if self.verbose: print "Loop 500 section FR => self.ISYST:%s" % self.ISYST
 
-            if self.debug: print ""
-            if self.debug: print "######## AFTER 301 #######"
+            if self.verbose: print ""
+            if self.verbose: print "######## AFTER 301 #######"
             #{{{ FR
-            if self.debug: print "Loop 500 28: IBLOCK => %s" % self.IBLOCK
+            if self.verbose: print "Loop 500 28: IBLOCK => %s" % self.IBLOCK
             for J in range(self.IBLOCK):
-                if self.debug: print "Loop 500 28: J => %s" % J
+                if self.verbose: print "Loop 500 28: J => %s" % J
                 self.FACT[J] = 0.0
                 self.ELJ = self.EXE[J] - self.EXL[J]
                 if self.ELJ < 55.0: self.FACT[J] = exp(-self.ELJ).real
@@ -1901,102 +1866,102 @@ class GreenFunctions():
                 self.ELJ = self.EXLL[J] - self.EXEL[J]
                 if self.SNGL[self.ELJ] > -40.0: self.FACT0 = exp(self.ELJ).real
                 self.FACX[J] = self.FACT0 * self.FACXX
-                if self.debug: print "Loop 500:   FACT[J]=> %s" % self.FACT[J]
-                if self.debug: print "Loop 500:   ELJ=> %s" % self.ELJ
-                if self.debug: print "Loop 500:   FACT0=> %s" % self.FACT0
-                if self.debug: print "Loop 500:   FACX[J]=> %s" % self.FACX[J]
+                if self.verbose: print "Loop 500:   FACT[J]=> %s" % self.FACT[J]
+                if self.verbose: print "Loop 500:   ELJ=> %s" % self.ELJ
+                if self.verbose: print "Loop 500:   FACT0=> %s" % self.FACT0
+                if self.verbose: print "Loop 500:   FACX[J]=> %s" % self.FACX[J]
 
-            if self.debug: print ""
+            if self.verbose: print ""
 
             if self.ISRC[0] == 1:
-                if self.debug: print ""
-                if self.debug: print "\t29"
+                if self.verbose: print ""
+                if self.verbose: print "\t29"
                 for J in range(self.IBLOCK):
                     self.G = self.S32[J] * self.Y21[J] + self.S34[J] * self.Y41[J]
                     self.G1[J] = -self.G * self.FACT[J] / self.R1[J]
-                    if self.debug: print "\t29:     G = > %s" % self.G
-                    if self.debug: print "\t29:     G1[J] = > %s" % self.G1[J]
+                    if self.verbose: print "\t29:     G = > %s" % self.G
+                    if self.verbose: print "\t29:     G1[J] = > %s" % self.G1[J]
 
             if self.ISRC[1] == 1:
-                if self.debug: print ""
-                if self.debug: print "\t30"
+                if self.verbose: print ""
+                if self.verbose: print "\t30"
                 for J in range(self.IBLOCK):
                     self.G = self.S32[J] * self.Y22[J] + self.S34[J] * self.Y42[J]
                     self.G2[J] = -self.G * self.FACT[J] / self.R1[J]
-                    if self.debug: print "\t30:     G = > %s" % self.G
-                    if self.debug: print "\t30:     G2[J] = > %s" % self.G2[J]
+                    if self.verbose: print "\t30:     G = > %s" % self.G
+                    if self.verbose: print "\t30:     G2[J] = > %s" % self.G2[J]
 
             if self.ISRC[2] == 1:
-                if self.debug: print ""
-                if self.debug: print "\t31"
+                if self.verbose: print ""
+                if self.verbose: print "\t31"
                 for J in range(self.IBLOCK):
                     self.G = self.S21[J] * self.Y11[J]
                     self.G3[J] = -self.G * self.FACT[J] / self.R1[J]
-                    if self.debug: print "\t31:     G = > %s" % self.G
-                    if self.debug: print "\t31:     G3[J] = > %s" % self.G3[J]
+                    if self.verbose: print "\t31:     G = > %s" % self.G
+                    if self.verbose: print "\t31:     G3[J] = > %s" % self.G3[J]
 
             if self.ISRC[3] == 1:
-                if self.debug: print ""
-                if self.debug: print "\t32"
+                if self.verbose: print ""
+                if self.verbose: print "\t32"
                 for J in range(self.IBLOCK):
                     self.G = self.S21[J] * self.Y12[J]
                     self.G4[J]= -self.G * self.FACT[J] / self.R1[J]
-                    if self.debug: print "\t32:     G = > %s" % self.G
-                    if self.debug: print "\t32:     G4[J] = > %s" % self.G4[J]
+                    if self.verbose: print "\t32:     G = > %s" % self.G
+                    if self.verbose: print "\t32:     G4[J] = > %s" % self.G4[J]
 
             if self.ISRC[4] == 1:
-                if self.debug: print ""
-                if self.debug: print "\t33"
+                if self.verbose: print ""
+                if self.verbose: print "\t33"
                 for J in range(self.IBLOCK):
                     self.G = self.S14[J] * self.Y41[J]
                     self.G5[J] = -self.G * self.FACT[J] / self.R1[J]
-                    if self.debug: print "\t33:     G = > %s" % self.G
-                    if self.debug: print "\t33:     G5[J] = > %s" % self.G5[J]
+                    if self.verbose: print "\t33:     G = > %s" % self.G
+                    if self.verbose: print "\t33:     G5[J] = > %s" % self.G5[J]
 
             if self.ISRC[5] == 1:
-                if self.debug: print ""
-                if self.debug: print "\t34"
+                if self.verbose: print ""
+                if self.verbose: print "\t34"
                 for J in range(self.IBLOCK):
                     self.G = self.S14[J] * self.Y42[J]
                     self.G6[J] = -self.G * self.FACT[J] / self.R1[J]
-                    if self.debug: print "\t34:     G = > %s" % self.G
-                    if self.debug: print "\t34:     G6[J] = > %s" % self.G6[J]
+                    if self.verbose: print "\t34:     G = > %s" % self.G
+                    if self.verbose: print "\t34:     G6[J] = > %s" % self.G6[J]
 
             if self.ISRC[6] == 1:
-                if self.debug: print ""
-                if self.debug: print "\t35"
+                if self.verbose: print ""
+                if self.verbose: print "\t35"
                 for J in range(self.IBLOCK):
                     self.G = self.S32E[J] * self.Y21[J] + self.S34E[J] * self.Y41[J]
                     self.G7[J] = -self.G * self.FACT[J] / self.R1[J]
-                    if self.debug: print "\t35:     Y41[J] = > %s" % self.Y41[J]
-                    if self.debug: print "\t35:     S34E[J] = > %s" % self.S34E[J]
-                    if self.debug: print "\t35:     Y21[J] = > %s" % self.Y21[J]
-                    if self.debug: print "\t35:     S32E[J] = > %s" % self.S32E[J]
-                    if self.debug: print "\t35:     G = > %s" % self.G
-                    if self.debug: print "\t35:     FACT[J] = > %s" % self.FACT[J]
-                    if self.debug: print "\t35:     R1[J] = > %s" % self.R1[J]
-                    if self.debug: print "\t35:     G7[J] = > %s" % self.G7[J]
+                    if self.verbose: print "\t35:     Y41[J] = > %s" % self.Y41[J]
+                    if self.verbose: print "\t35:     S34E[J] = > %s" % self.S34E[J]
+                    if self.verbose: print "\t35:     Y21[J] = > %s" % self.Y21[J]
+                    if self.verbose: print "\t35:     S32E[J] = > %s" % self.S32E[J]
+                    if self.verbose: print "\t35:     G = > %s" % self.G
+                    if self.verbose: print "\t35:     FACT[J] = > %s" % self.FACT[J]
+                    if self.verbose: print "\t35:     R1[J] = > %s" % self.R1[J]
+                    if self.verbose: print "\t35:     G7[J] = > %s" % self.G7[J]
             #exit()
 
             if self.ISRC[7] == 1:
-                if self.debug: print ""
-                if self.debug: print "\t36"
+                if self.verbose: print ""
+                if self.verbose: print "\t36"
                 for J in range(self.IBLOCK):
                     self.G = self.S32E[J] * self.Y22[J] + self.S34E[J] * self.Y42[J]
                     self.G8[J] = -self.G * self.FACT[J] / self.R1[J]
-                    if self.debug: print "\t36:     G = > %s" % self.G
-                    if self.debug: print "\t36:     FACT[J] = > %s" % self.FACT[J]
-                    if self.debug: print "\t36:     R1[J] = > %s" % self.R1[J]
-                    if self.debug: print "\t36:     G8[J] = > %s" % self.G8[J]
+                    if self.verbose: print "\t36:     G = > %s" % self.G
+                    if self.verbose: print "\t36:     FACT[J] = > %s" % self.FACT[J]
+                    if self.verbose: print "\t36:     R1[J] = > %s" % self.R1[J]
+                    if self.verbose: print "\t36:     G8[J] = > %s" % self.G8[J]
 
             if self.ISRC[8] == 1:
-                if self.debug: print ""
-                if self.debug: print "\t37"
+                if self.verbose: print ""
+                if self.verbose: print "\t37"
                 for J in range(self.IBLOCK):
                     self.G = 2.0 * self.X6[J] / self.RHO[self.LMAX]
                     self.G9[J] = self.G * self.FACX[J] / ( self.R6[J] * self.XKK )
-                    if self.debug: print "\t37:     G = > %s" % self.G
-                    if self.debug: print "\t37:     G9[J] = > %s" % self.G9[J]
+                    if self.verbose: print "\t37:     G = > %s" % self.G
+                    if self.verbose: print "\t37:     G9[J] = > %s" % self.G9[J]
 
 
             if self.ISRC[9] == 1:
@@ -2007,567 +1972,547 @@ class GreenFunctions():
             self.N11 = (self.NBLK - 1) * self.IB + 1
             self.N22 = self.N11 + self.IBLOCK - 1
 
-            #print "Loop 500:   G=> %s" % self.G
-            #print "Loop 500:   G1=> %s" % self.G1
-            #print "Loop 500:   G2=> %s" % self.G2
-            #print "Loop 500:   G3=> %s" % self.G3
-            #print "Loop 500:   G4=> %s" % self.G4
-            #print "Loop 500:   G5=> %s" % self.G5
-            #print "Loop 500:   G6=> %s" % self.G6
-            #print "Loop 500:   G7=> %s" % self.G7
-            #print "Loop 500:   G8=> %s" % self.G8
-            #print "Loop 500:   G9=> %s" % self.G9
-            #print "Loop 500:   G10=> %s" % self.G10
-            #print "Loop 500:   N11=> %s" % self.N11
-            #print "Loop 500:   N22=> %s" % self.N22
-            #exit()
 
-            if self.debug: print "self.NRANGE: %s" % self.NRANGE
-            for I in range(self.NRANGE):
-                if self.debug: print "loop WVINT I: %s" % I
-                self.R = self.RANGE[I]
-                self.ICN = self.ICNT[I]
-                if self.debug: print "Loop 600 [ sub WVINT ]:   R=> %s" % self.R
-                if self.debug: print "Loop 600 [ sub WVINT ]:   ICN=> %s" % self.ICN
+            self.ICN = self.ICNT[1]
+            if self.verbose: print "Loop 600 [ sub WVINT ]:   ICN=> %s" % self.ICN
 
-                if self.debug: print "Loop 600:   WVNO=> %s" % self.WVNO
-                if self.debug: print "Loop 600:   R=> %s" % self.RANGE[I]
-                if self.debug: print "Loop 600:   NBLK=> %s" % self.NBLOCK
-                if self.debug: print "Loop 600:   IS=> %s" % self.NBLOCK
-                if self.debug: print "Loop 600:   IBLOCK=> %s" % self.IBLOCK
-                if self.debug: print "Loop 600:   ICN=> %s" % self.ICNT[I]
-                if self.debug: print "Loop 600:   ISRC=> %s" % self.ISRC
-                if self.debug: print "Loop 600:   N11=> %s" % self.N11
-                if self.debug: print "Loop 600:   N22=> %s" % self.N22
-                if self.debug: print "Loop 600:   I=> %s" % I
+            if self.verbose: print "Loop 600:   WVNO=> %s" % self.WVNO
+            if self.verbose: print "Loop 600:   R=> %s" % self.DISTANCE
+            if self.verbose: print "Loop 600:   NBLK=> %s" % self.NBLOCK
+            if self.verbose: print "Loop 600:   IS=> %s" % self.NBLOCK
+            if self.verbose: print "Loop 600:   IBLOCK=> %s" % self.IBLOCK
+            if self.verbose: print "Loop 600:   ICN=> %s" % self.ICNT[2]
+            if self.verbose: print "Loop 600:   ISRC=> %s" % self.ISRC
+            if self.verbose: print "Loop 600:   N11=> %s" % self.N11
+            if self.verbose: print "Loop 600:   N22=> %s" % self.N22
+            if self.verbose: print "Loop 600:   I=> %s" % I
 
-                if self.debug: print ""
+            if self.verbose: print ""
 
-                #{{{ sub WVINT
-                #
-                #SUBROUTINE WVINT(WVNO,R,NBL,IS,IBL,ICNT,ISRC,N11,N22,II)
-                #     ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-                #
-                #     R     = DISTANCES IN KM FOR WAVENUMBER INTEGRATION
-                #     NBL   = INDEX AT WHICH [KR] BECOMES LESS TAN AND EQUAL TO 3.0
-                #     IBL   = NO OF WAVENUMBERS TO BE INTEGRETAED. LESS THN IB
-                #     ISRC  = CONTROL FOR REQUIRED COMPONENT
-                #     N11   = INDEX FOR FIRST WAVENUMBER IN ARRAY
-                #     N22   = INDEX FOR LAST  WAVENUMBER IN ARRAY
-                #     II    = INDEX FOR DISTANCES
-                #
-                #     PROGRAMMED BY CHANDAN K. SAIKIA
-                #     ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            #{{{ sub WVINT
+            #
+            #SUBROUTINE WVINT(WVNO,R,NBL,IS,IBL,ICNT,ISRC,N11,N22,II)
+            #     ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            #
+            #     R     = DISTANCES IN KM FOR WAVENUMBER INTEGRATION
+            #     NBL   = INDEX AT WHICH [KR] BECOMES LESS TAN AND EQUAL TO 3.0
+            #     IBL   = NO OF WAVENUMBERS TO BE INTEGRETAED. LESS THN IB
+            #     ISRC  = CONTROL FOR REQUIRED COMPONENT
+            #     N11   = INDEX FOR FIRST WAVENUMBER IN ARRAY
+            #     N22   = INDEX FOR LAST  WAVENUMBER IN ARRAY
+            #     II    = INDEX FOR DISTANCES
+            #
+            #     PROGRAMMED BY CHANDAN K. SAIKIA
+            #     ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-                self.IB = 100
-                self.NR = 100
-                self.PI = acos(-1.0)
-                self.NN1 = 1
+            self.IB = 100
+            self.NR = 100
+            self.PI = acos(-1.0)
+            self.NN1 = 1
 
-                if self.debug: print ""
-                if self.debug: print "++++++++++++++++++++ WVINT ++++++++++++++++++"
-                for J in range(self.IB):
-                    self.SUME[J] = complex()
-                    self.SUMC[J] = complex()
+            if self.verbose: print ""
+            if self.verbose: print "++++++++++++++++++++ WVINT ++++++++++++++++++"
+            for J in range(self.IB):
+                self.SUME[J] = complex()
+                self.SUMC[J] = complex()
 
-                #{{{ INIT
-                #print 'NBL = %s' % self.NBLK
-                if self.debug: print "\t WVINT      NBLK => %s " % self.NBLK
-                if self.NBLK == 1:
-                    self.NNN1 = 3
-                    if self.debug: print "\t WVINT      NNN1 => %s " % self.NNN1
-                    if self.debug: print "\t WVINT      IASYMP => %s " % self.IASYMP
-                    #     FIND THE ASYMPTOTIC COEFFICIENTS ++++ NECESSARY ONLY WHEN IASYMP
-                    #     IS .TRUE.                        +++++++++++++>
-                    if self.IASYMP:
+            #{{{ INIT
+            #print 'NBL = %s' % self.NBLK
+            if self.verbose: print "\t WVINT      NBLK => %s " % self.NBLK
+            if self.NBLK == 1:
+                self.NNN1 = 3
+                if self.verbose: print "\t WVINT      NNN1 => %s " % self.NNN1
+                if self.verbose: print "\t WVINT      IASYMP => %s " % self.IASYMP
+                #     FIND THE ASYMPTOTIC COEFFICIENTS ++++ NECESSARY ONLY WHEN IASYMP
+                #     IS .TRUE.                        +++++++++++++>
+                if self.IASYMP:
 
-                        #{{{ setup(R)
-                        #----------------------------------------------------------
-                        #       JNKM = R INTEGRAL EXP(-KH) KSUP M J SUB N (KR) DK
-                        #       THE R IN FRONT TAKES INTO ACCOUNT THE 1/R IN THE
-                        #       DO 300 OF SUBROUTINE WVINT
-                        #----------------------------------------------------------
+                    #{{{ setup(R)
+                    #----------------------------------------------------------
+                    #       JNKM = R INTEGRAL EXP(-KH) KSUP M J SUB N (KR) DK
+                    #       THE R IN FRONT TAKES INTO ACCOUNT THE 1/R IN THE
+                    #       DO 300 OF SUBROUTINE WVINT
+                    #----------------------------------------------------------
 
-                        if self.debug: print ""
-                        if self.debug: print "%%%%%%%%%%%%%%%%%% SETUP %%%%%%%%%%%%%%%%%%%%%"
-                        if self.debug: print "\t SETUP:   R       => %s" % self.R    
-                        self.DIST  = csqrt(self.R**2 + self.DEPTH**2).real
-                        self.DIST3 = self.DIST**3
-                        self.DIST5 = self.DIST**5
-                        self.DIST7 = self.DIST**7
-                        self.RZ    = self.R*self.DEPTH
-                        self.Z2    = self.DEPTH*self.DEPTH
-                        self.R2    = self.R*self.R
-                        self.R3    = self.R*self.R2
-                        self.Z3    = self.DEPTH*self.Z2
-                        self.RZ2   = self.R*self.Z2
-                        self.RZ3   = self.R*self.Z3
-                        self.ZOR   = self.DEPTH/self.DIST
-                        self.ZOR2  = self.ZOR*self.ZOR
-                        self.ZOR3  = self.ZOR*self.ZOR2
-                        self.J0K0  = self.R/self.DIST
-                        self.J0K1  = self.RZ/self.DIST3
-                        self.J0K2  = (2.0 * self.RZ2 - self.R3) / self.DIST5
-                        self.J0K3  = (6.0 * self.RZ3 - 9.0 * self.DEPTH * self.R3) / self.DIST7
-                        self.J1K0  = 1.0 - self.DEPTH / self.DIST
-                        self.J1K1  = self.R2 / self.DIST3
-                        self.J1K2  = 3.0 * self.DEPTH * self.R2 / self.DIST5
-                        self.J1K3  = 3.0 * self.R2 * (4.0 * self.Z2 - self.R2) / self.DIST7
-                        self.J2K0  = ( 1.0 - 2.0 * self.ZOR + self.ZOR2 ) * (self.DIST / self.R)
-                        self.J2K1  = (2.0 - 3.0 * self.ZOR + self.ZOR3) / self.R
-                        self.J2K2  = 3.0 * self.R3 / self.DIST5
-                        self.J2K3  = 15.0 * self.DEPTH * self.R3 / self.DIST7
+                    if self.verbose: print ""
+                    if self.verbose: print "%%%%%%%%%%%%%%%%%% SETUP %%%%%%%%%%%%%%%%%%%%%"
+                    if self.verbose: print "\t SETUP:   R       => %s" % self.DISTANCE    
+                    self.DIST  = csqrt(self.DISTANCE**2 + self.DEPTH**2).real
+                    self.DIST3 = self.DIST**3
+                    self.DIST5 = self.DIST**5
+                    self.DIST7 = self.DIST**7
+                    self.RZ    = self.DISTANCE*self.DEPTH
+                    self.Z2    = self.DEPTH*self.DEPTH
+                    self.R2    = self.DISTANCE*self.DISTANCE
+                    self.R3    = self.DISTANCE*self.R2
+                    self.Z3    = self.DEPTH*self.Z2
+                    self.RZ2   = self.DISTANCE*self.Z2
+                    self.RZ3   = self.DISTANCE*self.Z3
+                    self.ZOR   = self.DEPTH/self.DIST
+                    self.ZOR2  = self.ZOR*self.ZOR
+                    self.ZOR3  = self.ZOR*self.ZOR2
+                    self.J0K0  = self.DISTANCE/self.DIST
+                    self.J0K1  = self.RZ/self.DIST3
+                    self.J0K2  = (2.0 * self.RZ2 - self.R3) / self.DIST5
+                    self.J0K3  = (6.0 * self.RZ3 - 9.0 * self.DEPTH * self.R3) / self.DIST7
+                    self.J1K0  = 1.0 - self.DEPTH / self.DIST
+                    self.J1K1  = self.R2 / self.DIST3
+                    self.J1K2  = 3.0 * self.DEPTH * self.R2 / self.DIST5
+                    self.J1K3  = 3.0 * self.R2 * (4.0 * self.Z2 - self.R2) / self.DIST7
+                    self.J2K0  = ( 1.0 - 2.0 * self.ZOR + self.ZOR2 ) * (self.DIST / self.DISTANCE)
+                    self.J2K1  = (2.0 - 3.0 * self.ZOR + self.ZOR3) / self.DISTANCE
+                    self.J2K2  = 3.0 * self.R3 / self.DIST5
+                    self.J2K3  = 15.0 * self.DEPTH * self.R3 / self.DIST7
 
-                        if self.debug: print "\t SETUP:   DIST     => %s" % self.DIST  
-                        if self.debug: print "\t SETUP:   DIST3    => %s" % self.DIST3 
-                        if self.debug: print "\t SETUP:   DIST5    => %s" % self.DIST5 
-                        if self.debug: print "\t SETUP:   DIST7    => %s" % self.DIST7 
-                        if self.debug: print "\t SETUP:   RZ       => %s" % self.RZ    
-                        if self.debug: print "\t SETUP:   Z2       => %s" % self.Z2    
-                        if self.debug: print "\t SETUP:   R2       => %s" % self.R2    
-                        if self.debug: print "\t SETUP:   R3       => %s" % self.R3    
-                        if self.debug: print "\t SETUP:   Z3       => %s" % self.Z3    
-                        if self.debug: print "\t SETUP:   RZ2      => %s" % self.RZ2   
-                        if self.debug: print "\t SETUP:   RZ3      => %s" % self.RZ3   
-                        if self.debug: print "\t SETUP:   ZOR      => %s" % self.ZOR   
-                        if self.debug: print "\t SETUP:   ZOR2     => %s" % self.ZOR2  
-                        if self.debug: print "\t SETUP:   ZOR3     => %s" % self.ZOR3  
-                        if self.debug: print "\t SETUP:   J0K0     => %s" % self.J0K0  
-                        if self.debug: print "\t SETUP:   J0K1     => %s" % self.J0K1  
-                        if self.debug: print "\t SETUP:   J0K2     => %s" % self.J0K2  
-                        if self.debug: print "\t SETUP:   J0K3     => %s" % self.J0K3  
-                        if self.debug: print "\t SETUP:   J1K0     => %s" % self.J1K0  
-                        if self.debug: print "\t SETUP:   J1K1     => %s" % self.J1K1  
-                        if self.debug: print "\t SETUP:   J1K2     => %s" % self.J1K2  
-                        if self.debug: print "\t SETUP:   J1K3     => %s" % self.J1K3  
-                        if self.debug: print "\t SETUP:   J2K0     => %s" % self.J2K0  
-                        if self.debug: print "\t SETUP:   J2K1     => %s" % self.J2K1  
-                        if self.debug: print "\t SETUP:   J2K2     => %s" % self.J2K2  
-                        if self.debug: print "\t SETUP:   J2K3     => %s" % self.J2K3  
+                    if self.verbose: print "\t SETUP:   DIST     => %s" % self.DIST  
+                    if self.verbose: print "\t SETUP:   DIST3    => %s" % self.DIST3 
+                    if self.verbose: print "\t SETUP:   DIST5    => %s" % self.DIST5 
+                    if self.verbose: print "\t SETUP:   DIST7    => %s" % self.DIST7 
+                    if self.verbose: print "\t SETUP:   RZ       => %s" % self.RZ    
+                    if self.verbose: print "\t SETUP:   Z2       => %s" % self.Z2    
+                    if self.verbose: print "\t SETUP:   R2       => %s" % self.R2    
+                    if self.verbose: print "\t SETUP:   R3       => %s" % self.R3    
+                    if self.verbose: print "\t SETUP:   Z3       => %s" % self.Z3    
+                    if self.verbose: print "\t SETUP:   RZ2      => %s" % self.RZ2   
+                    if self.verbose: print "\t SETUP:   RZ3      => %s" % self.RZ3   
+                    if self.verbose: print "\t SETUP:   ZOR      => %s" % self.ZOR   
+                    if self.verbose: print "\t SETUP:   ZOR2     => %s" % self.ZOR2  
+                    if self.verbose: print "\t SETUP:   ZOR3     => %s" % self.ZOR3  
+                    if self.verbose: print "\t SETUP:   J0K0     => %s" % self.J0K0  
+                    if self.verbose: print "\t SETUP:   J0K1     => %s" % self.J0K1  
+                    if self.verbose: print "\t SETUP:   J0K2     => %s" % self.J0K2  
+                    if self.verbose: print "\t SETUP:   J0K3     => %s" % self.J0K3  
+                    if self.verbose: print "\t SETUP:   J1K0     => %s" % self.J1K0  
+                    if self.verbose: print "\t SETUP:   J1K1     => %s" % self.J1K1  
+                    if self.verbose: print "\t SETUP:   J1K2     => %s" % self.J1K2  
+                    if self.verbose: print "\t SETUP:   J1K3     => %s" % self.J1K3  
+                    if self.verbose: print "\t SETUP:   J2K0     => %s" % self.J2K0  
+                    if self.verbose: print "\t SETUP:   J2K1     => %s" % self.J2K1  
+                    if self.verbose: print "\t SETUP:   J2K2     => %s" % self.J2K2  
+                    if self.verbose: print "\t SETUP:   J2K3     => %s" % self.J2K3  
 
-                        if self.debug: print "%%%%%%%%%%%%%%%%%% SETUP %%%%%%%%%%%%%%%%%%%%%"
-                        if self.debug: print ""
+                    if self.verbose: print "%%%%%%%%%%%%%%%%%% SETUP %%%%%%%%%%%%%%%%%%%%%"
+                    if self.verbose: print ""
 
 
-                        #}}} setup(R)
+                    #}}} setup(R)
 
-                        if I == 0:
-                        #{{{
-                            if self.debug: print ""
-                            self.W1 = self.WVNO[0].real
-                            self.W2 = self.WVNO[1].real
-                            if self.debug: print "\t WVINT:   W1       => %s" % self.W1
-                            if self.debug: print "\t WVINT:   W2       => %s" % self.W2
-                            if self.ISRC[0] == 1: self._solu300(self.G1[0],self.G1[1],self.W1,self.W2,0)
-                            if self.ISRC[1] == 1: self._solu200(self.G2[0],self.G2[1],self.W1,self.W2,1)
-                            if self.ISRC[2] == 1: self._solu300(self.G3[0],self.G3[1],self.W1,self.W2,2)
-                            if self.ISRC[3] == 1: self._solu200(self.G4[0],self.G4[1],self.W1,self.W2,3)
-                            if self.ISRC[4] == 1: self._solu300(self.G5[0],self.G5[1],self.W1,self.W2,4)
-                            if self.ISRC[5] == 1: self._solu200(self.G6[0],self.G6[1],self.W1,self.W2,5)
-                            if self.ISRC[6] == 1: self._solu300(self.G7[0],self.G7[1],self.W1,self.W2,6)
-                            if self.ISRC[7] == 1: self._solu200(self.G8[0],self.G8[1],self.W1,self.W2,7)
-                            if self.ISRC[8] == 1: self._solu200(self.G9[0],self.G9[1],self.W1,self.W2,8)
-                            if self.ISRC[9] == 1: self._solu200(self.G10[0],self.G10[1],self.W1,self.W2,9)
+                    if I == 0:
+                    #{{{
+                        if self.verbose: print ""
+                        self.W1 = self.WVNO[0].real
+                        self.W2 = self.WVNO[1].real
+                        if self.verbose: print "\t WVINT:   W1       => %s" % self.W1
+                        if self.verbose: print "\t WVINT:   W2       => %s" % self.W2
+                        if self.ISRC[0] == 1: self._solu300(self.G1[0],self.G1[1],self.W1,self.W2,0)
+                        if self.ISRC[1] == 1: self._solu200(self.G2[0],self.G2[1],self.W1,self.W2,1)
+                        if self.ISRC[2] == 1: self._solu300(self.G3[0],self.G3[1],self.W1,self.W2,2)
+                        if self.ISRC[3] == 1: self._solu200(self.G4[0],self.G4[1],self.W1,self.W2,3)
+                        if self.ISRC[4] == 1: self._solu300(self.G5[0],self.G5[1],self.W1,self.W2,4)
+                        if self.ISRC[5] == 1: self._solu200(self.G6[0],self.G6[1],self.W1,self.W2,5)
+                        if self.ISRC[6] == 1: self._solu300(self.G7[0],self.G7[1],self.W1,self.W2,6)
+                        if self.ISRC[7] == 1: self._solu200(self.G8[0],self.G8[1],self.W1,self.W2,7)
+                        if self.ISRC[8] == 1: self._solu200(self.G9[0],self.G9[1],self.W1,self.W2,8)
+                        if self.ISRC[9] == 1: self._solu200(self.G10[0],self.G10[1],self.W1,self.W2,9)
 
-                            if self.debug: print "Done with SOLU"
+                        if self.verbose: print "Done with SOLU"
 
-                            for J in range(10):
-                                if self.debug: print "\t WVINT 101: J => %s" % J
-                                if self.debug: print "\t WVINT 101: ISRC[J] => %s" % self.ISRC[J]
-                                if self.ISRC[J] != 1: 
-                                    self.AA[J] = complex()
-                                    self.BB[J] = complex()
-                                    self.CC[J] = complex()
-                                if self.debug: print "WVINT  101 :   AA[J]=> %s" % self.AA[J]
-                                if self.debug: print "WVINT  101 :   BB[J]=> %s" % self.BB[J]
-                                if self.debug: print "WVINT  101 :   CC[J]=> %s" % self.CC[J]
-                            #exit()
-                        #}}}
+                        for J in range(10):
+                            if self.verbose: print "\t WVINT 101: J => %s" % J
+                            if self.verbose: print "\t WVINT 101: ISRC[J] => %s" % self.ISRC[J]
+                            if self.ISRC[J] != 1: 
+                                self.AA[J] = complex()
+                                self.BB[J] = complex()
+                                self.CC[J] = complex()
+                            if self.verbose: print "WVINT  101 :   AA[J]=> %s" % self.AA[J]
+                            if self.verbose: print "WVINT  101 :   BB[J]=> %s" % self.BB[J]
+                            if self.verbose: print "WVINT  101 :   CC[J]=> %s" % self.CC[J]
+                        #exit()
+                    #}}}
 
-                        # INITIALIZE THE INTEGRALS +++  NECESSARY FOR IASYMP.EQ.TRUE
-                        #{{{
-                        self.SMM[I][0] = self.AA[0] * self.J0K0 + self.BB[0] * self.J0K1 + self.CC[0] * self.J0K2
-                        self.SMM[I][1] = self.AA[1] * self.J1K1 + self.BB[1] * self.J1K2 + self.CC[1] * self.J1K3
-                        self.SMM[I][2] = self.AA[2] * self.J1K0 + self.BB[2] * self.J1K1 + self.CC[2] * self.J1K2 
-                        if self.debug: print "\t WVINT after 101 SMM() => %s" % self.SMM[I][0]
-                        if self.debug: print "\t WVINT after 101 SMM() => %s" % self.SMM[I][1]
-                        if self.debug: print "\t WVINT after 101 SMM() => %s" % self.SMM[I][2]
+                    # INITIALIZE THE INTEGRALS +++  NECESSARY FOR IASYMP.EQ.TRUE
+                    #{{{
+                    self.SMM[1][0] = self.AA[0] * self.J0K0 + self.BB[0] * self.J0K1 + self.CC[0] * self.J0K2
+                    self.SMM[1][1] = self.AA[1] * self.J1K1 + self.BB[1] * self.J1K2 + self.CC[1] * self.J1K3
+                    self.SMM[1][2] = self.AA[2] * self.J1K0 + self.BB[2] * self.J1K1 + self.CC[2] * self.J1K2 
+                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][0]
+                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][1]
+                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][2]
 
-                        if self.ISRC[8] == 1 and self.ISRC[3] == 1: 
-                            self.SUMD = (self.AA[3] + self.AA[8]) * self.J1K0 + (self.BB[3] + self.BB[8]) * self.J1K1 + (self.CC[3] + self.CC[8]) * self.J1K2
-                        else:
-                            self.SUMD=complex(0.0,0.0)
-
-                        if self.debug: print "\t WVINT after 101 SUMD() => %s" % self.SUMD
-                        self.SUMD= -self.SUMD / self.R
-                        if self.debug: print "\t WVINT after 101 SUMD() => %s" % self.SUMD
-                        self.SMM[I][3] = self.SUMD + self.AA[3] * self.J0K1 + self.BB[3] * self.J0K2 + self.CC[3] * self.J0K3
-                        self.SMM[I][4] = self.SUMD + self.AA[8] * self.J0K1 + self.BB[8] * self.J0K2 + self.CC[8] * self.J0K3
-                        self.SMM[I][5] = self.AA[4] * self.J2K0 + self.BB[4] * self.J2K1 + self.CC[4] * self.J2K2
-                        if self.debug: print "\t WVINT after 101 SMM() => %s" % self.SMM[I][3]
-                        if self.debug: print "\t WVINT after 101 SMM() => %s" % self.SMM[I][4]
-                        if self.debug: print "\t WVINT after 101 SMM() => %s" % self.SMM[I][5]
-
-                        if self.ISRC[5] == 1 and self.ISRC[9] == 1:
-                            self.SUMD = (self.AA[5] + self.AA[9]) * self.J2K0 + (self.BB[5] + self.BB[9]) * self.J2K1 + (self.CC[5] + self.CC[9]) * self.J2K2
-                        else:
-                            self.SUMD = complex(0.0,0.0)
-
-                        if self.debug: print "\t WVINT after 101 SUMD() => %s" % self.SUMD
-                        self.SUMD = -2.0 * self.SUMD / self.R
-                        if self.debug: print "\t WVINT after 101 SUMD() => %s" % self.SUMD
-                        self.SMM[I][6] = self.SUMD + self.AA[5] * self.J1K1 + self.BB[5] * self.J1K2 + self.CC[5] * self.J1K3
-                        self.SMM[I][7] = self.SUMD + self.AA[9] * self.J1K1 + self.BB[9] * self.J1K2 + self.CC[9] * self.J1K3
-                        self.SMM[I][8] = self.AA[6] * self.J0K0 + self.BB[6] * self.J0K1 + self.CC[6] * self.J0K2
-                        self.SMM[I][9] = self.AA[7] * self.J1K1 + self.BB[7] * self.J1K2 + self.CC[7] * self.J1K3
-                        if self.debug: print "\t WVINT after 101 SMM() => %s" % self.SMM[I][6]
-                        if self.debug: print "\t WVINT after 101 SMM() => %s" % self.SMM[I][7]
-                        if self.debug: print "\t WVINT after 101 SMM() => %s" % self.SMM[I][8]
-                        if self.debug: print "\t WVINT after 101 SMM() => %s" % self.SMM[I][9]
-
-                        if self.debug: print ""
-                        #}}}
-
+                    if self.ISRC[8] == 1 and self.ISRC[3] == 1: 
+                        self.SUMD = (self.AA[3] + self.AA[8]) * self.J1K0 + (self.BB[3] + self.BB[8]) * self.J1K1 + (self.CC[3] + self.CC[8]) * self.J1K2
                     else:
-                        for II in range(10):
-                            self.SMM[I][II] = complex(0.0,0.0)
+                        self.SUMD=complex(0.0,0.0)
+
+                    if self.verbose: print "\t WVINT after 101 SUMD() => %s" % self.SUMD
+                    self.SUMD= -self.SUMD / self.DISTANCE
+                    if self.verbose: print "\t WVINT after 101 SUMD() => %s" % self.SUMD
+                    self.SMM[1][3] = self.SUMD + self.AA[3] * self.J0K1 + self.BB[3] * self.J0K2 + self.CC[3] * self.J0K3
+                    self.SMM[1][4] = self.SUMD + self.AA[8] * self.J0K1 + self.BB[8] * self.J0K2 + self.CC[8] * self.J0K3
+                    self.SMM[1][5] = self.AA[4] * self.J2K0 + self.BB[4] * self.J2K1 + self.CC[4] * self.J2K2
+                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][3]
+                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][4]
+                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][5]
+
+                    if self.ISRC[5] == 1 and self.ISRC[9] == 1:
+                        self.SUMD = (self.AA[5] + self.AA[9]) * self.J2K0 + (self.BB[5] + self.BB[9]) * self.J2K1 + (self.CC[5] + self.CC[9]) * self.J2K2
+                    else:
+                        self.SUMD = complex(0.0,0.0)
+
+                    if self.verbose: print "\t WVINT after 101 SUMD() => %s" % self.SUMD
+                    self.SUMD = -2.0 * self.SUMD / self.DISTANCE
+                    if self.verbose: print "\t WVINT after 101 SUMD() => %s" % self.SUMD
+                    self.SMM[1][6] = self.SUMD + self.AA[5] * self.J1K1 + self.BB[5] * self.J1K2 + self.CC[5] * self.J1K3
+                    self.SMM[1][7] = self.SUMD + self.AA[9] * self.J1K1 + self.BB[9] * self.J1K2 + self.CC[9] * self.J1K3
+                    self.SMM[1][8] = self.AA[6] * self.J0K0 + self.BB[6] * self.J0K1 + self.CC[6] * self.J0K2
+                    self.SMM[1][9] = self.AA[7] * self.J1K1 + self.BB[7] * self.J1K2 + self.CC[7] * self.J1K3
+                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][6]
+                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][7]
+                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][8]
+                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][9]
+
+                    if self.verbose: print ""
+                    #}}}
+
+                else:
+                    for II in range(10):
+                        self.SMM[1][II] = complex(0.0,0.0)
 
 
-                #}}} INIT
+            #}}} INIT
 
-                #     GET THE BESSEL'S FUNCTIONS +++++++++++++++++++++++++++++++>
-                if self.debug: print ""
-                if self.debug: print "***************** BESSEL FUNCTIONS *****************"
-                if self.debug: print ""
+            #     GET THE BESSEL'S FUNCTIONS +++++++++++++++++++++++++++++++>
+            if self.verbose: print ""
+            if self.verbose: print "***************** BESSEL FUNCTIONS *****************"
+            if self.verbose: print ""
 
-                if self.debug: print "BESSEL FUNCTIONS: N22: %s" % self.N22
-                if self.debug: print "BESSEL FUNCTIONS: ICN: %s" % self.ICN
-                if self.debug: print "BESSEL FUNCTIONS: NNN1: %s" % self.NNN1
-                if self.debug: print "BESSEL FUNCTIONS: IBLOCK: %s" % self.IBLOCK
-                #{{{
-                if self.N22 < self.ICN:
-                    for J in range(self.NNN1-1,self.IBLOCK):
-                        #if self.debug: print "BESSEL FUNCTIONS: 1st J: %s" % J
-                        Z = self.WVNO[J].real * self.R
-                        X = (Z/3.0) * (Z/3.0)
-                        AJ0 = 1.0-X*(2.2499997-X*(1.2656208-X*(.3163866-X*( .0444479-X*(.0039444-X*(.0002100))))))
-                        A1Z = 0.5-X*(.56249985-X*(.21093573-X*(.03954289-X*( .00443319-X*(.00031761-X*(.00001109))))))
-                        AJ1 = Z * A1Z
-                        self.J2[J] = 2.0 * AJ1 / Z - AJ0
-                        self.J1[J] = AJ1
-                        self.J0[J] = AJ0
-                        #if self.debug: print "\t BESSEL FUNCTIONS: NNN1: %s" % self.NNN1
-                        #if self.debug: print "\t BESSEL FUNCTIONS: IBLOCK: %s" % self.IBLOCK
-                        #if self.debug: print "\t BESSEL FUNCTIONS: J: %s" % J
-                        #if self.debug: print "\t BESSEL FUNCTIONS: R: %s" % self.R
-                        #if self.debug: print "\t BESSEL FUNCTIONS: WVNO[J]: %s" % self.WVNO[J]
-                        #if self.debug: print "\t BESSEL FUNCTIONS: Z: %s" % Z
-                        #if self.debug: print "\t BESSEL FUNCTIONS: X: %s" % X
-                        #if self.debug: print "\t BESSEL FUNCTIONS: AJ0: %s" % AJ0
-                        #if self.debug: print "\t BESSEL FUNCTIONS: AJ1: %s" % AJ1
-                        if self.debug: print "\t BESSEL FUNCTIONS: J: %s" % J
-                        if self.debug: print "\t BESSEL FUNCTIONS: J2[J]: %s" % self.J2[J]
-                        if self.debug: print "\t BESSEL FUNCTIONS: J1[J]: %s" % self.J1[J]
-                        if self.debug: print "\t BESSEL FUNCTIONS: J0[J]: %s" % self.J0[J]
-                        #exit()
+            if self.verbose: print "BESSEL FUNCTIONS: N22: %s" % self.N22
+            if self.verbose: print "BESSEL FUNCTIONS: ICN: %s" % self.ICN
+            if self.verbose: print "BESSEL FUNCTIONS: NNN1: %s" % self.NNN1
+            if self.verbose: print "BESSEL FUNCTIONS: IBLOCK: %s" % self.IBLOCK
+            #{{{
+            if self.N22 < self.ICN:
+                for J in range(self.NNN1-1,self.IBLOCK):
+                    #if self.verbose: print "BESSEL FUNCTIONS: 1st J: %s" % J
+                    Z = self.WVNO[J].real * self.DISTANCE
+                    X = (Z/3.0) * (Z/3.0)
+                    AJ0 = 1.0-X*(2.2499997-X*(1.2656208-X*(.3163866-X*( .0444479-X*(.0039444-X*(.0002100))))))
+                    A1Z = 0.5-X*(.56249985-X*(.21093573-X*(.03954289-X*( .00443319-X*(.00031761-X*(.00001109))))))
+                    AJ1 = Z * A1Z
+                    self.J2[J] = 2.0 * AJ1 / Z - AJ0
+                    self.J1[J] = AJ1
+                    self.J0[J] = AJ0
+                    #if self.verbose: print "\t BESSEL FUNCTIONS: NNN1: %s" % self.NNN1
+                    #if self.verbose: print "\t BESSEL FUNCTIONS: IBLOCK: %s" % self.IBLOCK
+                    #if self.verbose: print "\t BESSEL FUNCTIONS: J: %s" % J
+                    #if self.verbose: print "\t BESSEL FUNCTIONS: WVNO[J]: %s" % self.WVNO[J]
+                    #if self.verbose: print "\t BESSEL FUNCTIONS: Z: %s" % Z
+                    #if self.verbose: print "\t BESSEL FUNCTIONS: X: %s" % X
+                    #if self.verbose: print "\t BESSEL FUNCTIONS: AJ0: %s" % AJ0
+                    #if self.verbose: print "\t BESSEL FUNCTIONS: AJ1: %s" % AJ1
+                    if self.verbose: print "\t BESSEL FUNCTIONS: J: %s" % J
+                    if self.verbose: print "\t BESSEL FUNCTIONS: J2[J]: %s" % self.J2[J]
+                    if self.verbose: print "\t BESSEL FUNCTIONS: J1[J]: %s" % self.J1[J]
+                    if self.verbose: print "\t BESSEL FUNCTIONS: J0[J]: %s" % self.J0[J]
+                    #exit()
 
 
-                if self.debug: print "BESSEL FUNCTIONS: N11: %s" % self.N11
-                if self.N11 > self.ICN:
-                    for J in range(self.NNN1-1,self.IBLOCK):
-                        Z = self.WVNO[J].real * self.R
-                        X = 3.0 / Z
-                        FAC = 1.0 / sqrt(Z)
-                        F0 = 0.79788456+X*(-0.00000077 + X*(-0.00552740 + X*(-0.00009512+X*(0.00137237+X*(-0.00072805+X*(0.00014476))))))
-                        T0 = Z - 0.78539816+X*(-0.04166397+X*(-0.00003954+X*(0.00262573+X*(-0.00054125+X*(-0.00029333+X*(0.00013558))))))
-                        F1 = 0.79788456+X*(0.00000156+X*(0.01659667+X*(0.00017105+X*(-0.00249511+X*(0.00113653+X*(-0.00020033))))))
-                        T1 = Z-2.35619449+X*(0.12499612+X*(0.00005650+X*(-0.00637879+X*(0.00074348+X*(0.00079824+X*(-0.00029166))))))
-                        AJ0 = FAC * F0 * cos(T0)
-                        AJ1 = FAC * F1 * cos(T1)
-                        self.J2[J]= 2.0 * AJ1 / Z - AJ0
-                        self.J1[J]= AJ1
-                        self.J0[J]= AJ0
-                        #if self.debug: print "\t BESSEL FUNCTIONS: J: %s" % J
-                        if self.debug: print "\t BESSEL FUNCTIONS: J2[J]: %s" % self.J2[J]
-                        if self.debug: print "\t BESSEL FUNCTIONS: J1[J]: %s" % self.J1[J]
-                        if self.debug: print "\t BESSEL FUNCTIONS: J0[J]: %s" % self.J0[J]
+            if self.verbose: print "BESSEL FUNCTIONS: N11: %s" % self.N11
+            if self.N11 > self.ICN:
+                for J in range(self.NNN1-1,self.IBLOCK):
+                    Z = self.WVNO[J].real * self.DISTANCE
+                    X = 3.0 / Z
+                    FAC = 1.0 / sqrt(Z)
+                    F0 = 0.79788456+X*(-0.00000077 + X*(-0.00552740 + X*(-0.00009512+X*(0.00137237+X*(-0.00072805+X*(0.00014476))))))
+                    T0 = Z - 0.78539816+X*(-0.04166397+X*(-0.00003954+X*(0.00262573+X*(-0.00054125+X*(-0.00029333+X*(0.00013558))))))
+                    F1 = 0.79788456+X*(0.00000156+X*(0.01659667+X*(0.00017105+X*(-0.00249511+X*(0.00113653+X*(-0.00020033))))))
+                    T1 = Z-2.35619449+X*(0.12499612+X*(0.00005650+X*(-0.00637879+X*(0.00074348+X*(0.00079824+X*(-0.00029166))))))
+                    AJ0 = FAC * F0 * cos(T0)
+                    AJ1 = FAC * F1 * cos(T1)
+                    self.J2[J]= 2.0 * AJ1 / Z - AJ0
+                    self.J1[J]= AJ1
+                    self.J0[J]= AJ0
+                    #if self.verbose: print "\t BESSEL FUNCTIONS: J: %s" % J
+                    if self.verbose: print "\t BESSEL FUNCTIONS: J2[J]: %s" % self.J2[J]
+                    if self.verbose: print "\t BESSEL FUNCTIONS: J1[J]: %s" % self.J1[J]
+                    if self.verbose: print "\t BESSEL FUNCTIONS: J0[J]: %s" % self.J0[J]
 
-                if self.N22 > self.ICN and self.N11 < self.ICN: 
-                    self.IM = self.ICN - self.N11 + 1
-                    #if self.debug: print "BESSEL FUNCTIONS: IM: %s" % self.IM
-                    for J in range(self.NNN1-1,self.IM):
-                        #if self.debug: print "BESSEL FUNCTIONS: 3rd J: %s" % J
-                        Z = self.WVNO[J].real * self.R
-                        X = (Z/3.0)*(Z/3.0)
-                        AJ0 = 1.0-X*(2.2499997-X*(1.2656208-X*(0.3163866-X*(0.0444479-X*(0.0039444-X*(0.0002100))))))
-                        A1Z = 0.5-X*(0.56249985-X*(0.21093573-X*(0.03954289-X*(0.00443319-X*(0.00031761-X*(0.00001109))))))
-                        AJ1 = Z * A1Z
-                        self.J2[J] = 2.0 * AJ1 / Z - AJ0
-                        self.J1[J] = AJ1
-                        self.J0[J] = AJ0
-                        #if self.debug: print "\t BESSEL FUNCTIONS: J: %s" % J
-                        if self.debug: print "\t BESSEL FUNCTIONS: J2[J]: %s" % self.J2[J]
-                        if self.debug: print "\t BESSEL FUNCTIONS: J1[J]: %s" % self.J1[J]
-                        if self.debug: print "\t BESSEL FUNCTIONS: J0[J]: %s" % self.J0[J]
-                        #exit()
+            if self.N22 > self.ICN and self.N11 < self.ICN: 
+                self.IM = self.ICN - self.N11 + 1
+                #if self.verbose: print "BESSEL FUNCTIONS: IM: %s" % self.IM
+                for J in range(self.NNN1-1,self.IM):
+                    #if self.verbose: print "BESSEL FUNCTIONS: 3rd J: %s" % J
+                    Z = self.WVNO[J].real * self.DISTANCE
+                    X = (Z/3.0)*(Z/3.0)
+                    AJ0 = 1.0-X*(2.2499997-X*(1.2656208-X*(0.3163866-X*(0.0444479-X*(0.0039444-X*(0.0002100))))))
+                    A1Z = 0.5-X*(0.56249985-X*(0.21093573-X*(0.03954289-X*(0.00443319-X*(0.00031761-X*(0.00001109))))))
+                    AJ1 = Z * A1Z
+                    self.J2[J] = 2.0 * AJ1 / Z - AJ0
+                    self.J1[J] = AJ1
+                    self.J0[J] = AJ0
+                    #if self.verbose: print "\t BESSEL FUNCTIONS: J: %s" % J
+                    if self.verbose: print "\t BESSEL FUNCTIONS: J2[J]: %s" % self.J2[J]
+                    if self.verbose: print "\t BESSEL FUNCTIONS: J1[J]: %s" % self.J1[J]
+                    if self.verbose: print "\t BESSEL FUNCTIONS: J0[J]: %s" % self.J0[J]
+                    #exit()
 
-                    for J in range(self.IM+1,self.IBLOCK):
-                        #if self.debug: print "BESSEL FUNCTIONS: 4th J: %s" % J
-                        Z = self.WVNO[J].real * self.R
-                        X = 3.0 / Z
-                        FAC = 1.0 / sqrt(Z)
-                        F0 = 0.79788456+X*(-0.00000077 + X*(-0.00552740 + X*(-0.00009512+X*(0.00137237+X*(-0.00072805+X*(0.00014476))))))
-                        T0 = Z - 0.78539816+X*(-0.04166397+X*(-0.00003954+X*(0.00262573+X*(-0.00054125+X*(-0.00029333+X*(0.00013558))))))
-                        F1 = 0.79788456+X*(0.00000156+X*(0.01659667+X*(0.00017105+X*(-0.00249511+X*(0.00113653+X*(-0.00020033))))))
-                        T1 = Z-2.35619449+X*(0.12499612+X*(0.00005650+X*(-0.00637879+X*(0.00074348+X*(0.00079824+X*(-0.00029166))))))
-                        AJ0 = FAC * F0 * cos(T0)
-                        AJ1 = FAC * F1 * cos(T1)
-                        self.J2[J] = 2.0 * AJ1 / Z - AJ0
-                        self.J1[J] = AJ1
-                        self.J0[J] = AJ0
-                        if self.debug: print "\t BESSEL FUNCTIONS: J2[J]: %s" % self.J2[J]
-                        if self.debug: print "\t BESSEL FUNCTIONS: J1[J]: %s" % self.J1[J]
-                        if self.debug: print "\t BESSEL FUNCTIONS: J0[J]: %s" % self.J0[J]
-                        #exit()
+                for J in range(self.IM+1,self.IBLOCK):
+                    #if self.verbose: print "BESSEL FUNCTIONS: 4th J: %s" % J
+                    Z = self.WVNO[J].real * self.DISTANCE
+                    X = 3.0 / Z
+                    FAC = 1.0 / sqrt(Z)
+                    F0 = 0.79788456+X*(-0.00000077 + X*(-0.00552740 + X*(-0.00009512+X*(0.00137237+X*(-0.00072805+X*(0.00014476))))))
+                    T0 = Z - 0.78539816+X*(-0.04166397+X*(-0.00003954+X*(0.00262573+X*(-0.00054125+X*(-0.00029333+X*(0.00013558))))))
+                    F1 = 0.79788456+X*(0.00000156+X*(0.01659667+X*(0.00017105+X*(-0.00249511+X*(0.00113653+X*(-0.00020033))))))
+                    T1 = Z-2.35619449+X*(0.12499612+X*(0.00005650+X*(-0.00637879+X*(0.00074348+X*(0.00079824+X*(-0.00029166))))))
+                    AJ0 = FAC * F0 * cos(T0)
+                    AJ1 = FAC * F1 * cos(T1)
+                    self.J2[J] = 2.0 * AJ1 / Z - AJ0
+                    self.J1[J] = AJ1
+                    self.J0[J] = AJ0
+                    if self.verbose: print "\t BESSEL FUNCTIONS: J2[J]: %s" % self.J2[J]
+                    if self.verbose: print "\t BESSEL FUNCTIONS: J1[J]: %s" % self.J1[J]
+                    if self.verbose: print "\t BESSEL FUNCTIONS: J0[J]: %s" % self.J0[J]
+                    #exit()
 
-                if self.debug: print "BESSEL FUNCTIONS:   J2 => %s" % self.J2
-                if self.debug: print "BESSEL FUNCTIONS:   J1 => %s" % self.J1
-                if self.debug: print "BESSEL FUNCTIONS:   J0 => %s" % self.J0
-                #}}}
+            if self.verbose: print "BESSEL FUNCTIONS:   J2 => %s" % self.J2
+            if self.verbose: print "BESSEL FUNCTIONS:   J1 => %s" % self.J1
+            if self.verbose: print "BESSEL FUNCTIONS:   J0 => %s" % self.J0
+            #}}}
 
-                #     GET THE PHASE VELOCITY FILTER  +++++++++++++++++++++++++>
-                #{{{
-                if self.debug: print ''
-                if self.debug: print '############### PHASE VELOCITY FILTER ##############'
-                if self.debug: print ''
+            #     GET THE PHASE VELOCITY FILTER  +++++++++++++++++++++++++>
+            #{{{
+            if self.verbose: print ''
+            if self.verbose: print '############### PHASE VELOCITY FILTER ##############'
+            if self.verbose: print ''
 
-                if self.CMAX >= 0.0:
-                    for J in range(self.NNN1-1,self.IBLOCK):
-                        self.FACT[J] = 0.0
-                        self.WVN = self.WVNO[J].real
+            if self.CMAX >= 0.0:
+                for J in range(self.NNN1-1,self.IBLOCK):
+                    self.FACT[J] = 0.0
+                    self.WVN = self.WVNO[J].real
 
-                        if self.WVN > self.WVC1 and self.WVN < self.WVC2: self.FACT[J] = 1.0
-                        if self.WVN > self.WVCM and self.WVN < self.WVC1: 
-                            self.FACT[J] = (1.0 - cos(self.PI * (self.WVN-self.WVCM) / (self.WVC1-self.WVCM))).real / 2.0
-                        if self.WVN > self.WVC2 and self.WVN < self.WVCN:
-                            self.FACT[J] = (1.0 - cos(self.PI * (self.WVN - self.WVCN) / (self.WVC2 - self.WVCN))).real / 2.0
+                    if self.WVN > self.WVC1 and self.WVN < self.WVC2: self.FACT[J] = 1.0
+                    if self.WVN > self.WVCM and self.WVN < self.WVC1: 
+                        self.FACT[J] = (1.0 - cos(self.PI * (self.WVN-self.WVCM) / (self.WVC1-self.WVCM))).real / 2.0
+                    if self.WVN > self.WVC2 and self.WVN < self.WVCN:
+                        self.FACT[J] = (1.0 - cos(self.PI * (self.WVN - self.WVCN) / (self.WVC2 - self.WVCN))).real / 2.0
 
-                        if self.debug: print ' PHASE VELOCITY FILTER:    FACT[J] => %s' % self.FACT[J]
-                #}}}
+                    if self.verbose: print ' PHASE VELOCITY FILTER:    FACT[J] => %s' % self.FACT[J]
+            #}}}
 
-                #     REMOVAL OF ASYMPTOTIC TREND FROM THE INTEGRAND
-                #{{{
-                if self.debug: print ''
-                if self.debug: print '############### ASYMP TREND REMOVAL ##############'
-                if self.debug: print ''
+            #     REMOVAL OF ASYMPTOTIC TREND FROM THE INTEGRAND
+            #{{{
+            if self.verbose: print ''
+            if self.verbose: print '############### ASYMP TREND REMOVAL ##############'
+            if self.verbose: print ''
 
+            if self.IASYMP:
+                for K in range(10):
+                    if self.ISRC[K] == 1:
+                        for J in range(self.NNN1-1,self.IBLOCK):
+                            self.AK = self.WVNO[J].real
+                            self.EX = exp(-self.AK * self.DEPTH)
+                            self.ASM = self.EX * (self.AA[K] + self.AK * (self.BB[K] + self.AK * self.CC[K]))
+                            if self.verbose: print "    RM ASYMP TREND  10:    AK => %s  " % self.AK
+                            if self.verbose: print "    RM ASYMP TREND  10:    H => %s  " % self.DEPTH
+                            if self.verbose: print "    RM ASYMP TREND  10:    EX => %s  " % self.EX
+                            if self.verbose: print "    RM ASYMP TREND  10:    AA[K] => %s  " % self.AA[K]
+                            if self.verbose: print "    RM ASYMP TREND  10:    BB[K] => %s  " % self.BB[K]
+                            if self.verbose: print "    RM ASYMP TREND  10:    CC[K] => %s  " % self.CC[K]
+                            if self.verbose: print "    RM ASYMP TREND  10:    ASM => %s  " % self.ASM
+                            if self.verbose: print "    RM ASYMP TREND  10:    S1[J] => %s  " % self.G1[J]
+                            if self.verbose: print "    RM ASYMP TREND  10:    K => %s  " % K
+                            if self.verbose: print "    RM ASYMP TREND  10:    J => %s  " % J
+                            if K == 0: self.S1[J] = self.G1[J] - self.ASM
+                            if K == 1: self.S2[J] = self.G2[J] - self.ASM
+                            if K == 2: self.S3[J] = self.G3[J] - self.ASM
+                            if K == 3: self.S4[J] = self.G4[J] - self.ASM
+                            if K == 4: self.S5[J] = self.G5[J] - self.ASM
+                            if K == 5: self.S6[J] = self.G6[J] - self.ASM
+                            if K == 6: self.S7[J] = self.G7[J] - self.ASM
+                            if K == 7: self.S8[J] = self.G8[J] - self.ASM
+                            if K == 8: self.S9[J] = self.G9[J] - self.ASM
+                            if K == 9: self.S10[J] = self.G10[J] - self.ASM
+                            if self.verbose: print "    RM ASYMP TREND  10:    G1[J] =>  %s " % self.S1[J]
+                            if self.verbose: print "    RM ASYMP TREND  10:    G2[J] =>  %s " % self.S2[J]
+                            if self.verbose: print "    RM ASYMP TREND  10:    G3[J] =>  %s " % self.S3[J]
+                            if self.verbose: print "    RM ASYMP TREND  10:    G4[J] =>  %s " % self.S4[J]
+                            if self.verbose: print "    RM ASYMP TREND  10:    G5[J] =>  %s " % self.S5[J]
+                            if self.verbose: print "    RM ASYMP TREND  10:    G6[J] =>  %s " % self.S6[J]
+                            if self.verbose: print "    RM ASYMP TREND  10:    G7[J] =>  %s " % self.S7[J]
+                            if self.verbose: print "    RM ASYMP TREND  10:    G8[J] =>  %s " % self.S8[J]
+                            if self.verbose: print "    RM ASYMP TREND  10:    G9[J] =>  %s " % self.S9[J]
+                            if self.verbose: print "    RM ASYMP TREND  10:    G10[J] => %s  " % self.S10[J]
+
+            if self.NBLK == self.NBLOCK:
                 if self.IASYMP:
                     for K in range(10):
                         if self.ISRC[K] == 1:
-                            for J in range(self.NNN1-1,self.IBLOCK):
-                                self.AK = self.WVNO[J].real
-                                self.EX = exp(-self.AK * self.DEPTH)
-                                self.ASM = self.EX * (self.AA[K] + self.AK * (self.BB[K] + self.AK * self.CC[K]))
-                                if self.debug: print "    RM ASYMP TREND  10:    AK => %s  " % self.AK
-                                if self.debug: print "    RM ASYMP TREND  10:    H => %s  " % self.DEPTH
-                                if self.debug: print "    RM ASYMP TREND  10:    EX => %s  " % self.EX
-                                if self.debug: print "    RM ASYMP TREND  10:    AA[K] => %s  " % self.AA[K]
-                                if self.debug: print "    RM ASYMP TREND  10:    BB[K] => %s  " % self.BB[K]
-                                if self.debug: print "    RM ASYMP TREND  10:    CC[K] => %s  " % self.CC[K]
-                                if self.debug: print "    RM ASYMP TREND  10:    ASM => %s  " % self.ASM
-                                if self.debug: print "    RM ASYMP TREND  10:    S1[J] => %s  " % self.G1[J]
-                                if self.debug: print "    RM ASYMP TREND  10:    K => %s  " % K
-                                if self.debug: print "    RM ASYMP TREND  10:    J => %s  " % J
-                                if K == 0: self.S1[J] = self.G1[J] - self.ASM
-                                if K == 1: self.S2[J] = self.G2[J] - self.ASM
-                                if K == 2: self.S3[J] = self.G3[J] - self.ASM
-                                if K == 3: self.S4[J] = self.G4[J] - self.ASM
-                                if K == 4: self.S5[J] = self.G5[J] - self.ASM
-                                if K == 5: self.S6[J] = self.G6[J] - self.ASM
-                                if K == 6: self.S7[J] = self.G7[J] - self.ASM
-                                if K == 7: self.S8[J] = self.G8[J] - self.ASM
-                                if K == 8: self.S9[J] = self.G9[J] - self.ASM
-                                if K == 9: self.S10[J] = self.G10[J] - self.ASM
-                                if self.debug: print "    RM ASYMP TREND  10:    G1[J] =>  %s " % self.S1[J]
-                                if self.debug: print "    RM ASYMP TREND  10:    G2[J] =>  %s " % self.S2[J]
-                                if self.debug: print "    RM ASYMP TREND  10:    G3[J] =>  %s " % self.S3[J]
-                                if self.debug: print "    RM ASYMP TREND  10:    G4[J] =>  %s " % self.S4[J]
-                                if self.debug: print "    RM ASYMP TREND  10:    G5[J] =>  %s " % self.S5[J]
-                                if self.debug: print "    RM ASYMP TREND  10:    G6[J] =>  %s " % self.S6[J]
-                                if self.debug: print "    RM ASYMP TREND  10:    G7[J] =>  %s " % self.S7[J]
-                                if self.debug: print "    RM ASYMP TREND  10:    G8[J] =>  %s " % self.S8[J]
-                                if self.debug: print "    RM ASYMP TREND  10:    G9[J] =>  %s " % self.S9[J]
-                                if self.debug: print "    RM ASYMP TREND  10:    G10[J] => %s  " % self.S10[J]
+                            #print "    ############ WVNO => %s  " % self.WVNO
+                            #print "    ############ len(WVNO) => %s  " % len(self.WVNO)
+                            #print "    ############ IBLOCK => %s  " % self.IBLOCK
+                            #print "    ############ NK => %s  " % self.NK
+                            #print "    ############ IB => %s  " % self.IB
+                            self.AK = self.WVNO[self.IBLOCK].real
+                            self.EX = exp(-self.AK )* self.DEPTH
+                            self.ASM = self.EX * ( self.AA[K] + self.AK * (self.BB[K] + self.AK * self.CC[K]) )
+                            if K == 0: self.S1[self.IBLOCK] = self.S1[self.IBLOCK] - self.ASM
+                            if K == 1: self.S2[self.IBLOCK] = self.S2[self.IBLOCK] - self.ASM
+                            if K == 2: self.S3[self.IBLOCK] = self.S3[self.IBLOCK] - self.ASM
+                            if K == 3: self.S4[self.IBLOCK] = self.S4[self.IBLOCK] - self.ASM
+                            if K == 4: self.S5[self.IBLOCK] = self.S5[self.IBLOCK] - self.ASM
+                            if K == 5: self.S6[self.IBLOCK] = self.S6[self.IBLOCK] - self.ASM
+                            if K == 6: self.S7[self.IBLOCK] = self.S7[self.IBLOCK] - self.ASM
+                            if K == 7: self.S8[self.IBLOCK] = self.S8[self.IBLOCK] - self.ASM
+                            if K == 8: self.S9[self.IBLOCK] = self.S9[self.IBLOCK] - self.ASM
+                            if K == 9: self.S10[self.IBLOCK] = self.S10[self.IBLOCK] - self.ASM
+                            if self.verbose: print "    RM ASYMP TREND  666:    G1[J] =>  %s " % self.S1[1]
+                            if self.verbose: print "    RM ASYMP TREND  666:    G2[J] =>  %s " % self.S2[1]
+                            if self.verbose: print "    RM ASYMP TREND  666:    G3[J] =>  %s " % self.S3[1]
+                            if self.verbose: print "    RM ASYMP TREND  666:    G4[J] =>  %s " % self.S4[1]
+                            if self.verbose: print "    RM ASYMP TREND  666:    G5[J] =>  %s " % self.S5[1]
+                            if self.verbose: print "    RM ASYMP TREND  666:    G6[J] =>  %s " % self.S6[1]
+                            if self.verbose: print "    RM ASYMP TREND  666:    G7[J] =>  %s " % self.S7[1]
+                            if self.verbose: print "    RM ASYMP TREND  666:    G8[J] =>  %s " % self.S8[1]
+                            if self.verbose: print "    RM ASYMP TREND  666:    G9[J] =>  %s " % self.S9[1]
+                            if self.verbose: print "    RM ASYMP TREND  666:    G10[J] => %s  " % self.S10[1]
 
-                if self.NBLK == self.NBLOCK:
-                    if self.IASYMP:
-                        for K in range(10):
-                            if self.ISRC[K] == 1:
-                                #print "    ############ WVNO => %s  " % self.WVNO
-                                #print "    ############ len(WVNO) => %s  " % len(self.WVNO)
-                                #print "    ############ IBLOCK => %s  " % self.IBLOCK
-                                #print "    ############ NK => %s  " % self.NK
-                                #print "    ############ IB => %s  " % self.IB
-                                self.AK = self.WVNO[self.IBLOCK].real
-                                self.EX = exp(-self.AK )* self.DEPTH
-                                self.ASM = self.EX * ( self.AA[K] + self.AK * (self.BB[K] + self.AK * self.CC[K]) )
-                                if K == 0: self.S1[self.IBLOCK] = self.S1[self.IBLOCK] - self.ASM
-                                if K == 1: self.S2[self.IBLOCK] = self.S2[self.IBLOCK] - self.ASM
-                                if K == 2: self.S3[self.IBLOCK] = self.S3[self.IBLOCK] - self.ASM
-                                if K == 3: self.S4[self.IBLOCK] = self.S4[self.IBLOCK] - self.ASM
-                                if K == 4: self.S5[self.IBLOCK] = self.S5[self.IBLOCK] - self.ASM
-                                if K == 5: self.S6[self.IBLOCK] = self.S6[self.IBLOCK] - self.ASM
-                                if K == 6: self.S7[self.IBLOCK] = self.S7[self.IBLOCK] - self.ASM
-                                if K == 7: self.S8[self.IBLOCK] = self.S8[self.IBLOCK] - self.ASM
-                                if K == 8: self.S9[self.IBLOCK] = self.S9[self.IBLOCK] - self.ASM
-                                if K == 9: self.S10[self.IBLOCK] = self.S10[self.IBLOCK] - self.ASM
-                                if self.debug: print "    RM ASYMP TREND  666:    G1[J] =>  %s " % self.S1[1]
-                                if self.debug: print "    RM ASYMP TREND  666:    G2[J] =>  %s " % self.S2[1]
-                                if self.debug: print "    RM ASYMP TREND  666:    G3[J] =>  %s " % self.S3[1]
-                                if self.debug: print "    RM ASYMP TREND  666:    G4[J] =>  %s " % self.S4[1]
-                                if self.debug: print "    RM ASYMP TREND  666:    G5[J] =>  %s " % self.S5[1]
-                                if self.debug: print "    RM ASYMP TREND  666:    G6[J] =>  %s " % self.S6[1]
-                                if self.debug: print "    RM ASYMP TREND  666:    G7[J] =>  %s " % self.S7[1]
-                                if self.debug: print "    RM ASYMP TREND  666:    G8[J] =>  %s " % self.S8[1]
-                                if self.debug: print "    RM ASYMP TREND  666:    G9[J] =>  %s " % self.S9[1]
-                                if self.debug: print "    RM ASYMP TREND  666:    G10[J] => %s  " % self.S10[1]
-
-                if not self.IASYMP:
-                    for K in range(10):
-                        if self.ISRC[K] == 1:
-                            for J in range(self.NNN1,self.IBLOCK):
-                                if K == 0: self.S1[J] = self.G1[J]
-                                if K == 1: self.S2[J] = self.G2[J]
-                                if K == 2: self.S3[J] = self.G3[J]
-                                if K == 3: self.S4[J] = self.G4[J]
-                                if K == 4: self.S5[J] = self.G5[J]
-                                if K == 5: self.S6[J] = self.G6[J]
-                                if K == 6: self.S7[J] = self.G7[J]
-                                if K == 7: self.S8[J] = self.G8[J]
-                                if K == 8: self.S9[J] = self.G9[J]
-                                if K == 9: self.S10[J] = self.G10[J]
-                                if self.debug: print "    RM ASYMP TREND  777:    G1[J] =>  %s " % self.S1[1]
-                                if self.debug: print "    RM ASYMP TREND  777:    G2[J] =>  %s " % self.S2[1]
-                                if self.debug: print "    RM ASYMP TREND  777:    G3[J] =>  %s " % self.S3[1]
-                                if self.debug: print "    RM ASYMP TREND  777:    G4[J] =>  %s " % self.S4[1]
-                                if self.debug: print "    RM ASYMP TREND  777:    G5[J] =>  %s " % self.S5[1]
-                                if self.debug: print "    RM ASYMP TREND  777:    G6[J] =>  %s " % self.S6[1]
-                                if self.debug: print "    RM ASYMP TREND  777:    G7[J] =>  %s " % self.S7[1]
-                                if self.debug: print "    RM ASYMP TREND  777:    G8[J] =>  %s " % self.S8[1]
-                                if self.debug: print "    RM ASYMP TREND  777:    G9[J] =>  %s " % self.S9[1]
-                                if self.debug: print "    RM ASYMP TREND  777:    G10[J] => %s  " % self.S10[1]
+            if not self.IASYMP:
+                for K in range(10):
+                    if self.ISRC[K] == 1:
+                        for J in range(self.NNN1,self.IBLOCK):
+                            if K == 0: self.S1[J] = self.G1[J]
+                            if K == 1: self.S2[J] = self.G2[J]
+                            if K == 2: self.S3[J] = self.G3[J]
+                            if K == 3: self.S4[J] = self.G4[J]
+                            if K == 4: self.S5[J] = self.G5[J]
+                            if K == 5: self.S6[J] = self.G6[J]
+                            if K == 6: self.S7[J] = self.G7[J]
+                            if K == 7: self.S8[J] = self.G8[J]
+                            if K == 8: self.S9[J] = self.G9[J]
+                            if K == 9: self.S10[J] = self.G10[J]
+                            if self.verbose: print "    RM ASYMP TREND  777:    G1[J] =>  %s " % self.S1[1]
+                            if self.verbose: print "    RM ASYMP TREND  777:    G2[J] =>  %s " % self.S2[1]
+                            if self.verbose: print "    RM ASYMP TREND  777:    G3[J] =>  %s " % self.S3[1]
+                            if self.verbose: print "    RM ASYMP TREND  777:    G4[J] =>  %s " % self.S4[1]
+                            if self.verbose: print "    RM ASYMP TREND  777:    G5[J] =>  %s " % self.S5[1]
+                            if self.verbose: print "    RM ASYMP TREND  777:    G6[J] =>  %s " % self.S6[1]
+                            if self.verbose: print "    RM ASYMP TREND  777:    G7[J] =>  %s " % self.S7[1]
+                            if self.verbose: print "    RM ASYMP TREND  777:    G8[J] =>  %s " % self.S8[1]
+                            if self.verbose: print "    RM ASYMP TREND  777:    G9[J] =>  %s " % self.S9[1]
+                            if self.verbose: print "    RM ASYMP TREND  777:    G10[J] => %s  " % self.S10[1]
 
 
-                if self.debug: print "    RM ASYMP TREND  13:    ISRC => %s  " %  self.ISRC
+            if self.verbose: print "    RM ASYMP TREND  13:    ISRC => %s  " %  self.ISRC
 
-                if self.ISRC[0] == 1:
-                    #if self.debug: print "    RM ASYMP TREND  13:    IBL => %s  " %  self.IBLOCK
-                    #if self.debug: print "    RM ASYMP TREND  13:    N1 => %s  " %  self.NNN1
-                    for J in range(self.IBLOCK-1,self.NNN1-2,-1):
-                        self.SUMD = self.FACT[J] * self.S1[J] * self.J0[J]
-                        self.SMM[I][0] = self.SMM[I][0] + self.SUMD
-                        #if self.debug: print "    RM ASYMP TREND  13:    J => %s  " %  J
-                        #if self.debug: print "    RM ASYMP TREND  13:    FACT[J] => %s  " % self.FACT[J]
-                        #if self.debug: print "    RM ASYMP TREND  13:    G1[J] => %s  " % self.S1[J]
-                        #if self.debug: print "    RM ASYMP TREND  13:    J0[J] => %s  " % self.J0[J]
-                        #if self.debug: print "    RM ASYMP TREND  13:    SUMD => %s  " % self.SUMD
-                        if self.debug: print "    RM ASYMP TREND  13:    SMM[I][0] => %s  " % self.SMM[I][0]
+            if self.ISRC[0] == 1:
+                #if self.verbose: print "    RM ASYMP TREND  13:    IBL => %s  " %  self.IBLOCK
+                #if self.verbose: print "    RM ASYMP TREND  13:    N1 => %s  " %  self.NNN1
+                for J in range(self.IBLOCK-1,self.NNN1-2,-1):
+                    self.SUMD = self.FACT[J] * self.S1[J] * self.J0[J]
+                    self.SMM[1][0] = self.SMM[1][0] + self.SUMD
+                    #if self.verbose: print "    RM ASYMP TREND  13:    J => %s  " %  J
+                    #if self.verbose: print "    RM ASYMP TREND  13:    FACT[J] => %s  " % self.FACT[J]
+                    #if self.verbose: print "    RM ASYMP TREND  13:    G1[J] => %s  " % self.S1[J]
+                    #if self.verbose: print "    RM ASYMP TREND  13:    J0[J] => %s  " % self.J0[J]
+                    #if self.verbose: print "    RM ASYMP TREND  13:    SUMD => %s  " % self.SUMD
+                    if self.verbose: print "    RM ASYMP TREND  13:    SMM[1][0] => %s  " % self.SMM[1][0]
 
 
-                if self.ISRC[1] == 1:
-                    for J in range(self.NNN1-1,self.IBLOCK):
-                        self.AK = self.WVNO[J].real
-                        self.SUMD = self.FACT[J] * self.S2[J] * self.AK * self.J1[J]
-                        self.SMM[I][1] = self.SMM[I][1] + self.SUMD
-                        #if self.debug: print "    RM ASYMP TREND  13:    J => %s  " %  J
-                        #if self.debug: print "    RM ASYMP TREND  13:    AK => %s  " % self.AK
-                        #if self.debug: print "    RM ASYMP TREND  13:    SUMD => %s  " % self.SUMD
-                        if self.debug: print "    RM ASYMP TREND  14:    SMM[I][1] => %s  " % self.SMM[I][1]
+            if self.ISRC[1] == 1:
+                for J in range(self.NNN1-1,self.IBLOCK):
+                    self.AK = self.WVNO[J].real
+                    self.SUMD = self.FACT[J] * self.S2[J] * self.AK * self.J1[J]
+                    self.SMM[1][1] = self.SMM[1][1] + self.SUMD
+                    #if self.verbose: print "    RM ASYMP TREND  13:    J => %s  " %  J
+                    #if self.verbose: print "    RM ASYMP TREND  13:    AK => %s  " % self.AK
+                    #if self.verbose: print "    RM ASYMP TREND  13:    SUMD => %s  " % self.SUMD
+                    if self.verbose: print "    RM ASYMP TREND  14:    SMM[1][1] => %s  " % self.SMM[1][1]
 
-                if self.ISRC[2] == 1: 
-                    for J in range(self.NNN1-1,self.IBLOCK):
-                        self.SUMD = self.FACT[J] * self.S3[J] * self.J1[J]
-                        self.SMM[I][2] = self.SMM[I][2] + self.SUMD
-                        if self.debug: print "    RM ASYMP TREND  15:    SMM[I][2] => %s  " % self.SMM[I][2]
-                #}}}
+            if self.ISRC[2] == 1: 
+                for J in range(self.NNN1-1,self.IBLOCK):
+                    self.SUMD = self.FACT[J] * self.S3[J] * self.J1[J]
+                    self.SMM[1][2] = self.SMM[1][2] + self.SUMD
+                    if self.verbose: print "    RM ASYMP TREND  15:    SMM[1][2] => %s  " % self.SMM[1][2]
+            #}}}
 
-                #     INCLUDE NEAR FIELD TERM IF BOTH SH AND P-SV ARE COMPUTED
-                #{{{
-                if self.ISRC[3] == 1 and self.ISRC[8] == 1:
-                    for J in range(self.NNN1-1,self.IBLOCK):
-                        self.SUMC[J] = (self.S4[J] + self.S9[J]) * self.J1[J]
-                    #    if self.debug: print "    RM ASYMP TREND  16:    J => %s  " % J
-                    #    if self.debug: print "    RM ASYMP TREND  16:    G4[J] => %s  " % self.S4[J]
-                    #    if self.debug: print "    RM ASYMP TREND  16:    G9[J] => %s  " % self.S9[J]
-                    #    if self.debug: print "    RM ASYMP TREND  16:    J1[J] => %s  " % self.J1[J]
-                        if self.debug: print "    RM ASYMP TREND  16:    SUMC[J] => %s  " % self.SUMC[J]
-                    #print ""
-                    #print "\t\t\t G4 => %s " % self.S4
-                    #print "\t\t\t G9 => %s " % self.S9
-                    #print ""
+            #     INCLUDE NEAR FIELD TERM IF BOTH SH AND P-SV ARE COMPUTED
+            #{{{
+            if self.ISRC[3] == 1 and self.ISRC[8] == 1:
+                for J in range(self.NNN1-1,self.IBLOCK):
+                    self.SUMC[J] = (self.S4[J] + self.S9[J]) * self.J1[J]
+                #    if self.verbose: print "    RM ASYMP TREND  16:    J => %s  " % J
+                #    if self.verbose: print "    RM ASYMP TREND  16:    G4[J] => %s  " % self.S4[J]
+                #    if self.verbose: print "    RM ASYMP TREND  16:    G9[J] => %s  " % self.S9[J]
+                #    if self.verbose: print "    RM ASYMP TREND  16:    J1[J] => %s  " % self.J1[J]
+                    if self.verbose: print "    RM ASYMP TREND  16:    SUMC[J] => %s  " % self.SUMC[J]
+                #print ""
+                #print "\t\t\t G4 => %s " % self.S4
+                #print "\t\t\t G9 => %s " % self.S9
+                #print ""
 
-                if self.ISRC[3] == 1:
-                    for J in range(self.NNN1-1, self.IBLOCK):
-                        self.AK= self.WVNO[J].real
-                        self.SUMD = self.S4[J] * self.AK * self.J0[J]
-                        self.SMM[I][3] = self.SMM[I][3] + (self.SUMD - self.SUMC[J] / self.R) * self.FACT[J]
-                        if self.debug: print "    RM ASYMP TREND  17:    SMM[I][3] => %s  " % self.SMM[I][3]
+            if self.ISRC[3] == 1:
+                for J in range(self.NNN1-1, self.IBLOCK):
+                    self.AK= self.WVNO[J].real
+                    self.SUMD = self.S4[J] * self.AK * self.J0[J]
+                    self.SMM[1][3] = self.SMM[1][3] + (self.SUMD - self.SUMC[J] / self.DISTANCE) * self.FACT[J]
+                    if self.verbose: print "    RM ASYMP TREND  17:    SMM[1][3] => %s  " % self.SMM[1][3]
 
-                if self.ISRC[8] == 1:
-                    for J in range(self.NNN1-1,self.IBLOCK):
-                        self.AK = self.WVNO[J].real
-                        self.SUMD = self.S9[J] * self.AK * self.J0[J]
-                        self.SMM[I][4] = self.SMM[I][4] + (self.SUMD - self.SUMC[J] / self.R) * self.FACT[J]
-                        if self.debug: print "   RM ASYMP TREND  18 :    SMM[I][4] => %s  " % self.SMM[I][4]
+            if self.ISRC[8] == 1:
+                for J in range(self.NNN1-1,self.IBLOCK):
+                    self.AK = self.WVNO[J].real
+                    self.SUMD = self.S9[J] * self.AK * self.J0[J]
+                    self.SMM[1][4] = self.SMM[1][4] + (self.SUMD - self.SUMC[J] / self.DISTANCE) * self.FACT[J]
+                    if self.verbose: print "   RM ASYMP TREND  18 :    SMM[1][4] => %s  " % self.SMM[1][4]
 
-                if self.ISRC[4] == 1:
-                    for J in range(self.NNN1-1,self.IBLOCK):
-                        self.SUMD = self.FACT[J] * self.S5[J] * self.J2[J]
-                        self.SMM[I][5] = self.SMM[I][5] + self.SUMD
-                        if self.debug: print "    RM ASYMP TREND  19:    SMM[I][5] => %s  " % self.SMM[I][5]
-                #}}}
+            if self.ISRC[4] == 1:
+                for J in range(self.NNN1-1,self.IBLOCK):
+                    self.SUMD = self.FACT[J] * self.S5[J] * self.J2[J]
+                    self.SMM[1][5] = self.SMM[1][5] + self.SUMD
+                    if self.verbose: print "    RM ASYMP TREND  19:    SMM[1][5] => %s  " % self.SMM[1][5]
+            #}}}
 
-                #     NEAR FIELD TERM IF BOTH SH AND P-SV TERMS ARE COMPUTED
-                #{{{
-                if self.ISRC[5] == 1 and self.ISRC[9] == 1:
-                    for J in range(self.NNN1-1,self.IBLOCK):
-                        self.SUME[J] = (self.S6[J] + self.S10[J]) * self.J2[J]
-                        if self.debug: print "    RM ASYMP TREND  20:    SUME[J] => %s  " % self.SUME[J]
+            #     NEAR FIELD TERM IF BOTH SH AND P-SV TERMS ARE COMPUTED
+            #{{{
+            if self.ISRC[5] == 1 and self.ISRC[9] == 1:
+                for J in range(self.NNN1-1,self.IBLOCK):
+                    self.SUME[J] = (self.S6[J] + self.S10[J]) * self.J2[J]
+                    if self.verbose: print "    RM ASYMP TREND  20:    SUME[J] => %s  " % self.SUME[J]
 
-                if self.ISRC[5] == 1:
-                    for J in range(self.NNN1-1,self.IBLOCK):
-                        self.AK = self.WVNO[J].real
-                        self.SUMD = self.S6[J] * self.AK * self.J1[J]
-                        self.SMM[I][6] = self.SMM[I][6] + (self.SUMD - 2.0 * self.SUME[J] /self.R) * self.FACT[J]
-                        if self.debug: print "     RM ASYMP TREND  21:    SMM[I][6] => %s  " % self.SMM[I][6]
+            if self.ISRC[5] == 1:
+                for J in range(self.NNN1-1,self.IBLOCK):
+                    self.AK = self.WVNO[J].real
+                    self.SUMD = self.S6[J] * self.AK * self.J1[J]
+                    self.SMM[1][6] = self.SMM[1][6] + (self.SUMD - 2.0 * self.SUME[J] /self.DISTANCE) * self.FACT[J]
+                    if self.verbose: print "     RM ASYMP TREND  21:    SMM[1][6] => %s  " % self.SMM[1][6]
 
-                if self.ISRC[9] == 1:
-                    for J in range(self.IBLOCK-1,self.NNN1-2,-1):
-                        self.AK = self.WVNO[J].real
-                        self.SUMD = self.S10[J] * self.AK * self.J1[J]
-                        self.SMM[I][7] = self.SMM[I][7] + (self.SUMD - 2.0 * self.SUME[J] / self.R) * self.FACT[J]
-                        if self.debug: print "     RM ASYMP TREND  22:    SMM[I][7] => %s  " % self.SMM[I][7]
+            if self.ISRC[9] == 1:
+                for J in range(self.IBLOCK-1,self.NNN1-2,-1):
+                    self.AK = self.WVNO[J].real
+                    self.SUMD = self.S10[J] * self.AK * self.J1[J]
+                    self.SMM[1][7] = self.SMM[1][7] + (self.SUMD - 2.0 * self.SUME[J] / self.DISTANCE) * self.FACT[J]
+                    if self.verbose: print "     RM ASYMP TREND  22:    SMM[1][7] => %s  " % self.SMM[1][7]
 
-                if self.ISRC[6] == 1:
-                    for J in range(self.NNN1-1,self.IBLOCK):
-                        self.SUMD = self.FACT[J] * self.S7[J] * self.J0[J]
-                        self.SMM[I][8] = self.SMM[I][8] + self.SUMD
-                        if self.debug: print "     RM ASYMP TREND  23:    SMM[I][8] => %s  " % self.SMM[I][8]
+            if self.ISRC[6] == 1:
+                for J in range(self.NNN1-1,self.IBLOCK):
+                    self.SUMD = self.FACT[J] * self.S7[J] * self.J0[J]
+                    self.SMM[1][8] = self.SMM[1][8] + self.SUMD
+                    if self.verbose: print "     RM ASYMP TREND  23:    SMM[1][8] => %s  " % self.SMM[1][8]
 
-                if self.ISRC[7] == 1:
-                    for J in range(self.NNN1-1,self.IBLOCK):
-                        self.AK = self.WVNO[J].real
-                        self.SUMD = self.FACT[J] * self.S8[J] * self.AK * self.J1[J]
-                        self.SMM[I][9] = self.SMM[I][9] + self.SUMD
-                        if self.debug: print "     RM ASYMP TREND  24:    SMM[I][9] => %s  " % self.SMM[I][9]
+            if self.ISRC[7] == 1:
+                for J in range(self.NNN1-1,self.IBLOCK):
+                    self.AK = self.WVNO[J].real
+                    self.SUMD = self.FACT[J] * self.S8[J] * self.AK * self.J1[J]
+                    self.SMM[1][9] = self.SMM[1][9] + self.SUMD
+                    if self.verbose: print "     RM ASYMP TREND  24:    SMM[1][9] => %s  " % self.SMM[1][9]
 
-                if self.debug: print ""
-                if self.debug: print " END"
-                if self.debug: print ""
+            if self.verbose: print ""
+            if self.verbose: print " END"
+            if self.verbose: print ""
 
-                #}}}
+            #}}}
 
-                #}}} sub WVINT
+            #}}} sub WVINT
 
             #}}} FR
 
@@ -2575,104 +2520,95 @@ class GreenFunctions():
 
         #}}} A
 
-        #print ' DEBUG: T0 = %s' % self.T0
-        for I in range(self.NRANGE):
+        #print ' verbose: T0 = %s' % self.T0
         #{{{ B
-            #print ' DEBUG: I = %s' % I
-            #print ' DEBUG: T0[%s] = %s' % (I,self.T0[I])
-            #print ' DEBUG: RANGE[%s] = %s' % (I,self.RANGE[I])
-            #print ' DEBUG: VRED[%s] = %s' % (I,self.VRED[I])
-            if self.VRED[I] >= 0.0: self.VRED[I] = 10.0
-            self.T0X = self.T0[I] + self.RANGE[I] / self.VRED[I]
-            self.FAT = self.OMEGA * self.T0X
-            self.XR = cos(self.FAT)
-            self.XI = sin(self.FAT)
-            self.DKK = self.DK * self.RANGE[I]
-            #self.SMM[I][1] *= -1 * self.SMM[I][1]
-            #self.SMM[I][9] *= -1 * self.SMM[I][9]
-            self.SMM[I][1] *= -1
-            self.SMM[I][9] *= -1
-            for J in range(10):
-                self.SMM[I][J] = self.SMM[I][J] * self.DKK
-                self.SMM[I][J] = self.SMM[I][J] / self.RANGE[I]
+        self.T0X = self.T0[1] + self.DISTANCE / 8
+        self.FAT = self.OMEGA * self.T0X
+        self.XR = cos(self.FAT)
+        self.XI = sin(self.FAT)
+        self.DKK = self.DK * self.DISTANCE
+        self.SMM[1][1] *= -1
+        self.SMM[1][9] *= -1
+        for J in range(10):
+            self.SMM[1][J] = self.SMM[1][J] * self.DKK
+            self.SMM[1][J] = self.SMM[1][J] / self.DISTANCE
 
-            for J in range(10):
-                if self.ISRC[J] != 1: break
-                self.GG[I][J] = self.SMM[I][J] * complex(self.XR,self.XI)
-                if self.debug: print "%s" % self.GG[I][J]
+        for J in range(10):
+            if self.ISRC[J] != 1: break
+            self.GG[1][J] = self.SMM[1][J] * complex(self.XR,self.XI)
+            if self.verbose: print "%s" % self.GG[1][J]
         #}}} B
 
-        if self.debug: print "%s" % self.GG
+        if self.verbose: print "%s" % self.GG
         #return self.GG 
 
 #}}}
 
     def _solu300(self,Y1,Y2,X1,X2,J):
         #{{{
-        if self.debug: print ""
-        if self.debug: print "&&&&&&&&&&&&&&&&&&& SOLU &&&&&&&&&&&&&&&"
+        if self.verbose: print ""
+        if self.verbose: print "&&&&&&&&&&&&&&&&&&& SOLU &&&&&&&&&&&&&&&"
         self.CC[J] = complex(0.0,0.0)
         U1 = X1 * self.DEPTH
         U2 = X2 * self.DEPTH
         DET = X2 - X1
-        if self.debug: print "SOLU 300: U1 =%s" % U1
-        if self.debug: print "SOLU 300: U2 =%s" % U2
-        if self.debug: print "SOLU 300: DET =%s" % DET
+        if self.verbose: print "SOLU 300: U1 =%s" % U1
+        if self.verbose: print "SOLU 300: U2 =%s" % U2
+        if self.verbose: print "SOLU 300: DET =%s" % DET
         self.AA[J] = complex(0.0,0.0)
-        if self.debug: print "^^^^^^^^ SOLU 300: X1 => %s" % X1
-        if self.debug: print "^^^^^^^^ SOLU 300: X2 => %s" % X2
-        if self.debug: print "^^^^^^^^ SOLU 300: Y1 => %s" % Y1
-        if self.debug: print "^^^^^^^^ SOLU 300: Y2 => %s" % Y2
-        if self.debug: print "^^^^^^^^ SOLU 300: U1 => %s" % U1
-        if self.debug: print "^^^^^^^^ SOLU 300: U2 => %s" % U2
+        if self.verbose: print "^^^^^^^^ SOLU 300: X1 => %s" % X1
+        if self.verbose: print "^^^^^^^^ SOLU 300: X2 => %s" % X2
+        if self.verbose: print "^^^^^^^^ SOLU 300: Y1 => %s" % Y1
+        if self.verbose: print "^^^^^^^^ SOLU 300: Y2 => %s" % Y2
+        if self.verbose: print "^^^^^^^^ SOLU 300: U1 => %s" % U1
+        if self.verbose: print "^^^^^^^^ SOLU 300: U2 => %s" % U2
 
         self.BB[J] = X2 * Y1 * exp(U1) / X1
-        if self.debug: print "^^^^^^^^ SOLU 300: BB[%s]:%s" % (J,self.BB[J])
+        if self.verbose: print "^^^^^^^^ SOLU 300: BB[%s]:%s" % (J,self.BB[J])
         self.BB[J] = X1 * Y2 * exp(U2) / X2
-        if self.debug: print "^^^^^^^^ SOLU 300: BB[%s]:%s" % (J,self.BB[J])
+        if self.verbose: print "^^^^^^^^ SOLU 300: BB[%s]:%s" % (J,self.BB[J])
 
         self.BB[J] = X2 * Y1 * exp(U1) / X1 - X1 * Y2 * exp(U2) / X2
         self.BB[J] = self.BB[J] / DET
         self.CC[J] = Y2 * exp(U2) / X2 - Y1 * exp(U1) / X1
         self.CC[J] = self.CC[J] / DET
-        if self.debug: print "SOLU 300: AA[%s]:%s" % (J,self.AA[J])
-        if self.debug: print "SOLU 300: BB[%s]:%s" % (J,self.BB[J])
-        if self.debug: print "SOLU 300: CC[%s]:%s" % (J,self.CC[J])
-        if self.debug: print ""
+        if self.verbose: print "SOLU 300: AA[%s]:%s" % (J,self.AA[J])
+        if self.verbose: print "SOLU 300: BB[%s]:%s" % (J,self.BB[J])
+        if self.verbose: print "SOLU 300: CC[%s]:%s" % (J,self.CC[J])
+        if self.verbose: print ""
         #exit()
         #}}}
 
     def _solu200(self,Y1,Y2,X1,X2,J):
         #{{{
-        if self.debug: print ""
-        if self.debug: print "&&&&&&&&&&&&&&&&&&& SOLU &&&&&&&&&&&&&&&"
+        if self.verbose: print ""
+        if self.verbose: print "&&&&&&&&&&&&&&&&&&& SOLU &&&&&&&&&&&&&&&"
         self.CC[J] = complex(0.0,0.0)
         U1 = X1 * self.DEPTH
         U2 = X2 * self.DEPTH
         DET = X2 - X1
-        if self.debug: print "SOLU 200: U1 =%s" % U1
-        if self.debug: print "SOLU 200: U2 =%s" % U2
-        if self.debug: print "SOLU 200: DET =%s" % DET
+        if self.verbose: print "SOLU 200: U1 =%s" % U1
+        if self.verbose: print "SOLU 200: U2 =%s" % U2
+        if self.verbose: print "SOLU 200: DET =%s" % DET
         self.AA[J] = X2 * Y1 * exp(U1) - X1 * Y2 * exp(U2)
         self.AA[J] = self.AA[J] / DET
         self.BB[J] = Y2 * exp(U2) - Y1 * exp(U1)
         self.BB[J] = self.BB[J] / DET
-        if self.debug: print "SOLU 200: AA[%s]:%s" % (J,self.AA[J])
-        if self.debug: print "SOLU 200: BB[%s]:%s" % (J,self.BB[J])
-        if self.debug: print ""
+        if self.verbose: print "SOLU 200: AA[%s]:%s" % (J,self.AA[J])
+        if self.verbose: print "SOLU 200: BB[%s]:%s" % (J,self.BB[J])
+        if self.verbose: print ""
         #}}}
 
     def _wvint9(self):
 #{{{
         for i in range(self.N2):
             if self.verbose: print 'OMEGA(%s):   %s' % ( i, self.ALLOMEGA[i])
-            for j in range(self.NRANGE):
-                for k in range(10):
-                    try:
-                        if self.verbose: print 'DATA(%s,%s,%s):   %s' % ( j, i, k, self.DATA[j][i][k])
-                    except Exception,e:
-                        self.DATA[j][i][k] = complex(0.0,0.0)
-                        if self.verbose: print 'DATA(%s,%s,%s):   %s' % ( j, i, k, Exception)
+            for k in range(10):
+                try:
+                    if self.verbose: print 'DATA(%s,%s,%s):   %s' % ( 1, i, k, self.DATA[i][k])
+                except Exception,e:
+                    self.DATA[i][k] = complex(0.0,0.0)
+                    if self.verbose: print 'DATA(%s,%s,%s):   %s' % ( 1, i, k, Exception)
 
 
         self.REP = 'n'
@@ -2703,140 +2639,107 @@ class GreenFunctions():
 
 
 
-        #for nd in range(self.N1,self.N2,self.NSKIP):
-        for nd in range(self.NRANGE):
-            T0X = self.RANGE[nd]/self.VRED[nd]
-            yr = 0.0
+        T0X = self.DISTANCE/8.0
+        yr = 0.0
 
-            if self.verbose: print "nd=%s" % nd
-            if self.verbose: print "range=%s yr=%s depth=%s" % (self.RANGE[nd],yr,self.DEPTH)
-            if self.verbose: print "npoint=%s t0x=%s dt=%s tau=%s" % (self.N,T0X,self.DT,self.TAU)
+        if self.verbose: print "range=%s yr=%s depth=%s" % (self.DISTANCE,yr,self.DEPTH)
+        if self.verbose: print "npoint=%s t0x=%s dt=%s tau=%s" % (self.N,T0X,self.DT,self.TAU)
 
-            if self.debug: print "range=%s yr=%s depth=%s npoint=%s t0x=%s dt=%s tau=%s" % (self.RANGE[nd],yr,self.DEPTH,self.N,T0X,self.DT,self.TAU)
-            for l in range(10):
+        if self.verbose: print "range=%s yr=%s depth=%s npoint=%s t0x=%s dt=%s tau=%s" % (self.DISTANCE,yr,self.DEPTH,self.N,T0X,self.DT,self.TAU)
+        for l in range(10):
 
-                #self.TEMPDATA = {}
-                self.TEMPDATA = dict()
+            self.TEMPDATA = defaultdict(complex)
+            temp = defaultdict(complex)
 
-                if self.ISRC[l] != 1:
-                    for j in range(self.N):
+            if self.ISRC[l] != 1:
+                for j in range(self.N):
+                    self.TEMPDATA[j] = complex(0.0,0.0)
+                    #print "TEST 1: TEMPDATA[j] => %s" % self.TEMPDATA[j]
+            else:
+
+                for j in range(self.NYQ):
+
+                    if j < self.N2:
+                        #print "self.DATA= %s" % self.DATA
+                        #print "j = %s l = %s" % (j,l)
+                        self.TEMPDATA[j]=self.DATA[j][l]
+                        #self.TEMPDATA[self.N2-1-j]=self.DATA[nd][j][l].conjugate()
+
+                    else:
                         self.TEMPDATA[j] = complex(0.0,0.0)
-                        #print "TEST 1: TEMPDATA[j] => %s" % self.TEMPDATA[j]
-                else:
-                    #for j in range(self.NYQ+1):
+                        #self.TEMPDATA[self.N2-1-j] = complex(0.0,0.0).conjugate()
 
-                    #    if j < self.N2-1:
+                for j in range(self.NYQ):
+                    temp[self.NYQ-j] =  self.TEMPDATA[j].conjugate() 
 
-                    #        self.TEMPDATA[j]=self.DATA[nd][j][l]
-                    #        self.TEMPDATA[self.N2-1-j]=self.DATA[nd][j][l].conjugate()
+                for j in range(self.NYQ):
+                    self.TEMPDATA[self.NYQ+1+j] =  temp[j]
 
-                    #    elif j > self.N2-1:
-
-                    #        self.TEMPDATA[j] = complex(0.0,0.0)
-                    #        self.TEMPDATA[self.N2-1-j] = complex(0.0,0.0).conjugate()
-
-                    #    else:
-
-                    #        self.TEMPDATA[self.N2-1]=self.DATA[nd][j][l]
-
-                    for j in range(self.N2):
-                        self.TEMPDATA[j]=self.DATA[nd][j][l]
-
-                    for j in range(self.N2+1,self.NYQ):
-                        self.TEMPDATA[j] = complex(0.0,0.0)
-
-                    for j in range(self.N2):
-                        if j: self.TEMPDATA[self.N+2-j]=self.TEMPDATA[j].conjugate()
-
-                    for j in range(self.N2+1,self.NYQ):
-                        self.TEMPDATA[j] = complex(0.0,0.0)
-                        self.TEMPDATA[self.N+2-j] = self.TEMPDATA[j].conjugate()
-
-                    self.TEMPDATA[0] = complex(0.0,0.0)
-                    self.TEMPDATA[self.NYQ] = complex(0.0,0.0)
-
-
-
-                    """
-                    Correct for damping.
-                    """
-                    fac = exp(self.ALPHA  * T0X)
-                    dfac = exp(self.ALPHA*self.DT)
-
-                    for i in range(self.N2):
-                        self.TEMPDATA[i] = self.TEMPDATA[i] * fac
-                        fac = fac * dfac
-
-                    #convert to list
-                    self.TEMPDATA = [ x for x in self.TEMPDATA.values()]
-
-                    self.TEMPDATA = ifft(self.TEMPDATA)
-
-                    #Convert to real values
-                    self.TEMPDATA = self.TEMPDATA.real
-
-                    #plt.plot(self.TEMPDATA)
-                    #text = 'GF: range(%s) block(%s)' % (nd,l)
-                    #plt.legend(text)
-                    #plt.show()
 
 
                 """
-                Time Domain Integration
+                Correct for damping.
                 """
-                if self.IVEL == 'd': self.TEMPDATA = cumtrapz(self.TEMPDATA)
+                fac = exp(self.ALPHA  * T0X)
+                dfac = exp(self.ALPHA*self.DT)
 
+                for i in range(self.N2):
+                    self.TEMPDATA[i] = self.TEMPDATA[i] * fac
+                    fac = fac * dfac
 
+                #convert to list
+                self.TEMPDATA = [ x for x in self.TEMPDATA.values()]
 
-                if l == 0:
-                    self.ZDD = [x * -1 for x in self.TEMPDATA ]
+                self.TEMPDATA = ifft(self.TEMPDATA)
 
-                elif l == 1:
-                    self.XDD = [x for x in self.TEMPDATA]
-
-                elif l == 2:
-                    self.ZDS = [x for x in self.TEMPDATA]
-
-                elif l == 3:
-                    self.XDS = [x * -1 for x in self.TEMPDATA ]
-
-                elif l == 4:
-                    self.TDS = [x for x in self.TEMPDATA]
-
-                elif l == 5:
-                    self.ZSS = [x * -1 for x in self.TEMPDATA ]
-
-                elif l == 6:
-                    self.XSS = [x for x in self.TEMPDATA]
-
-                elif l == 7:
-                    self.TSS = [x * -1 for x in self.TEMPDATA ]
-
-                elif l == 8:
-                    self.REX = [x for x in self.TEMPDATA]
-
-                elif l == 9:
-                    self.ZEX = [x for x in self.TEMPDATA]
-
-                #print "\n"
-                #for i in range(self.N):
-                #    try:
-                #        print "%s " % self.TEMPDATA[i]
-                #    except: 
-                #        print "0.0 "
-
-                #print "temp %s " %  temp
-                #print "%s " % self.TEMPDATA
-                #exit()
-
-
-                #print "NPOINT: %s\n" % self.N
-                #print "ND: %s\n" % nd
-                #print "l: %s\n\n" % l
-
-                #plt.subplot(5,2,l)
+                #Convert to real values
+                self.TEMPDATA = self.TEMPDATA.real
 
                 #plt.plot(self.TEMPDATA)
+                #text = 'GF: range(%s) block(%s)' % (nd,l)
+                #plt.legend(text)
+                #plt.show()
+
+
+            """
+            Time Domain Integration
+            """
+            if self.IVEL == 'd': self.TEMPDATA = cumtrapz(self.TEMPDATA)
+
+
+
+            if l == 0:
+                self.ZDD = [x * -1 for x in self.TEMPDATA ]
+
+            elif l == 1:
+                self.XDD = [x for x in self.TEMPDATA]
+
+            elif l == 2:
+                self.ZDS = [x for x in self.TEMPDATA]
+
+            elif l == 3:
+                self.XDS = [x * -1 for x in self.TEMPDATA ]
+
+            elif l == 4:
+                self.TDS = [x for x in self.TEMPDATA]
+
+            elif l == 5:
+                self.ZSS = [x * -1 for x in self.TEMPDATA ]
+
+            elif l == 6:
+                self.XSS = [x for x in self.TEMPDATA]
+
+            elif l == 7:
+                self.TSS = [x * -1 for x in self.TEMPDATA ]
+
+            elif l == 8:
+                self.REX = [x for x in self.TEMPDATA]
+
+            elif l == 9:
+                self.ZEX = [x for x in self.TEMPDATA]
+
+
+            #plt.plot(self.TEMPDATA)
 
 
 
@@ -2888,7 +2791,7 @@ class GreenFunctions():
                 plt.plot(self.ZEX)
                 plt.legend(["ZEX"])
 
-        plt.suptitle("Green Functions: depth:%s distance:%s" % (self.DEPTH,self.RANGE))
+        plt.suptitle("Green Functions: depth:%s distance:%s" % (self.DEPTH,self.DISTANCE))
         plt.show()
 #}}}
 
@@ -2972,60 +2875,23 @@ class GreenFunctions():
 
 
 """
-If we call this script directly, then...
+If we call this script directly, then output help.
 """
 if __name__ == "__main__":
 #{{{
-    """
-    Get all information from command line 
-    and verify the source file is accessible.
-    """
-    try:
+    print "Green's Functions Library:"
+    print "\t1) Import the library.  "
+    print "\t\timport moment_tensor.fkrprog as fkr"
+    print "\t2) Build object for GF's.  "
+    print "\t\tgf = GreenFunctions(modle.pf)"
+    print "\t3) Build for [distance,depth]"
+    print "\t\tgf.generate(depth=8,distance=1)"
+    print "\t3) Get GF's matrix with elements"
+    print "\t\tdata=gf.ALL"
 
-        opts, pargs = getopt.getopt(sys.argv[1:], 'vd')
-
-    except getopt.GetoptError:
-
-        print "Usage: fkrprog [-v] [-d] file\n"
-        sys.exit(-1)
-
-    if( len(pargs) != 1):
-
-        print "Usage: fkrprog [-v] [-d] file\n"
-        sys.exit(-1)
-
-    else:
-
-        SOURCE_FILE = pargs[0]
-
-    debug = False
-    verbose = False
-
-    for option, value in opts:
-
-        if '-v' in option:
-            debug = False
-            verbose = True
-
-        if '-d' in option:
-            debug = True
-            verbose = True
-
-    if not os.path.isfile(SOURCE_FILE):
-        raise SystemExit('\n\nCannot find specified file! (%s)\n'% SOURCE_FILE)
-
-    """
-    Build object for GF's.
-    """
-    GF =  GreenFunctions(SOURCE_FILE)
-    """
-    Generate GF's for depth of 8km and distance of 1km.
-    """
-    GF.generate(depth=8,distance=1)
-    print GF('TSS')
-    print GF['XDS']
-    print GF.ALL
-    GF.plot()
-    if verbose: print 'Done!'
+    print "\n\n"
+    print "No BRTT support."
+    print "Juan Reyes <reyes@ucsd.edu>"
+    print "Rob Newman <rlnewman@ucsd.edu>"
 
 #}}}
