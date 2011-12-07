@@ -1027,7 +1027,7 @@ class Event():
             moment_dbptr.close()
             return True
 
-    def create_focal_mechanism(self, obspy_beachball, mt_images_dir, matrix_M):
+    def create_focal_mechanism(self, obspy_beachball, mt_images_dir, matrix_M=False, strike=False, dip=False, rake=False):
         """Write out focal mechanism
         to images directory
         """
@@ -1050,13 +1050,16 @@ class Event():
         Try the second way for comparison.
         RLN (2011-12-02)
         '''
-        focal_mechanism = [ matrix_M[0, 0], 
-                            matrix_M[1, 1],  
-                            matrix_M[2, 2], 
-                            matrix_M[0, 1], 
-                            matrix_M[0, 2],
-                            matrix_M[1, 2]
-                          ]
+        if len(matrix_M) < 1:
+            focal_mechanism = [strike[0], dip[0], rake[0]]
+        else:
+            focal_mechanism = [ matrix_M[0, 0], 
+                                matrix_M[1, 1],  
+                                matrix_M[2, 2], 
+                                matrix_M[0, 1], 
+                                matrix_M[0, 2],
+                                matrix_M[1, 2]
+                              ]
 
         if self.verbosity > 0:
             logmt(1, 'Try to plot focal mechanism: %s' % focal_mechanism)
@@ -1230,9 +1233,9 @@ class Event():
                     end = len(stachan_traces[new_sta_chan])
                     ax = plt.subplot(len(azimuth_list), len(rotated_components), axis_num)
                     # plt.plot(stachan_traces[new_sta_chan], 'b', mod_gg[new_sta_chan].values(), 'r--')
-                    plt.plot(stachan_traces[new_sta_chan][start:end], 'b', mod_gg[new_sta_chan].values(), 'r--')
+                    # plt.plot(stachan_traces[new_sta_chan][start:end], 'b', mod_gg[new_sta_chan].values(), 'r--')
                     # plt.plot(stachan_traces[new_sta_chan][t0:t1], 'b')
-                    #plt.plot(mod_gg[new_sta_chan].values(), 'r--')
+                    plt.plot(mod_gg[new_sta_chan].values(), 'r--')
                     ax.set_yticklabels([])
                     ax.set_xticklabels([])
                     if j == 0:
@@ -1368,7 +1371,7 @@ def main():
               ZEX vs u10
 
     '''
-    green = fkr.GreenFunctions('greens/MODEL1')
+    green = fkr.GreenFunctions('SOCAL_MODEL')
     green.generate(8, 1)
     if verbosity > 1:
         green.plot()
@@ -1471,7 +1474,8 @@ def main():
     '''
     my_event.update_moment_tbl(strike, dip, rake)
     # focalmech_img = my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, strike, dip, rake)
-    focalmech_img = my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, M)
+    focalmech_img = my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, M, False, False, False)
+    # focalmech_img = my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, False, strike, dip, rake)
 
     # !!! NOTE: Use a list of tuples as order is important. RLN (2011-11-28)
     image_annotations = [ ('strike', '%.3f' % strike[0]), 
@@ -1492,6 +1496,8 @@ def main():
     # !!! NOTE: CREATE THE COMPOSITE (FINAL) IMAGE AND UPDATE DB. RLN (2011-11-28)
     my_event.create_composite_plot(ttfont, image_annotations, mt_images_dir, synthetics_img, focalmech_img)
 
+    print "MOMENT TENSOR:"
+    print M
     print 'M0      = %s' % m0
     print 'Mw      = %s' % Mw 
     print 'Strike  = %s' % math.degrees(strike[0])
