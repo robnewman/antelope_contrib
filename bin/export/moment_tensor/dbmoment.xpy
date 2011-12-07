@@ -315,6 +315,7 @@ class MomentTensor():
             cnt3 += 2*size - 2*trim
             if self.verbosity > 0:
                 logmt(1, '  - Working on inversion for station (%s)' % list_az[i][0])
+            # Convert azimuth to radians
             this_azimuth = list_az[i][1] * math.pi/180
             '''
             !!! NOTE: len(dict_s['T'][0]) is the number of 
@@ -396,6 +397,9 @@ class MomentTensor():
         for i in range(len(list_az)):
             if self.verbosity > 0:
                 logmt(1, '  - Applying timeshift to station (%s): Trim: %s, timeshift: %s' % (list_az[i][0], trim, timeshift[i][1]))
+            # Pre-populate dictionary of values
+            # |cnt1           |cnt2        |cnt3       |
+            # |*****----------|*****-------|*****------|
             cnt1 = cnt2 = cnt3
             cnt2 += size - trim
             cnt3 += 2*size - 2*trim
@@ -899,13 +903,14 @@ class Event():
                 sta, esaz, at = dbptr.getv('sta', 'esaz', 'arrival.time')
                 ev2sta_azimuths.append((sta, esaz))
                 '''
-                !!!! NOTE: Want maximium x3 the size 
+                !!!! NOTE: Want maximium x2 the size 
                            to account for timeshifts
+                           and add 10 seconds before
                            RLN (2011-12-06)
                 st   p arrival.time             et
                 | <-------->*<--------><-------->|
                 '''
-                st = at - size
+                st = at - 10
                 et = at + (size * 2) 
                 resample = 0
                 vang = 0
@@ -946,7 +951,7 @@ class Event():
                                   max length either side.
                                   RLN (2011-12-06)
                         '''
-                        max_size = 3 * size
+                        max_size = (size * 2) + 10 # Only works if 1Hz (1 sample per second, LH.*)
                         if self.verbosity > 1 and len(samples) > max_size:
                             logmt(1, '  - Sample size for %s: %s. Max: %s. Trimming.' % (stachan, len(samples), max_size))
                         stachan_traces[stachan] = samples[0:max_size]  
@@ -1112,18 +1117,24 @@ class Event():
                 logmt(1, 'Successfully created focal mechanism image (%s)' % my_outpath)
             return my_outpath
 
-    def calculate_synthetics_to_plot(self, gg, azimuth_list, matrix_M):
+    def calculate_synthetics_to_plot(self, gg, azimuth_list, matrix_M, size):
         """Calculate the data series
         to plot against the station
         data in the plots
-
-        Mxx = matrix_M[0, 0]
-        Mxy = matrix_M[0, 1]
-        Mxz = matrix_M[0, 2]
-        Myy = matrix_M[1, 1]
-        Myz = matrix_M[1, 2]
-        Mzz = matrix_M[2, 2]
         """
+
+        '''
+        !!! NOTE: Translation to Dreger like
+                  code makes debugging easier. 
+                  RLN (2011-12-07)
+        '''
+        mxx = matrix_M[0, 0]
+        mxy = matrix_M[0, 1]
+        mxz = matrix_M[0, 2]
+        myy = matrix_M[1, 1]
+        myz = matrix_M[1, 2]
+        mzz = matrix_M[2, 2]
+
         if self.verbosity > 1:
             logmt(1, 'Calculating synthetics for orid: %s' % self.orid)
 
@@ -1139,38 +1150,54 @@ class Event():
                 sta_rc = '%s_%s' % (sta, rc)
                 if self.verbosity > 0:
                     logmt(1, '  - Work on rotated channel (%s)' % rc)
-                for j in range(len(gg['TSS'])):
+                for j in range(size):
+                    '''
+                    !!! FIX: In Dreger's code there is a timeshift
+                             but that timeshift is set to 0, i.e. use
+                             all datapoints from the Greens function.
+                             RLN (2011-12-07)
+                    '''
                     if rc == 'T':
-                        syn_plot_dict[sta_rc][j] = (matrix_M[0, 0]*0.5*gg['TSS'][j]*math.sin(2*az) 
-                                                - matrix_M[1, 1]*0.5*gg['TSS'][j]*math.sin(2*az)
-                                                - matrix_M[0, 1]*gg['TSS'][j]*math.cos(2*az)
-                                                - matrix_M[0, 2]*gg['TDS'][j]*math.sin(az)
-                                                + matrix_M[1, 2]*gg['TDS'][j]*math.cos(az))
+                        syn_plot_dict[sta_rc][j] = (mxx*0.5*gg['TSS'][j]*math.sin(2*az) 
+                                                - myy*0.5*gg['TSS'][j]*math.sin(2*az)
+                                                - mxy*gg['TSS'][j]*math.cos(2*az)
+                                                - mxz*gg['TDS'][j]*math.sin(az)
+                                                + myz*gg['TDS'][j]*math.cos(az))
                     elif rc == 'R':
-                        syn_plot_dict[sta_rc][j] = (matrix_M[0, 0]*0.5*gg['XDD'][j]
-                                                - matrix_M[0, 0]*0.5*gg['XSS'][j]*math.cos(2*az)
-                                                + matrix_M[0, 0]*0.3333*gg['REX'][j]
-                                                + matrix_M[1, 1]*0.5*gg['XDD'][j]
-                                                + matrix_M[1, 1]*0.5*gg['XSS'][j]*math.cos(2*az)
-                                                + matrix_M[1, 1]*0.3333*gg['REX'][j]
-                                                + matrix_M[2, 2]*0.3333*gg['REX'][j]
-                                                - matrix_M[0, 1]*gg['XSS'][j]*math.sin(2*az)
-                                                + matrix_M[0, 2]*gg['XDS'][j]*math.cos(az)
-                                                + matrix_M[1, 2]*gg['XDS'][j]*math.sin(az))
+                        syn_plot_dict[sta_rc][j] = (mxx*0.5*gg['XDD'][j]
+                                                - mxx*0.5*gg['XSS'][j]*math.cos(2*az)
+                                                + mxx*0.3333*gg['REX'][j]
+                                                + myy*0.5*gg['XDD'][j]
+                                                + myy*0.5*gg['XSS'][j]*math.cos(2*az)
+                                                + myy*0.3333*gg['REX'][j]
+                                                + mzz*0.3333*gg['REX'][j]
+                                                - mxy*gg['XSS'][j]*math.sin(2*az)
+                                                + mxz*gg['XDS'][j]*math.cos(az)
+                                                + myz*gg['XDS'][j]*math.sin(az))
                     elif rc == 'Z':
-                        syn_plot_dict[sta_rc][j] = (matrix_M[0, 0]*0.5*gg['ZDD'][j]
-                                                - matrix_M[0, 0]*0.5*gg['ZSS'][j]*math.cos(2*az)
-                                                + matrix_M[0, 0]*0.3333*gg['ZEX'][j]
-                                                + matrix_M[1, 1]*0.5*gg['ZDD'][j]
-                                                + matrix_M[1, 1]*0.5*gg['ZSS'][j]*math.cos(2*az)
-                                                + matrix_M[1, 1]*0.3333*gg['ZEX'][j]
-                                                + matrix_M[2, 2]*0.3333*gg['ZEX'][j]
-                                                - matrix_M[0, 1]*gg['ZSS'][j]*math.sin(2*az)
-                                                + matrix_M[0, 2]*gg['ZDS'][j]*math.cos(az)
-                                                + matrix_M[1, 2]*gg['ZDS'][j]*math.sin(az))
+                        syn_plot_dict[sta_rc][j] = (mxx*0.5*gg['ZDD'][j]
+                                                - mxx*0.5*gg['ZSS'][j]*math.cos(2*az)
+                                                + mxx*0.3333*gg['ZEX'][j]
+                                                + myy*0.5*gg['ZDD'][j]
+                                                + myy*0.5*gg['ZSS'][j]*math.cos(2*az)
+                                                + myy*0.3333*gg['ZEX'][j]
+                                                + mzz*0.3333*gg['ZEX'][j]
+                                                - mxy*gg['ZSS'][j]*math.sin(2*az)
+                                                + mxz*gg['ZDS'][j]*math.cos(az)
+                                                + myz*gg['ZDS'][j]*math.sin(az))
         return syn_plot_dict
 
-    def create_data_synthetics_plot(self, stachan_traces, azimuth_list, mod_gg, timeshift, mt_images_dir):
+    def normalize(self, data_as_list):
+        """Determine the 
+        normalization factor
+        for all the data
+        """
+        normalizer = max([abs(x) for x in data_as_list])
+        if self.verbosity > 0:
+            logmt(1, "  - Normalization factor: %s" % normalizer)
+        return normalizer
+
+    def create_data_synthetics_plot(self, stachan_traces, azimuth_list, mod_gg, timeshift, size, mt_images_dir):
         """Create and save data vs. 
         synthetic waveform plots. 
         Equivalent to Dreger's function 
@@ -1216,12 +1243,20 @@ class Event():
                 if self.verbosity > 0:
                     logmt(1, ' - Processing (%s)' % new_sta_chan)
                 if new_sta_chan in stachan_traces:
-                    # Get the timeshift
+                    logmt(1, 'stachan_traces[%s], length:%s, timeshift: %s' % (new_sta_chan, len(stachan_traces[new_sta_chan]), timeshift[i][1]))
                     start = timeshift[i][1]
-                    end = len(stachan_traces[new_sta_chan])
+                    end = start + size
                     ax = plt.subplot(len(azimuth_list), len(rotated_components), axis_num)
-                    plt.plot(stachan_traces[new_sta_chan][start:end], 'b', mod_gg[new_sta_chan].values(), 'r--')
-                    # plt.plot(mod_gg[new_sta_chan].values(), 'r--')
+                    data_scale_factor = self.normalize(stachan_traces[new_sta_chan][start:end])
+                    syn_scale_factor = self.normalize(mod_gg[new_sta_chan].values())
+                    new_data_list = [(v/data_scale_factor) for v in stachan_traces[new_sta_chan][start:end]]
+                    new_synthetic_list = [(v/syn_scale_factor) for v in mod_gg[new_sta_chan].values()]
+                    if self.verbosity > 1:
+                        print "\n\n  - NEW DATA LIST:"
+                        pprint(new_data_list)
+                        print "\n\n  - NEW SYNTHETICS LIST:"
+                        pprint(new_synthetic_list)
+                    plt.plot(new_data_list, 'b', new_synthetic_list, 'g')
                     ax.set_yticklabels([])
                     ax.set_xticklabels([])
                     if j == 0:
@@ -1363,6 +1398,29 @@ def main():
         green.plot()
     gg = green.ALL
     nl = len(gg['TSS'])
+    '''
+    !!! NOTE: Is this relevant?
+              In Dreger's code look
+              for the comments:
+              /*Note the vertical GF's are*/ 
+              /*flipped in earqt1.f and TW's*/
+              /* Blackbox.f DVH conv. z + down*/
+              RLN (2011-12-07)
+    '''
+    '''
+    if verbosity > 1:
+        print "\n\n\nOLD GREENS FUNCTION FORMAT:"
+        pprint(gg)
+    new_zss = [val*-1 for val in gg['ZSS']]
+    new_zds = [val*-1 for val in gg['ZDS']]
+    new_zdd = [val*-1 for val in gg['ZDD']]
+    gg['ZSS'] = new_zss
+    gg['ZDS'] = new_zds
+    gg['ZDD'] = new_zdd
+    if verbosity > 1:
+        print "\n\n\nNEWLY FORMATTED GREENS FUNCTION, VERTICAL COMPS * -1 (LOOK AT ZSS, ZDS & ZDD):"
+        pprint(gg)
+    '''
 
     '''
     !!! NOTE: We have an inherent problem
@@ -1379,6 +1437,19 @@ def main():
               RLN (2011-12-06)
     '''
     stachan_traces, ev2sta_azimuths = my_event.get_chan_data(evdbptr, wave_db, chan_to_use, filter_string, statmax, nl, clip_values)
+    '''
+    !!! FIX: Go back to Dreger's code
+             Grab the Greens functions
+             and test data
+             RLN (2011-12-07)
+    stachan_traces = 
+    ev2sta_azimuths = (
+        ('testdata1', 10)
+        ('testdata2', 40)
+        ('testdata3', 50)
+    )
+    '''
+
 
     if verbosity > 1:
         print 'Stachan traces:'
@@ -1392,23 +1463,25 @@ def main():
     my_mt = MomentTensor(distance_weighting, isoflag, trim_value, verbosity)
     ss = my_mt.construct_data_matrix(stachan_traces)
 
+    '''
+    !!! FIX: Override the number of data points 
+             like Dreger does to be 120 values.
+             HACK!
+             RLN (2011-12-07)
+    '''
+    nl = 120
+
     if len(ss) != 0:
         logmt(1, 'Data matrix S created --> %s stations used' % len(ss['T']))
     '''
-    !!! NOTE: We want to sizes to be different 
+    !!! NOTE: We want to sizes of
+              ss and gg to be different 
               in order to account for the 
-              timeshift, either + or -
+              timeshift of ss, either + or -.
               RLN (2011-12-06)
     '''
-    # if len(gg['TSS']) != len(ss['T'][0]):
-    #     logmt(3, "Number of Green's functions data points (%d) does not match the number of station trsample data points (%d)" % (len(gg['TSS']), len(ss['T'][0])))
-    # else:
-    #     logmt(1, 'Matrix ss (extracted station data, length:%d) and gg (synthetics, length:%d) created' % (len(ss['T'][0]), len(gg['TSS'])))
-
-    # !!! NOTE: timeshift is a list of the counts at each station we need to add to get the correlation match. RLN (2011-11-03)
     timeshift = my_mt.get_time_shift(ss, gg, ev2sta_azimuths, nl)
     logmt(1, 'Timeshift between data and synthetics computed for %s stations' % len(timeshift))
-
     '''
     !!! NOTE: Weighting factor:
               number of stations to be used 
@@ -1421,7 +1494,6 @@ def main():
     W = []
     for i in range(len(ss['T'])):
         W.append(1.0)
-
     '''
     !!! NOTE: INVERSION ROUTINE
               Dreger normalizes AtA (B?) and AIV (AIV) matrix. 
@@ -1456,10 +1528,10 @@ def main():
     '''
     !!! NOTE: In ObsPy there are two different 
               ways to create a focal mechanism.
-              Try them both.  RLN (2011-12-02)
+              Allow both.  RLN (2011-12-02)
     '''
     my_event.update_moment_tbl(strike, dip, rake)
-    # focalmech_img = my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, strike, dip, rake)
+
     focalmech_img = my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, M, False, False, False)
     # focalmech_img = my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, False, strike, dip, rake)
 
@@ -1476,8 +1548,9 @@ def main():
                           ('VAR', '%.3f' % VAR)
                           ]
     # !!! FIX: CREATE DATA vs. SYNTHETICS PLOTS - DONE. RLN (2011-11-03)
-    mod_gg = my_event.calculate_synthetics_to_plot(gg, ev2sta_azimuths, M)
-    synthetics_img = my_event.create_data_synthetics_plot(stachan_traces, ev2sta_azimuths, mod_gg, timeshift, mt_images_dir)
+    mod_gg = my_event.calculate_synthetics_to_plot(gg, ev2sta_azimuths, M, nl)
+
+    synthetics_img = my_event.create_data_synthetics_plot(stachan_traces, ev2sta_azimuths, mod_gg, timeshift, nl, mt_images_dir)
 
     # !!! NOTE: CREATE THE COMPOSITE (FINAL) IMAGE AND UPDATE DB. RLN (2011-11-28)
     my_event.create_composite_plot(ttfont, image_annotations, mt_images_dir, synthetics_img, focalmech_img)
