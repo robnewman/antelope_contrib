@@ -41,6 +41,11 @@ else:
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
+# SIGNAL PROCESSING
+from pylab import *
+from scipy.signal.filter_design import butter, buttord
+from scipy.signal import lfilter
+
 # FKRPROG
 import moment_tensor.fkrprog as fkr
 
@@ -235,7 +240,7 @@ class MomentTensor():
         """
         if self.verbosity > 1:
             logmt(1, ' - Calculating cross correlation between station data and Greens function')
-        xcor = np.correlate(a.values(), b, 'full')
+        xcor = np.correlate(a, b, 'full')
         pr = len(xcor)/2 
         maxval = 0
         maxcoef = 0
@@ -248,7 +253,7 @@ class MomentTensor():
             logmt(1, "  - maxval %s, maxcoef %s" % (maxval,maxcoef))
         return (maxval, maxcoef)
 
-    def get_time_shift(self, data_dict, greens_dict, ev2sta_azimuths, size):
+    def get_time_shift(self, data_dict, greens_dict, size):
         """Get time shift for each station
         using cross correlation of station 
         data points and the Green's Function
@@ -257,8 +262,7 @@ class MomentTensor():
         Return a list of tuples (stacode, timeshift).
         """
         if self.verbosity > 0:
-            logmt(1, 'Get the time shift and return a list')
-        timeshift = []
+            logmt(1, '  - Get the time shift and return a list (xcor, shift)')
         '''
         !!! NOTE: Loop over each stations data points.
                   Remember that the Green's Function 
@@ -266,30 +270,30 @@ class MomentTensor():
                   replicating the number of stations
                   (3D matrix). RLN (2011-12-02)
         '''
-        for i in range(len(ev2sta_azimuths)):
-            shift = 0
-            xcor = 0
-            if self.cross_cor(data_dict['T'][i], greens_dict['TSS'])[0] > xcor:
-                xcor, shift = self.cross_cor(data_dict['T'][i], greens_dict['TSS'])
-            if self.cross_cor(data_dict['T'][i], greens_dict['TDS'])[0] > xcor:
-                xcor, shift = self.cross_cor(data_dict['T'][i], greens_dict['TDS'])
-            if self.cross_cor(data_dict['R'][i], greens_dict['XSS'])[0] > xcor:
-                xcor, shift = self.cross_cor(data_dict['R'][i], greens_dict['XSS'])
-            if self.cross_cor(data_dict['R'][i], greens_dict['XDS'])[0] > xcor:
-                xcor,shift = self.cross_cor(data_dict['R'][i], greens_dict['XDS'])
-            if self.cross_cor(data_dict['R'][i], greens_dict['XDD'])[0] > xcor:
-                xcor,shift = self.cross_cor(data_dict['R'][i], greens_dict['XDD'])
-            if self.cross_cor(data_dict['Z'][i], greens_dict['ZSS'])[0] > xcor:
-                xcor, shift = self.cross_cor(data_dict['Z'][i], greens_dict['ZSS'])
-            if self.cross_cor(data_dict['Z'][i], greens_dict['ZDS'])[0] > xcor:
-                xcor,shift = self.cross_cor(data_dict['Z'][i], greens_dict['ZDS'])
-            if self.cross_cor(data_dict['Z'][i], greens_dict['ZDD'])[0] > xcor:
-                xcor,shift = self.cross_cor(data_dict['Z'][i], greens_dict['ZDD'])
-            sta = ev2sta_azimuths[i][0]
-            timeshift.append((sta, shift))
-        return timeshift
+        shift = 0
+        xcor = 0
+        if self.cross_cor(data_dict['T'], greens_dict['TSS'])[0] > xcor:
+            xcor, shift = self.cross_cor(data_dict['T'], greens_dict['TSS'])
+        if self.cross_cor(data_dict['T'], greens_dict['TDS'])[0] > xcor:
+            xcor, shift = self.cross_cor(data_dict['T'], greens_dict['TDS'])
+        if self.cross_cor(data_dict['R'], greens_dict['XSS'])[0] > xcor:
+            xcor, shift = self.cross_cor(data_dict['R'], greens_dict['XSS'])
+        if self.cross_cor(data_dict['R'], greens_dict['XDS'])[0] > xcor:
+            xcor, shift = self.cross_cor(data_dict['R'], greens_dict['XDS'])
+        if self.cross_cor(data_dict['R'], greens_dict['XDD'])[0] > xcor:
+            xcor, shift = self.cross_cor(data_dict['R'], greens_dict['XDD'])
+        if self.cross_cor(data_dict['Z'], greens_dict['ZSS'])[0] > xcor:
+            xcor, shift = self.cross_cor(data_dict['Z'], greens_dict['ZSS'])
+        if self.cross_cor(data_dict['Z'], greens_dict['ZDS'])[0] > xcor:
+            xcor, shift = self.cross_cor(data_dict['Z'], greens_dict['ZDS'])
+        if self.cross_cor(data_dict['Z'], greens_dict['ZDD'])[0] > xcor:
+            xcor, shift = self.cross_cor(data_dict['Z'], greens_dict['ZDD'])
+        if self.verbosity > 0:
+            logmt(1, '  - Cross-correlation value: %s, timeshift value: %s' % (xcor, shift))
+        return xcor, shift
 
-    def matrix_AIV_B(self, dict_s, dict_g, list_az, timeshift, size):
+    # def matrix_AIV_B(self, dict_s, dict_g, list_az, timeshift, size):
+    def matrix_AIV_B(self, dict_s, dict_g, ev2sta, size):
         """INVERSION ROUTINE
 
         Construct matrices AIV and B using 
@@ -304,19 +308,19 @@ class MomentTensor():
         trim = 0
         cnt1 = cnt2 = cnt3 = 0
         if self.verbosity > 0:
-            logmt(1, ' - Timeshift: %s' % timeshift)
-            logmt(1, ' - Azimuthal distances tuple: %s' % list_az)
-            logmt(1, ' - Number of stations used in calculation: %s' % len(dict_s['T']))
+            # logmt(1, ' - Timeshift: %s' % timeshift)
+            # logmt(1, ' - Azimuthal distances tuple: %s' % list_az)
+            logmt(1, ' - Number of stations used in calculation: %s' % len(dict_s))
 
         # Iterate over number of stations
-        for i in range(len(list_az)):
+        for i in range(len(ev2sta)):
             cnt1 = cnt2 = cnt3
             cnt2 += size - trim
             cnt3 += 2*size - 2*trim
             if self.verbosity > 0:
-                logmt(1, '  - Working on inversion for station (%s)' % list_az[i][0])
+                logmt(1, '  - Working on inversion for station (%s)' % ev2sta[i][0])
             # Convert azimuth to radians
-            this_azimuth = list_az[i][1] * math.pi/180
+            this_azimuth = ev2sta[i][1] * math.pi/180
             '''
             !!! NOTE: len(dict_s['T'][0]) is the number of 
                       the datapoints for the first station. 
@@ -325,45 +329,45 @@ class MomentTensor():
             '''
             for j in range(size - trim):
                 # Mxx term
-                AJ[0][cnt1] =  math.sin(2*this_azimuth)*dict_g['TSS'][j]/2
+                AJ[0][cnt1] =  math.sin(2*this_azimuth)*dict_g[i]['TSS'][j]/2
 
                 # Myy term
-                AJ[1][cnt1] = -math.sin(2*this_azimuth)*dict_g['TSS'][j]/2
+                AJ[1][cnt1] = -math.sin(2*this_azimuth)*dict_g[i]['TSS'][j]/2
 
                 # Mxy term
-                AJ[2][cnt1] = -math.cos(2*this_azimuth)*dict_g['TSS'][j]
-                AJ[2][cnt2] = -math.sin(2*this_azimuth)*dict_g['XSS'][j]
-                AJ[2][cnt3] = -math.sin(2*this_azimuth)*dict_g['ZSS'][j]
+                AJ[2][cnt1] = -math.cos(2*this_azimuth)*dict_g[i]['TSS'][j]
+                AJ[2][cnt2] = -math.sin(2*this_azimuth)*dict_g[i]['XSS'][j]
+                AJ[2][cnt3] = -math.sin(2*this_azimuth)*dict_g[i]['ZSS'][j]
 
                 # Mxz term
-                AJ[3][cnt1] = -math.sin(this_azimuth)*dict_g['TDS'][i]
-                AJ[3][cnt2] =  math.cos(this_azimuth)*dict_g['XDS'][i]
-                AJ[3][cnt3] =  math.cos(this_azimuth)*dict_g['ZDS'][i]
+                AJ[3][cnt1] = -math.sin(this_azimuth)*dict_g[i]['TDS'][i]
+                AJ[3][cnt2] =  math.cos(this_azimuth)*dict_g[i]['XDS'][i]
+                AJ[3][cnt3] =  math.cos(this_azimuth)*dict_g[i]['ZDS'][i]
 
                 # Myz term
-                AJ[4][cnt1] =  math.cos(this_azimuth)*dict_g['TDS'][i]
-                AJ[4][cnt2] =  math.sin(this_azimuth)*dict_g['XDS'][i]
-                AJ[4][cnt3] =  math.sin(this_azimuth)*dict_g['ZDS'][i]
+                AJ[4][cnt1] =  math.cos(this_azimuth)*dict_g[i]['TDS'][i]
+                AJ[4][cnt2] =  math.sin(this_azimuth)*dict_g[i]['XDS'][i]
+                AJ[4][cnt3] =  math.sin(this_azimuth)*dict_g[i]['ZDS'][i]
 
                 # Vary the other values depending on isoflag value
                 if self.isoflag == 5:
                     # Mxx term
-                    AJ[0][cnt2] = (dict_g['XDD'][j])/2 - (math.cos(2*this_azimuth)*dict_g['XSS'][j])/2
-                    AJ[0][cnt3] = (dict_g['ZDD'][j])/2 - (math.cos(2*this_azimuth)*dict_g['ZSS'][j])/2
+                    AJ[0][cnt2] = (dict_g[i]['XDD'][j])/2 - (math.cos(2*this_azimuth)*dict_g[i]['XSS'][j])/2
+                    AJ[0][cnt3] = (dict_g[i]['ZDD'][j])/2 - (math.cos(2*this_azimuth)*dict_g[i]['ZSS'][j])/2
                     # Myy term
-                    AJ[1][cnt2] = (dict_g['XDD'][j])/2 + (math.cos(2*this_azimuth)*dict_g['XSS'][j])/2
-                    AJ[1][cnt3] = (dict_g['ZDD'][j])/2 + (math.cos(2*this_azimuth)*dict_g['ZSS'][j])/2
+                    AJ[1][cnt2] = (dict_g[i]['XDD'][j])/2 + (math.cos(2*this_azimuth)*dict_g[i]['XSS'][j])/2
+                    AJ[1][cnt3] = (dict_g[i]['ZDD'][j])/2 + (math.cos(2*this_azimuth)*dict_g[i]['ZSS'][j])/2
                 if self.isoflag == 6:
                     # Mxx term
-                    AJ[0][cnt2] = (dict_g['XDD'][j])/6 - (math.cos(2*this_azimuth)*dict_g['XSS'][j])/2 + (dict_g['REX'][j])/3
-                    AJ[0][cnt3] = (dict_g['ZDD'][j])/6 - (math.cos(2*this_azimuth)*dict_g['ZSS'][j])/2 + (dict_g['ZEX'][j])/3
+                    AJ[0][cnt2] = (dict_g[i]['XDD'][j])/6 - (math.cos(2*this_azimuth)*dict_g[i]['XSS'][j])/2 + (dict_g[i]['REX'][j])/3
+                    AJ[0][cnt3] = (dict_g[i]['ZDD'][j])/6 - (math.cos(2*this_azimuth)*dict_g[i]['ZSS'][j])/2 + (dict_g[i]['ZEX'][j])/3
                     # Myy term
-                    AJ[1][cnt2] = (dict_g['XDD'][j])/6 + (math.cos(2*this_azimuth)*dict_g['XSS'][j])/2 + (dict_g['REX'][j])/3
-                    AJ[1][cnt3] = (dict_g['ZDD'][j])/6 + (math.cos(2*this_azimuth)*dict_g['ZSS'][j])/2 + (dict_g['ZEX'][j])/3
+                    AJ[1][cnt2] = (dict_g[i]['XDD'][j])/6 + (math.cos(2*this_azimuth)*dict_g[i]['XSS'][j])/2 + (dict_g[i]['REX'][j])/3
+                    AJ[1][cnt3] = (dict_g[i]['ZDD'][j])/6 + (math.cos(2*this_azimuth)*dict_g[i]['ZSS'][j])/2 + (dict_g[i]['ZEX'][j])/3
                     # Explosion-related values
                     AJ[5][cnt1] = 0.0
-                    AJ[5][cnt2] = (dict_g['REX'][j])/3  - (dict_g['XDD'][j])/3
-                    AJ[5][cnt3] = (dict_g['ZEX'][j])/3 - (dict_g['ZDD'][j])/3
+                    AJ[5][cnt2] = (dict_g[i]['REX'][j])/3  - (dict_g[i]['XDD'][j])/3
+                    AJ[5][cnt3] = (dict_g[i]['ZEX'][j])/3 - (dict_g[i]['ZDD'][j])/3
                 cnt1 += 1
                 cnt2 += 1
                 cnt3 += 1
@@ -394,32 +398,36 @@ class MomentTensor():
         tmp = defaultdict(dict) 
 
         # Iterate over the number of stations
-        for i in range(len(list_az)):
+        for i in range(len(ev2sta)):
             if self.verbosity > 0:
-                logmt(1, '  - Applying timeshift to station (%s): Trim: %s, timeshift: %s' % (list_az[i][0], trim, timeshift[i][1]))
-            # Pre-populate dictionary of values
-            # |cnt1           |cnt2        |cnt3       |
-            # |*****----------|*****-------|*****------|
+                logmt(1, '  - Applying timeshift to station (%s): Trim: %s, timeshift: %s' % (ev2sta[i][0], trim, ev2sta[i][3]))
+            '''
+            !!! FIX: Direct copy of Dregers code - don't need to do this
+                     RLN (2011-12-08)
+            Pre-populate dictionary of values
+            |cnt1           |cnt2        |cnt3       |
+            |*****----------|*****-------|*****------|
+            '''
             cnt1 = cnt2 = cnt3
             cnt2 += size - trim
             cnt3 += 2*size - 2*trim
             for j in range(size - trim):
-                correction_iter = j + timeshift[i][1]
+                correction_iter = j + ev2sta[i][3]
                 try:
-                    tmp[cnt1] = dict_s['T'][i][correction_iter]
+                    tmp[cnt1] = dict_s[i]['T'][correction_iter]
                 except KeyError as k:
-                    logmt(1, 'KeyError for station: %s with index: %s' % (k, list_az[i][0], correction_iter))
-                    pprint(dict_s['T'][i])
+                    logmt(1, 'KeyError (%s) for station: %s with index: %s' % (k, ev2sta[i][0], correction_iter))
+                    pprint(dict_s[i]['T'])
                 try:
-                    tmp[cnt2] = dict_s['R'][i][correction_iter]
+                    tmp[cnt2] = dict_s[i]['R'][correction_iter]
                 except KeyError as k:
-                    logmt(1, 'KeyError for station: %s with index: %s' % (k, list_az[i][0], correction_iter))
-                    pprint(dict_s['R'][i])
+                    logmt(1, 'KeyError (%s) for station: %s with index: %s' % (k, ev2sta[i][0], correction_iter))
+                    pprint(dict_s[i]['R'])
                 try:
-                    tmp[cnt3] = dict_s['Z'][i][correction_iter]
+                    tmp[cnt3] = dict_s[i]['Z'][correction_iter]
                 except KeyError as k:
-                    logmt(1, 'KeyError (%s) for station: %s at index: %s' % (k, list_az[i][0], correction_iter))
-                    pprint(dict_s['Z'][i])
+                    logmt(1, 'KeyError (%s) for station: %s at index: %s' % (k, ev2sta[i][0], correction_iter))
+                    pprint(dict_s[i]['Z'])
                 cnt1 += 1
                 cnt2 += 1
                 cnt3 += 1
@@ -435,7 +443,6 @@ class MomentTensor():
             logmt(3, 'Matrix AIV has dimension [%s,i%s] should be [%s,1]' % (len(B), len(B[0]), self.isoflag))
         elif self.verbosity > 0:
             logmt(1, 'Matrices AIV and B created and have correct dimensions')
-
         return AIV, B
 
     def swap(self, a, b):
@@ -692,7 +699,7 @@ class MomentTensor():
 
         return m0, Mw, strike, dip, slip, pcdc, pcclvd, pciso
 
-    def fitcheck(self, dict_g, dict_s, list_W, matrix_M, m0, timeshift, ev2sta_azimuths, size):
+    def fitcheck(self, dict_g, dict_s, list_W, matrix_M, m0, ev2sta, size):
         """Calculate the variance, 
         variance reduction
         and flag bad stations
@@ -705,43 +712,43 @@ class MomentTensor():
         svar = []
         sdpower = []
         # Loop over the number of stations
-        for i in range(len(ev2sta_azimuths)):
+        for i in range(len(ev2sta)):
             dpower = 0
             e = 0
             trimrange = int(int(size) * float(self.trim_value))
             for j in range(trimrange):
-                correction_iter = j + timeshift[i][1]
-                etmp  = dict_s['T'][i][correction_iter] 
-                etmp -= matrix_M[0,0]*0.5*dict_g['TSS'][j]*math.sin(2*ev2sta_azimuths[i][1]) 
-                etmp += matrix_M[1,1]*0.5*dict_g['TSS'][j]*math.sin(2*ev2sta_azimuths[i][1]) 
-                etmp += matrix_M[0,1]*dict_g['TSS'][j]*math.cos(2*ev2sta_azimuths[i][1]) 
-                etmp += matrix_M[0,2]*dict_g['TDS'][j]*math.sin(ev2sta_azimuths[i][1]) 
-                etmp -= matrix_M[1,2]*dict_g['TDS'][j]*math.cos(ev2sta_azimuths[i][1])
+                correction_iter = j + ev2sta[i][3]
+                etmp  = dict_s[i]['T'][correction_iter] 
+                etmp -= matrix_M[0,0]*0.5*dict_g[i]['TSS'][j]*math.sin(2*ev2sta[i][1]) 
+                etmp += matrix_M[1,1]*0.5*dict_g[i]['TSS'][j]*math.sin(2*ev2sta[i][1]) 
+                etmp += matrix_M[0,1]*dict_g[i]['TSS'][j]*math.cos(2*ev2sta[i][1]) 
+                etmp += matrix_M[0,2]*dict_g[i]['TDS'][j]*math.sin(ev2sta[i][1]) 
+                etmp -= matrix_M[1,2]*dict_g[i]['TDS'][j]*math.cos(ev2sta[i][1])
                 
                 e += etmp*etmp
                 
-                etmp  = dict_s['R'][i][correction_iter] 
-                etmp -= matrix_M[0,0]*(0.5*dict_g['XDD'][j] - 0.5*dict_g['XSS'][j]*math.cos(2*ev2sta_azimuths[i][1]) + dict_g['REX'][j]/3)
-                etmp -= matrix_M[1,1]*(0.5*dict_g['XDD'][j] + 0.5*dict_g['XSS'][j]*math.cos(2*ev2sta_azimuths[i][1]) + dict_g['REX'][j]/3)
-                etmp -= matrix_M[2,2]*dict_g['REX'][j]/3 
-                etmp += matrix_M[0,1]*dict_g['XSS'][j]*math.sin(2*ev2sta_azimuths[i][1]) 
-                etmp -= matrix_M[0,2]*dict_g['XDS'][j]*math.cos(ev2sta_azimuths[i][1])
-                etmp -= matrix_M[1,2]*dict_g['XDS'][j]*math.sin(ev2sta_azimuths[i][1])
+                etmp  = dict_s[i]['R'][correction_iter] 
+                etmp -= matrix_M[0,0]*(0.5*dict_g[i]['XDD'][j] - 0.5*dict_g[i]['XSS'][j]*math.cos(2*ev2sta[i][1]) + dict_g[i]['REX'][j]/3)
+                etmp -= matrix_M[1,1]*(0.5*dict_g[i]['XDD'][j] + 0.5*dict_g[i]['XSS'][j]*math.cos(2*ev2sta[i][1]) + dict_g[i]['REX'][j]/3)
+                etmp -= matrix_M[2,2]*dict_g[i]['REX'][j]/3 
+                etmp += matrix_M[0,1]*dict_g[i]['XSS'][j]*math.sin(2*ev2sta[i][1]) 
+                etmp -= matrix_M[0,2]*dict_g[i]['XDS'][j]*math.cos(ev2sta[i][1])
+                etmp -= matrix_M[1,2]*dict_g[i]['XDS'][j]*math.sin(ev2sta[i][1])
                 
                 e += etmp*etmp
                 
-                etmp  = dict_s['Z'][i][correction_iter] 
-                etmp -= matrix_M[0,0]*(0.5*dict_g['ZDD'][j] - 0.5*dict_g['ZSS'][j]*math.cos(2*ev2sta_azimuths[i][1]) + dict_g['ZEX'][j]/3)
-                etmp -= matrix_M[1,1]*(0.5*dict_g['ZDD'][j] + 0.5*dict_g['ZSS'][j]*math.cos(2*ev2sta_azimuths[i][1]) + dict_g['ZEX'][j]/3)
-                etmp -= matrix_M[2,2]*dict_g['ZEX'][j]/3 
-                etmp += matrix_M[0,1]*dict_g['ZSS'][j]*math.sin(2*ev2sta_azimuths[i][1]) 
-                etmp -= matrix_M[0,2]*dict_g['ZDS'][j]*math.cos(ev2sta_azimuths[i][1])
-                etmp -= matrix_M[1,2]*dict_g['ZDS'][j]*math.sin(ev2sta_azimuths[i][1])
+                etmp  = dict_s[i]['Z'][correction_iter] 
+                etmp -= matrix_M[0,0]*(0.5*dict_g[i]['ZDD'][j] - 0.5*dict_g[i]['ZSS'][j]*math.cos(2*ev2sta[i][1]) + dict_g[i]['ZEX'][j]/3)
+                etmp -= matrix_M[1,1]*(0.5*dict_g[i]['ZDD'][j] + 0.5*dict_g[i]['ZSS'][j]*math.cos(2*ev2sta[i][1]) + dict_g[i]['ZEX'][j]/3)
+                etmp -= matrix_M[2,2]*dict_g[i]['ZEX'][j]/3 
+                etmp += matrix_M[0,1]*dict_g[i]['ZSS'][j]*math.sin(2*ev2sta[i][1]) 
+                etmp -= matrix_M[0,2]*dict_g[i]['ZDS'][j]*math.cos(ev2sta[i][1])
+                etmp -= matrix_M[1,2]*dict_g[i]['ZDS'][j]*math.sin(ev2sta[i][1])
                 
                 e += etmp*etmp
-                dpower += dict_s['T'][i][correction_iter]*dict_s['T'][i][correction_iter]
-                dpower += dict_s['R'][i][correction_iter]*dict_s['R'][i][correction_iter]
-                dpower += dict_s['Z'][i][correction_iter]*dict_s['Z'][i][correction_iter]
+                dpower += dict_s[i]['T'][correction_iter]*dict_s[i]['T'][correction_iter]
+                dpower += dict_s[i]['R'][correction_iter]*dict_s[i]['R'][correction_iter]
+                dpower += dict_s[i]['Z'][correction_iter]*dict_s[i]['Z'][correction_iter]
                 cnt += 1
             
             wsum += list_W[i]
@@ -829,12 +836,22 @@ class Event():
                     logmt(3, 'Could not find field (%s) in join of origin & netmag tables for orid %s' % (f, self.orid))
             evdb.join('assoc')
             evdb.join('arrival')
+            evdb.join('site')
             evdb.sort('delta')
             evdb.subset('iphase=~/.*P.*|.*p.*/')
+            '''
+            !!! NOTE: This is regional moment
+                      tensor. Will fail if stations
+                      are closer than 1 deg (clipping)
+                      or further away than 10 deg
+                      (teleseismic) to the event.
+                      RLN (2011-12-13)
+            '''
+            evdb.subset('delta >= 1 && delta < 10') # REGIONAL moment tensor,
             if evdb.nrecs() == 0:
                 logmt(3, 'No arrivals for selected origin %s' % self.orid)
             elif self.verbosity > 0:
-                logmt(1, 'There are %d records that match this origin arrival and iphase' % evdb.nrecs())
+                logmt(1, 'There are %d records between 1 & 10 deg that match this origin arrival and iphase' % evdb.nrecs())
             lower_mags = []
             upper_mags = []
             filters = []
@@ -856,7 +873,46 @@ class Event():
                 logmt(3, 'Magnitude %s not within bounds (%s - %s) defined in the parameter file' % (evparams['magnitude'], float(min_mag), float(max_mag)))
             return evdb, evparams, filter_string
 
-    def get_chan_data(self, dbptr, wave_db, chan_to_use, filter_string, statmax, size, clip_values):
+    def get_stations_and_orientations(self, dbptr):
+        """Return a list of 
+        all stations that
+        recorded the event.
+        Split into eight 
+        sections:
+
+                 0
+             NNW | NNE
+           WNW \ | / ENE
+        270 ----------- 90
+           WSW / | \ ESE
+             SSW | SSE  
+                180
+        """
+        sta_list = {'NNE':[], 'ENE':[], 'ESE':[], 'SSE':[], 'SSW':[], 'WSW':[], 'WNW':[], 'NNW':[]}
+        for i in range(dbptr.nrecs()):
+            dbptr[3] = i
+            sta, esaz, depth, at, ev_lat, ev_lon, site_lat, site_lon = dbptr.getv('sta', 'esaz', 'depth', 'arrival.time', 'lat', 'lon', 'site.lat', 'site.lon')
+            distance_deg = dbptr.ex_eval('distance(%s, %s, %s, %s)' % (ev_lat, ev_lon, site_lat, site_lon))
+            distance_km = dbptr.ex_eval('deg2km(%s)' % (distance_deg))
+            if esaz >= 0 and esaz < 45:
+                sta_list['NNE'].append((sta, esaz, depth, distance_km, at))
+            elif esaz >= 45 and esaz < 90:
+                sta_list['ENE'].append((sta, esaz, depth, distance_km, at))
+            elif esaz >= 90 and esaz < 135:
+                sta_list['ESE'].append((sta, esaz, depth, distance_km, at))
+            elif esaz >= 135 and esaz < 180:
+                sta_list['SSE'].append((sta, esaz, depth, distance_km, at))
+            elif esaz >= 180 and esaz < 225:
+                sta_list['SSW'].append((sta, esaz, depth, distance_km, at))
+            elif esaz >= 225 and esaz < 270:
+                sta_list['WSW'].append((sta, esaz, depth, distance_km, at))
+            elif esaz >= 270 and esaz < 315:
+                sta_list['WNW'].append((sta, esaz, depth, distance_km, at))
+            elif esaz >= 315 and esaz <= 360:
+                sta_list['NNW'].append((sta, esaz, depth, distance_km, at))
+        return sta_list
+
+    def get_chan_data(self, wave_db, chan_to_use, esaz, at, filter_string, stacode, size, clip_values):
         """Opens waveform database and returns
         trace objects based on sta_chan. Applies
         calibration, splice, filter, decimation
@@ -864,24 +920,13 @@ class Event():
         """
 
         if self.verbosity > 0:
-            logmt(1, 'Get channel data (trace objects) for statmax (%s) stations' % statmax)
+            logmt(1, '  - Get channel data (trace objects) for station (%s)' % stacode)
         '''
         !!! NOTE: Start time and endtime need to be calculated using ptime 
         Right now we are just getting size/2 either side of first arrival
         Instead use arrival.time - should be the same thing. RLN (2011-11-29)
         '''
-        stachan_traces = {} # Holder dict for data
-        ev2sta_azimuths = [] # Holder list - needs to remain sorted
-
-        if self.verbosity > 0:
-            logmt(1, 'There are %s records for this event' % dbptr.nrecs())
-
-        uniq_stas = antdb.dbsort(dbptr, 'sta', unique=True)
-
-        if dbptr.nrecs() < statmax*3:
-            if self.verbosity > 0:
-                logmt(1, 'Only %s station channel records available.' % dbptr.nrecs())
-            statmax = dbptr.nrecs()
+        stachan_trace = {} # Holder dict for data
 
         '''
         !!! NOTE: Need to get a fresh view of 
@@ -892,76 +937,90 @@ class Event():
         '''
         try:
             wvdb = antdb.dbopen(wave_db, 'r')
-            wvdb.lookup(table='wfdisc')
         except:
             logmt(3, 'Could not open waveform database %s' % wave_db)
+            return False
         else:
+            wvdb.lookup(table='wfdisc')
+            wvdb.subset('sta =~ /%s/' % stacode)
+            wvdb[3] = 0
+            '''
+            !!!! NOTE: Want maximium x2 the size 
+                       to account for timeshifts
+                       and add 10 seconds before
+                       RLN (2011-12-06)
+            st   p arrival.time             et
+            | <-------->*<--------><-------->|
+            '''
+            st = at - 10
+            et = at + (size * 3) 
+            resample = 0
+            vang = 0
             if self.verbosity > 0:
-                logmt(1, 'Get each entry in the table for (%s) stations' % statmax)
-            for i in range(statmax):
-                dbptr[3] = i
-                sta, esaz, at = dbptr.getv('sta', 'esaz', 'arrival.time')
-                ev2sta_azimuths.append((sta, esaz))
-                '''
-                !!!! NOTE: Want maximium x2 the size 
-                           to account for timeshifts
-                           and add 10 seconds before
-                           RLN (2011-12-06)
-                st   p arrival.time             et
-                | <-------->*<--------><-------->|
-                '''
-                st = at - 10
-                et = at + (size * 2) 
-                resample = 0
-                vang = 0
-                if self.verbosity > 0:
-                    logmt(1, ' - Retrieve %s data with time range (%s, %s)' % (sta, st, et))
-                wvstadb = antdb.dbsubset(wvdb, 'sta=~/^%s$/ && chan=~/%s/' % (sta, chan_to_use))
-                trace = wvstadb.load_css(st, et)
-                trace.apply_calib()
-                trace.splice()
-                trace.filter(filter_string)
-                rotchan = ('R', 'T', 'Z')
-                trace.rotate(esaz, vang, rotchan)
-                trace.subset('chan =~ /R|T|Z/')
-                if self.verbosity > 1:
-                    logmt(1, ' - Number of traces for %s: %s' % (sta, trace.nrecs()))
-                for j in range(trace.nrecs()):
-                    trace[3] = j
-                    sta, chan, ns, sr = trace.getv('sta', 'chan', 'nsamp', 'samprate')
-                    stachan = '%s_%s' % (sta, chan)
-                    ns_tra = 0
-                    ns_req = 0
-                    samples = trace.data()
-                    use_data = 0
-                    # Test for clipped data
-                    for i in samples:
-                        if i > float(clip_values['max']):
-                            use_data = 1
-                        elif i < float(clip_values['min']):
-                            use_data = -1
-                    if use_data == 1:
-                        logmt(1, ' - %s: One or more samples > clip_values[max] (%s)' % (stachan, clip_values['max']))
-                    elif use_data == -1:
-                        logmt(1, ' - %s: One or more samples < clip_values[min] (%s)' % (stachan, clip_values['min']))
-                    else:
-                        '''
-                        !!! NOTE: Get three times the size 
-                                  to allow for time shift of 
-                                  max length either side.
-                                  RLN (2011-12-06)
-                        '''
-                        max_size = (size * 2) + 10 # Only works if 1Hz (1 sample per second, LH.*)
-                        if self.verbosity > 1 and len(samples) > max_size:
-                            logmt(1, '  - Sample size for %s: %s. Max: %s. Trimming.' % (stachan, len(samples), max_size))
-                        stachan_traces[stachan] = samples[0:max_size]  
-                        if self.verbosity > 0:
-                            logmt(1, ' - Trace extracted for %s samples:[%s], wanted:[%s]' % (stachan, len(stachan_traces[stachan]), max_size))
-                trace.trdestroy()
-                wvstadb.free()
+                logmt(1, '    - Retrieve %s data with time range (%s, %s)' % (stacode, st, et))
+            wvdb.subset('sta=~/^%s$/ && chan=~/%s/' % (stacode, chan_to_use))
+            trace = wvdb.load_css(st, et)
+            trace.apply_calib()
+            trace.splice()
+            # Comment out this filtering - need same filtering as GF
+            # trace.filter(filter_string)
+            rotchan = ('R', 'T', 'Z')
+            trace.rotate(esaz, vang, rotchan)
+            trace.subset('chan =~ /R|T|Z/')
+            if self.verbosity > 1:
+                logmt(1, '    - Number of traces for %s: %s' % (stacode, trace.nrecs()))
+            for j in range(trace.nrecs()):
+                trace[3] = j
+                sta, chan, ns, sr = trace.getv('sta', 'chan', 'nsamp', 'samprate')
+                stachan = '%s_%s' % (sta, chan)
+                ns_tra = 0
+                ns_req = 0
+                samples = trace.data()
+
+                # {{{ Bandpass filters
+                ord_1 = 5
+                wn_1 = 0.01 * math.pi * 2
+                b_1, a_1 = butter(ord_1, wn_1, btype='low')
+
+                ord_2 = 5
+                wn_2 = 0.07 * math.pi * 2
+                b_2, a_2 = butter(ord_2, wn_2, btype='low')
+
+                samples = lfilter(b_1, a_1, samples)
+                samples = (lfilter(b_2, a_2, samples)).tolist()
+                # }}} Bandpass filters
+
+                use_data = 0
+
+                # {{{ Test for clipped data
+                for i in samples:
+                    if i > float(clip_values['max']):
+                        use_data = 1
+                    elif i < float(clip_values['min']):
+                        use_data = -1
+                # }}}
+
+                if use_data == 1:
+                    logmt(1, '    - %s: One or more samples > clip_values[max] (%s). IGNORE.' % (stachan, clip_values['max']))
+                elif use_data == -1:
+                    logmt(1, '    - %s: One or more samples < clip_values[min] (%s). IGNORE.' % (stachan, clip_values['min']))
+                else:
+                    '''
+                    !!! NOTE: Get three times the size 
+                              to allow for time shift of 
+                              max length either side.
+                              RLN (2011-12-06)
+                    '''
+                    max_size = (size * 3) + 10 # Only works if 1Hz (1 sample per second, LH.*)
+                    if self.verbosity > 1 and len(samples) > max_size:
+                        logmt(1, '  - Sample size for %s: %s. Max: %s. Trimming.' % (chan, len(samples), max_size))
+                    stachan_trace[chan] = samples[0:max_size]  
+                    if self.verbosity > 0:
+                        logmt(1, '    - Trace extracted for %s samples:[%s], wanted:[%s]' % (chan, len(stachan_trace[chan]), max_size))
+            trace.trdestroy()
             wvdb.free()
             wvdb.close()
-        return stachan_traces, ev2sta_azimuths
+        return stachan_trace
 
     def update_moment_tbl(self, strike, dip, rake):
         """Write out results to 
@@ -1117,17 +1176,16 @@ class Event():
                 logmt(1, 'Successfully created focal mechanism image (%s)' % my_outpath)
             return my_outpath
 
-    def calculate_synthetics_to_plot(self, gg, azimuth_list, matrix_M, size):
+    # def calculate_synthetics_to_plot(self, gg, azimuth_list, matrix_M, size):
+    def calculate_synthetics_to_plot(self, gg, ev2sta, matrix_M, size):
         """Calculate the data series
         to plot against the station
-        data in the plots
-        """
+        data in the plots.
 
-        '''
         !!! NOTE: Translation to Dreger like
                   code makes debugging easier. 
                   RLN (2011-12-07)
-        '''
+        """
         mxx = matrix_M[0, 0]
         mxy = matrix_M[0, 1]
         mxz = matrix_M[0, 2]
@@ -1135,19 +1193,18 @@ class Event():
         myz = matrix_M[1, 2]
         mzz = matrix_M[2, 2]
 
-        if self.verbosity > 1:
-            logmt(1, 'Calculating synthetics for orid: %s' % self.orid)
+        if self.verbosity > 0:
+            logmt(1, 'Calculating synthetics to plot (rotated) for orid: %s' % self.orid)
 
         syn_plot_dict = defaultdict(lambda: defaultdict(defaultdict))
         rotated_comps = ['T', 'R', 'Z']
 
-        for sta_tup in azimuth_list:
+        for i, sta_tup in enumerate(ev2sta):
             sta = sta_tup[0]
             az = sta_tup[1]
             if self.verbosity > 0:
                 logmt(1, ' - Determine plot synthetics for station (%s)' % sta)
             for rc in rotated_comps:
-                sta_rc = '%s_%s' % (sta, rc)
                 if self.verbosity > 0:
                     logmt(1, '  - Work on rotated channel (%s)' % rc)
                 for j in range(size):
@@ -1158,33 +1215,33 @@ class Event():
                              RLN (2011-12-07)
                     '''
                     if rc == 'T':
-                        syn_plot_dict[sta_rc][j] = (mxx*0.5*gg['TSS'][j]*math.sin(2*az) 
-                                                - myy*0.5*gg['TSS'][j]*math.sin(2*az)
-                                                - mxy*gg['TSS'][j]*math.cos(2*az)
-                                                - mxz*gg['TDS'][j]*math.sin(az)
-                                                + myz*gg['TDS'][j]*math.cos(az))
+                        syn_plot_dict[sta][rc][j] = (mxx*0.5*gg[i]['TSS'][j]*math.sin(2*az) 
+                                                - myy*0.5*gg[i]['TSS'][j]*math.sin(2*az)
+                                                - mxy*gg[i]['TSS'][j]*math.cos(2*az)
+                                                - mxz*gg[i]['TDS'][j]*math.sin(az)
+                                                + myz*gg[i]['TDS'][j]*math.cos(az))
                     elif rc == 'R':
-                        syn_plot_dict[sta_rc][j] = (mxx*0.5*gg['XDD'][j]
-                                                - mxx*0.5*gg['XSS'][j]*math.cos(2*az)
-                                                + mxx*0.3333*gg['REX'][j]
-                                                + myy*0.5*gg['XDD'][j]
-                                                + myy*0.5*gg['XSS'][j]*math.cos(2*az)
-                                                + myy*0.3333*gg['REX'][j]
-                                                + mzz*0.3333*gg['REX'][j]
-                                                - mxy*gg['XSS'][j]*math.sin(2*az)
-                                                + mxz*gg['XDS'][j]*math.cos(az)
-                                                + myz*gg['XDS'][j]*math.sin(az))
+                        syn_plot_dict[sta][rc][j] = (mxx*0.5*gg[i]['XDD'][j]
+                                                - mxx*0.5*gg[i]['XSS'][j]*math.cos(2*az)
+                                                + mxx*0.3333*gg[i]['REX'][j]
+                                                + myy*0.5*gg[i]['XDD'][j]
+                                                + myy*0.5*gg[i]['XSS'][j]*math.cos(2*az)
+                                                + myy*0.3333*gg[i]['REX'][j]
+                                                + mzz*0.3333*gg[i]['REX'][j]
+                                                - mxy*gg[i]['XSS'][j]*math.sin(2*az)
+                                                + mxz*gg[i]['XDS'][j]*math.cos(az)
+                                                + myz*gg[i]['XDS'][j]*math.sin(az))
                     elif rc == 'Z':
-                        syn_plot_dict[sta_rc][j] = (mxx*0.5*gg['ZDD'][j]
-                                                - mxx*0.5*gg['ZSS'][j]*math.cos(2*az)
-                                                + mxx*0.3333*gg['ZEX'][j]
-                                                + myy*0.5*gg['ZDD'][j]
-                                                + myy*0.5*gg['ZSS'][j]*math.cos(2*az)
-                                                + myy*0.3333*gg['ZEX'][j]
-                                                + mzz*0.3333*gg['ZEX'][j]
-                                                - mxy*gg['ZSS'][j]*math.sin(2*az)
-                                                + mxz*gg['ZDS'][j]*math.cos(az)
-                                                + myz*gg['ZDS'][j]*math.sin(az))
+                        syn_plot_dict[sta][rc][j] = (mxx*0.5*gg[i]['ZDD'][j]
+                                                - mxx*0.5*gg[i]['ZSS'][j]*math.cos(2*az)
+                                                + mxx*0.3333*gg[i]['ZEX'][j]
+                                                + myy*0.5*gg[i]['ZDD'][j]
+                                                + myy*0.5*gg[i]['ZSS'][j]*math.cos(2*az)
+                                                + myy*0.3333*gg[i]['ZEX'][j]
+                                                + mzz*0.3333*gg[i]['ZEX'][j]
+                                                - mxy*gg[i]['ZSS'][j]*math.sin(2*az)
+                                                + mxz*gg[i]['ZDS'][j]*math.cos(az)
+                                                + myz*gg[i]['ZDS'][j]*math.sin(az))
         return syn_plot_dict
 
     def normalize(self, data_as_list):
@@ -1197,7 +1254,7 @@ class Event():
             logmt(1, "  - Normalization factor: %s" % normalizer)
         return normalizer
 
-    def create_data_synthetics_plot(self, stachan_traces, azimuth_list, mod_gg, timeshift, size, mt_images_dir):
+    def create_data_synthetics_plot(self, ss, ev2sta, mod_gg, size, mt_images_dir):
         """Create and save data vs. 
         synthetic waveform plots. 
         Equivalent to Dreger's function 
@@ -1213,7 +1270,7 @@ class Event():
             logmt(1, 'Create plots of data vs. synthetics')
 
         # Init figure
-        my_plot = plt.figure(figsize=(9, 8.5), dpi=100)
+        my_plot = plt.figure(figsize=(9, len(ev2sta)+0.5), dpi=100)
         my_plot.subplots_adjust(hspace=0.05, wspace=0.02,
                                 bottom=0.02, top=0.96,
                                 left=0.07, right=0.98)
@@ -1225,7 +1282,7 @@ class Event():
             logmt(1, "Synthetics (Green's functions) used in calculations:")
             pprint(mod_gg)
 
-        rows = len(azimuth_list)
+        rows = len(ev2sta)
         cols = len(rotated_components)
         axis_num = 0
         # Subplot headings
@@ -1233,37 +1290,32 @@ class Event():
         my_plot.text(0.525, 0.985, 'Radial', ha='center', va='top')
         my_plot.text(0.83, 0.985, 'Vertical', ha='center', va='top')
 
-        for i, tup in enumerate(azimuth_list):
+        for i, tup in enumerate(ev2sta):
             s = tup[0]
             if self.verbosity > 0:
                 logmt(1, 'Creating plots for station (%s)' % s)
             for j, rc in enumerate(rotated_components):
                 axis_num += 1
-                new_sta_chan = '%s_%s' % (s, rc)
                 if self.verbosity > 0:
-                    logmt(1, ' - Processing (%s)' % new_sta_chan)
-                if new_sta_chan in stachan_traces:
-                    logmt(1, 'stachan_traces[%s], length:%s, timeshift: %s' % (new_sta_chan, len(stachan_traces[new_sta_chan]), timeshift[i][1]))
-                    start = timeshift[i][1]
-                    end = start + size
-                    ax = plt.subplot(len(azimuth_list), len(rotated_components), axis_num)
-                    data_scale_factor = self.normalize(stachan_traces[new_sta_chan][start:end])
-                    syn_scale_factor = self.normalize(mod_gg[new_sta_chan].values())
-                    new_data_list = [(v/data_scale_factor) for v in stachan_traces[new_sta_chan][start:end]]
-                    new_synthetic_list = [(v/syn_scale_factor) for v in mod_gg[new_sta_chan].values()]
-                    if self.verbosity > 1:
-                        print "\n\n  - NEW DATA LIST:"
-                        pprint(new_data_list)
-                        print "\n\n  - NEW SYNTHETICS LIST:"
-                        pprint(new_synthetic_list)
-                    plt.plot(new_data_list, 'b', new_synthetic_list, 'g')
-                    ax.set_yticklabels([])
-                    ax.set_xticklabels([])
-                    if j == 0:
-                        ax.set_ylabel(s, rotation='horizontal')
-
-                else:
-                    logmt(1, 'Trace (%s) is not in stachan_traces matrix' % new_sta_chan)
+                    logmt(1, ' - Processing (%s)' % rc)
+                    logmt(1, 'ss[%s][%s], length:%s, timeshift: %s' % (i, rc, len(ss[i][rc]), ev2sta[i][3]))
+                start = ev2sta[i][3]
+                end = start + size
+                ax = plt.subplot(len(ev2sta), len(rotated_components), axis_num)
+                data_scale_factor = self.normalize(ss[i][rc][start:end])
+                syn_scale_factor = self.normalize(mod_gg[s][rc].values())
+                new_data_list = [(v/data_scale_factor) for v in ss[i][rc][start:end]]
+                new_synthetic_list = [(v/syn_scale_factor) for v in mod_gg[s][rc].values()]
+                if self.verbosity > 1:
+                    print "\n\n  - NEW DATA LIST:"
+                    pprint(new_data_list)
+                    print "\n\n  - NEW SYNTHETICS LIST:"
+                    pprint(new_synthetic_list)
+                plt.plot(new_data_list, 'b', new_synthetic_list, 'g')
+                ax.set_yticklabels([])
+                ax.set_xticklabels([])
+                if j == 0:
+                    ax.set_ylabel(s, rotation='horizontal')
         syn_plot_outfile = '%s/%s_synthetics_fit.png' % (mt_images_dir, self.orid)
         my_plot.savefig(syn_plot_outfile)
         if os.path.isfile(syn_plot_outfile) and self.verbosity > 0:
@@ -1374,30 +1426,9 @@ def main():
 
     # !!! NOTE: Instantiate Event. RLN (2011-11-21)
     my_event = Event(orid, event_db, verbosity)
+    my_mt = MomentTensor(distance_weighting, isoflag, trim_value, verbosity)
     evdbptr, evparams, filter_string = my_event.extract_data(mag_filters)
 
-    '''
-    !!! NOTE: Dynamic creation of Greens Functions
-              using Juan's new Python module. RLN (2011-12-02)
-              Structure of ours vs Dreger:
-              TSS vs u1
-              TDS vs u2
-              XSS vs u3
-              XDS vs u4
-              XDD vs u5
-              ZSS vs u6
-              ZDS vs u7
-              ZDD vs u8
-              REX vs u9
-              ZEX vs u10
-
-    '''
-    green = fkr.GreenFunctions('SOCAL_MODEL')
-    green.generate(8, 1)
-    if verbosity > 1:
-        green.plot()
-    gg = green.ALL
-    nl = len(gg['TSS'])
     '''
     !!! NOTE: Is this relevant?
               In Dreger's code look
@@ -1435,33 +1466,149 @@ def main():
               the stachan_traces have a length
               of 3 * size of Greens Functions.
               RLN (2011-12-06)
-    '''
-    stachan_traces, ev2sta_azimuths = my_event.get_chan_data(evdbptr, wave_db, chan_to_use, filter_string, statmax, nl, clip_values)
-    '''
-    !!! FIX: Go back to Dreger's code
-             Grab the Greens functions
-             and test data
-             RLN (2011-12-07)
-    stachan_traces = 
-    ev2sta_azimuths = (
-        ('testdata1', 10)
-        ('testdata2', 40)
-        ('testdata3', 50)
-    )
+
+    !!! NOTE: We don't want to be limited by
+              the number of stations in 
+              determining a solution. Need a
+              while loop that makes sure the 
+              cross-correlation is good before
+              accepting the data as part of 
+              generating the MT solution.
+              Would be nice to have a minimum
+              of 8 stations with good cross-
+              correlations results to use.
+              RLN (2011-12-12)
     '''
 
+    ev2sta_azimuth_groups = my_event.get_stations_and_orientations(evdbptr)
+    '''
+    !!! NOTE: Go through each of the eight 
+              groups until we get good 
+              cross-correlation results 
+              with the synthetics
+              (that we have to generate for 
+              each distance & depth)
+              Ideally we need two per quad
+              for a total of 8 stations
+    '''
+    ss = []
+    gg = []
+    stations_per_group = 20
+    good_cross_corr_stations = {'NNE':0, 'ENE':0, 'ESE':0, 'SSE':0, 'SSW':0, 'WSW':0, 'WNW':0, 'NNW':0}
+    '''
+    !!! NOTE: This keeps track of what 
+              we used and the metadata 
+              associated with the station.
+              RLN (2011-12-13)
+    '''
+    ev2sta = []
+
+    if verbosity > 0:
+        logmt(1, "Iterate over groups of stations in each azimuthal range. Requesting %s per group" % stations_per_group)
+    for grp in ev2sta_azimuth_groups:
+        if verbosity > 0:
+            logmt(1, " - Working on group (%s) " % grp)
+        sta_list = ev2sta_azimuth_groups[grp]
+        if stations_per_group > len(sta_list):
+            if verbosity > 0:
+                logmt(1, " - # of stations requested (%s) > # of stations in %s azimuthal range (%s). Using max number in azimuthal range." % (stations_per_group, grp, len(sta_list))
+            stations_per_group = len(sta_list)
+        for sta in sta_list:
+            if good_cross_corr_stations[grp] < stations_per_group:
+                stacode, esaz, depth, distance, arrival_time = sta
+                if verbosity > 0:
+                    logmt(1, "  - Getting data for station %s (distance = %s)" % (stacode, distance))
+                # Not sure we still need to define 200, but leave for now
+                real_data = my_event.get_chan_data(wave_db, chan_to_use, esaz, arrival_time, filter_string, stacode, 200, clip_values)
+                if verbosity > 0:
+                    logmt(1, "  - Generate Green's function for this depth (%s) & distance (%s)" % (depth, distance))
+                '''
+                !!! NOTE: Dynamic creation of Greens Functions
+                          using Juan's new Python module. RLN (2011-12-02)
+                          # {{{ Structure of ours vs Dreger:
+                          TSS vs u1
+                          TDS vs u2
+                          XSS vs u3
+                          XDS vs u4
+                          XDD vs u5
+                          ZSS vs u6
+                          ZDS vs u7
+                          ZDD vs u8
+                          REX vs u9
+                          ZEX vs u10
+                          # }}}
+                          Create for every stations distance
+                          to the event.
+                          RLN (2011-12-08)
+                '''
+                green = fkr.GreenFunctions('SOCAL_MODEL')
+                all_greens = green.generate(depth, distance)
+                if verbosity > 1:
+                    green.plot()
+                synthetic_data = green.ALL
+                # {{{ Bandpass filters on the GF
+                ord_1 = 5
+                wn_1 = 0.01 * math.pi * 2
+                b_1, a_1 = butter(ord_1, wn_1, btype='low')
+
+                ord_2 = 5
+                wn_2 = 0.07 * math.pi * 2
+                b_2, a_2 = butter(ord_2, wn_2, btype='low')
+                # }}}
+                for k in synthetic_data:
+                    # Apply both filters to Greens Function
+                    synthetic_data[k] = lfilter(b_1, a_1, synthetic_data[k])
+                    synthetic_data[k] = lfilter(b_2, a_2, synthetic_data[k])
+                    synthetic_data[k] = synthetic_data[k].tolist()
+
+                # Do the cross correlation and get the time shift
+                xcor, timeshift = my_mt.get_time_shift(real_data, synthetic_data, 120)
+
+                # If a good match, add to the solution
+                # if xcor > 0.8:
+                ss.append(real_data)
+                gg.append(synthetic_data)
+                ev2sta.append((stacode, esaz, distance, timeshift))
+                good_cross_corr_stations[grp] += 1
+                # else:
+                #     logmt(1, "  - Cross correlation (%s) did not result in a good match (>0.8). Trying another station..." % xcor)
+            else:
+                logmt(1, " - Found enough good matches between data and synthetics for group (%s)" % grp)
+                break
+    '''
+    !!! NOTE: Dynamic creation of Greens Functions
+              using Juan's new Python module. RLN (2011-12-02)
+              # {{{ Info on structure
+              Structure of ours vs Dreger:
+              TSS vs u1
+              TDS vs u2
+              XSS vs u3
+              XDS vs u4
+              XDD vs u5
+              ZSS vs u6
+              ZDS vs u7
+              ZDD vs u8
+              REX vs u9
+              ZEX vs u10
+              # }}}
+              Create for every stations distance
+              to the event.
+              RLN (2011-12-08)
+    '''
+    nl = len(gg[0]['TSS'])
 
     if verbosity > 1:
         print 'Stachan traces:'
-        pprint(stachan_traces)
-        print 'Event to station azimuths:'
-        pprint(ev2sta_azimuths)
-        print 'Greens Function:'
+        # pprint(stachan_traces)
+        pprint(ss)
+        print 'Event to station details:'
+        pprint(ev2sta)
+        print 'Greens Functions:'
         pprint(gg)
 
     # !!! NOTE: Instantiate MomentTensor. RLN (2011-11-21)
     my_mt = MomentTensor(distance_weighting, isoflag, trim_value, verbosity)
-    ss = my_mt.construct_data_matrix(stachan_traces)
+    # ss = my_mt.construct_data_matrix(stachan_traces)
 
     '''
     !!! FIX: Override the number of data points 
@@ -1472,16 +1619,8 @@ def main():
     nl = 120
 
     if len(ss) != 0:
-        logmt(1, 'Data matrix S created --> %s stations used' % len(ss['T']))
-    '''
-    !!! NOTE: We want to sizes of
-              ss and gg to be different 
-              in order to account for the 
-              timeshift of ss, either + or -.
-              RLN (2011-12-06)
-    '''
-    timeshift = my_mt.get_time_shift(ss, gg, ev2sta_azimuths, nl)
-    logmt(1, 'Timeshift between data and synthetics computed for %s stations' % len(timeshift))
+        logmt(1, 'Data matrix S created --> %s stations used' % len(ss))
+
     '''
     !!! NOTE: Weighting factor:
               number of stations to be used 
@@ -1492,18 +1631,21 @@ def main():
               RLN (2011-12-02)
     '''
     W = []
-    for i in range(len(ss['T'])):
+    for i in range(len(ss)):
         W.append(1.0)
+
     '''
     !!! NOTE: INVERSION ROUTINE
               Dreger normalizes AtA (B?) and AIV (AIV) matrix. 
               We don't need to - just create default dictionary
               RLN (2011-08-24)
     '''
+
     AIV = defaultdict(dict)
     B = defaultdict(dict) 
 
-    AIV, B = my_mt.matrix_AIV_B(ss, gg, ev2sta_azimuths, timeshift, nl)
+    # AIV, B = my_mt.matrix_AIV_B(ss, gg, ev2sta_azimuths, timeshift, nl)
+    AIV, B = my_mt.matrix_AIV_B(ss, gg, ev2sta, nl)
 
     # !!! NOTE: DETERMINE SOLUTION VECTOR. RLN (2011-08-24)
     M = my_mt.determine_solution_vector(AIV, B)
@@ -1516,7 +1658,8 @@ def main():
 
     # !!! NOTE: DECOMPOSE MOMENT TENSOR INTO VARIOUS REPRESENTATIONS. RLN (2011-11-03)
     m0, Mw, strike, dip, rake, pcdc, pcclvd, pciso = my_mt.decompose_moment_tensor(M)
-    E, VR, VAR, svar, sdpower = my_mt.fitcheck(gg, ss, W, M, m0, timeshift, ev2sta_azimuths, nl)
+    # E, VR, VAR, svar, sdpower = my_mt.fitcheck(gg, ss, W, M, m0, timeshift, ev2sta_azimuths, nl)
+    E, VR, VAR, svar, sdpower = my_mt.fitcheck(gg, ss, W, M, m0, ev2sta, nl)
 
     qlt = my_mt.quality_check(VR)
 
@@ -1548,9 +1691,10 @@ def main():
                           ('VAR', '%.3f' % VAR)
                           ]
     # !!! FIX: CREATE DATA vs. SYNTHETICS PLOTS - DONE. RLN (2011-11-03)
-    mod_gg = my_event.calculate_synthetics_to_plot(gg, ev2sta_azimuths, M, nl)
+    mod_gg = my_event.calculate_synthetics_to_plot(gg, ev2sta, M, nl)
+    pprint(mod_gg)
 
-    synthetics_img = my_event.create_data_synthetics_plot(stachan_traces, ev2sta_azimuths, mod_gg, timeshift, nl, mt_images_dir)
+    synthetics_img = my_event.create_data_synthetics_plot(ss, ev2sta, mod_gg, nl, mt_images_dir)
 
     # !!! NOTE: CREATE THE COMPOSITE (FINAL) IMAGE AND UPDATE DB. RLN (2011-11-28)
     my_event.create_composite_plot(ttfont, image_annotations, mt_images_dir, synthetics_img, focalmech_img)
