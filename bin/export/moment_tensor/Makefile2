@@ -1,4 +1,5 @@
 BIN = run_fkrprog_wrapper \
+      fortran_fkrprog \
       dbmoment
 PF = dbmoment.pf \
      SOCAL_MODEL.pf

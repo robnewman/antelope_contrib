@@ -45,8 +45,10 @@ GF =  fkr.GreenFunctions(pf_file)
 """
 Generate GF's for depth of 8km and distance of 1km.
 """
-GF.generate(depth=8,distance=8)
-GF.plot()
-if verbose: print 'Done!'
+GF.generate_fortran(depth=8,distance=10)
+#GF.generate(depth=8,distance=10)
+GF.test_plot()
+#GF.plot()
+#if verbose: print 'Done!'
 
 
