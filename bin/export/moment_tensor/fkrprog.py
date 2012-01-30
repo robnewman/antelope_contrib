@@ -44,9 +44,9 @@ class GreenFunctions():
 
 #}}}
 
-    def generate(self,depth,distance,type=False):
+    def generate(self,depth,distance,type='d'):
 #{{{
-        if type: self.IVEL = type
+        self.IVEL = type
         self.DEPTH = depth
         self.DISTANCE = distance
 
@@ -165,9 +165,9 @@ class GreenFunctions():
 
 #}}}
 
-    def generate_fortran(self,depth,distance,type=False):
+    def generate_fortran(self,depth,distance,type='d'):
 #{{{
-        if type: self.IVEL = type
+        self.IVEL = type
         self.DEPTH = depth
         self.DISTANCE = distance
 
@@ -335,7 +335,7 @@ class GreenFunctions():
                 #print "OMEGA: %s" % m.group(1)
 
             else: 
-                print "ERROR ** no match ** : %s" % line
+                if self.verbose: print "ERROR ** no match ** : %s" % line
 
         for A in fortran_gg.keys():
             self.GG[A] = defaultdict(list)
@@ -348,7 +348,7 @@ class GreenFunctions():
                     # J will go from 1-10.... each element
                     #L will go from 1 to max freq.
                     #print "\t%s => %s" % (L,fortran_gg[A][J][s_l])
-                    print "GG[%s][%s][%s] => %s" % (A,J,L,fortran_gg[A][J][s_l])
+                    if self.verbose: print "GG[%s][%s][%s] => %s" % (A,J,L,fortran_gg[A][J][s_l])
                     self.GG[A][J].append(fortran_gg[A][J][s_l])
                     self.DATA[int(s_l)-1][int(J)-1] = fortran_gg[A][J][s_l]
 
@@ -2796,30 +2796,21 @@ GREEN.1\n\
 
     def _wvint9(self):
 #{{{
-        print 'N2:  %s' % self.N2
+        if self.verbose: print 'N2:  %s' % self.N2
 
         for i in range(self.N2):
-            print 'OMEGA(%s):   %s' % ( i, self.ALLOMEGA[i])
+            if self.verbose: print 'OMEGA(%s):   %s' % ( i, self.ALLOMEGA[i])
             for k in range(10):
                 try:
-                    print 'DATA(%s,%s,%s):   %s' % ( 1, i, k, self.DATA[i][k])
+                    if self.verbose: print 'DATA(%s,%s,%s):   %s' % ( 1, i, k, self.DATA[i][k])
                 except Exception,e:
                     self.DATA[i][k] = complex(0.0,0.0)
-                    print 'DATA(%s,%s,%s):   %s' % ( 1, i, k, Exception)
-
-        #print 'DATA: %s' %  self.DATA
-        #exit()
+                    if self.verbose: print 'DATA(%s,%s,%s):   %s' % ( 1, i, k, Exception)
 
         self.REP = 'n'
 
-        """
-        Change ivel to "v" to output velocity.
-        """
-
 
         self.N = 2 * (self.NYQ-1)
-        #print "N => %s" % self.N
-        #exit()
 
         self.TAU = self.DT
 
@@ -2869,8 +2860,8 @@ GREEN.1\n\
                         #self.TEMPDATA[self.N2-1-j] = complex(0.0,0.0).conjugate()
 
                 for j in range(self.NYQ):
-                    print "TEMPTDATA:[%s]" % self.TEMPDATA
-                    print "TEMPTDATA[%s]:[%s]" % (j,self.TEMPDATA[j])
+                    #print "TEMPTDATA:[%s]" % self.TEMPDATA
+                    #print "TEMPTDATA[%s]:[%s]" % (j,self.TEMPDATA[j])
                     temp[self.NYQ-j] =  self.TEMPDATA[j].conjugate() 
 
                 for j in range(self.NYQ):
@@ -2944,56 +2935,6 @@ GREEN.1\n\
 
 
 
-#}}}
-
-    def test_plot(self):
-#{{{
-        for l in range(10):
-
-            plt.subplot(5,2,l)
-
-            if l == 0:
-                plt.plot(self.ZDD[0:120])
-                plt.legend(["ZDD"])
-
-            elif l == 1:
-                plt.plot(self.XDD[0:120])
-                plt.legend(["XDD"])
-
-            elif l == 2:
-                plt.plot(self.ZDS[0:120])
-                plt.legend(["ZDS"])
-
-            elif l == 3:
-                plt.plot(self.XDS[0:120])
-                plt.legend(["XDS"])
-
-            elif l == 4:
-                plt.plot(self.TDS[0:120])
-                plt.legend(["TDS"])
-
-            elif l == 5:
-                plt.plot(self.ZSS[0:120])
-                plt.legend(["ZSS"])
-
-            elif l == 6:
-                plt.plot(self.XSS[0:120])
-                plt.legend(["XSS"])
-
-            elif l == 7:
-                plt.plot(self.TSS[0:120])
-                plt.legend(["TSS"])
-
-            elif l == 8:
-                plt.plot(self.REX[0:120])
-                plt.legend(["REX"])
-
-            elif l == 9:
-                plt.plot(self.ZEX[0:120])
-                plt.legend(["ZEX"])
-
-        plt.suptitle("Green Functions: depth:%s distance:%s" % (self.DEPTH,self.DISTANCE))
-        plt.show()
 #}}}
 
     def plot(self):
