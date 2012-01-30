@@ -9,7 +9,7 @@ decay               6.0
 
 start_frequency     1
 
-end_frequency       128
+end_frequency       512
 
 samplerate           1
 

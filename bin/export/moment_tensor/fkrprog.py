@@ -18,7 +18,7 @@ import antelope.stock as stock
       FREQUENCY WAVENUMBER-INTEGRATION PROGRAM.
 
     ORIGINAL FORTRAN CODE WRITTEN BY CHANDAN K. SAIKIA
-    TRANSLATED TO PYTHON BY JUAN C. REYES 1/2011 <REYES@UCSD.EDU>
+    TRANSLATED TO PYTHON BY JUAN C. REYES 1/2012 <REYES@UCSD.EDU>
 """
 
 class GreenFunctions():
@@ -30,6 +30,7 @@ class GreenFunctions():
         #
         # Constants
         #
+        self.IVEL = 'd'
         self.IB  = 100
         self.IFREQ = 0
         self.DATA = defaultdict(lambda: defaultdict(dict))
@@ -43,8 +44,9 @@ class GreenFunctions():
 
 #}}}
 
-    def generate(self,depth,distance):
+    def generate(self,depth,distance,type='d'):
 #{{{
+        self.IVEL = type
         self.DEPTH = depth
         self.DISTANCE = distance
 
@@ -157,32 +159,224 @@ class GreenFunctions():
 
         self._setup_vars()
 
-        # NEED TO FIX...
-        # LMAX
-        # Layer number below the source
-        #    self.LMAX = 3
 
-        self._excit()
+        #self._excit()
         self._wvint9()
+
+#}}}
+
+    def generate_fortran(self,depth,distance,type='d'):
+#{{{
+        self.IVEL = type
+        self.DEPTH = depth
+        self.DISTANCE = distance
+
+        tempD =  self.D
+        tempA =  self.A
+        tempB =  self.B
+        tempRHO =  self.RHO
+        tempQA =  self.QA
+        tempQB =  self.QB
+
+        # Init vars for model layers
+        self.D   = defaultdict(int)
+        self.A   = defaultdict(int)
+        self.B   = defaultdict(int)
+        self.RHO = defaultdict(int)
+        self.QA  = defaultdict(int)
+        self.QB  = defaultdict(int)
+
+        d = 0
+        delta = 0
+        for y in range(len(tempD)):
+            if self.DEPTH == (d + tempD[y]):
+                delta  = 1
+
+                self.LMAX = y + 2
+                for x in range(len(tempD)):
+                    if x < y:
+                        self.D[x]   =  tempD[x]
+                        self.A[x]   =  tempA[x]
+                        self.B[x]   =  tempB[x]
+                        self.RHO[x] =  tempRHO[x]
+                        self.QA[x]  =  tempQA[x]
+                        self.QB[x]  =  tempQB[x]
+                    elif x == y:
+                        # new layer
+                        self.D[x]   =  tempD[x] - delta
+                        self.A[x]   =  tempA[x]
+                        self.B[x]   =  tempB[x]
+                        self.RHO[x] =  tempRHO[x]
+                        self.QA[x]  =  tempQA[x]
+                        self.QB[x]  =  tempQB[x]
+                        # old layer
+                        self.D[x+1]   =  delta
+                        self.A[x+1]   =  tempA[x+1]
+                        self.B[x+1]   =  tempB[x+1]
+                        self.RHO[x+1] =  tempRHO[x+1]
+                        self.QA[x+1]  =  tempQA[x+1]
+                        self.QB[x+1]  =  tempQB[x+1]
+                    else:
+                        self.D[x+1]   =  tempD[x]
+                        self.A[x+1]   =  tempA[x]
+                        self.B[x+1]   =  tempB[x]
+                        self.RHO[x+1] =  tempRHO[x]
+                        self.QA[x+1]  =  tempQA[x]
+                        self.QB[x+1]  =  tempQB[x]
+                break
+
+            elif self.DEPTH < (d + tempD[y]):
+                self.LMAX = y + 1
+                delta = d + tempD[y] - self.DEPTH
+
+                for x in range(len(tempD)):
+                    if x < y:
+                        self.D[x]   =  tempD[x]
+                        self.A[x]   =  tempA[x]
+                        self.B[x]   =  tempB[x]
+                        self.RHO[x] =  tempRHO[x]
+                        self.QA[x]  =  tempQA[x]
+                        self.QB[x]  =  tempQB[x]
+                    elif x == y:
+                        # new layer
+                        self.D[x]   =  tempD[x] - delta
+                        self.A[x]   =  tempA[x]
+                        self.B[x]   =  tempB[x]
+                        self.RHO[x] =  tempRHO[x]
+                        self.QA[x]  =  tempQA[x]
+                        self.QB[x]  =  tempQB[x]
+                        # old layer
+                        self.D[x+1]   =  delta
+                        self.A[x+1]   =  tempA[x]
+                        self.B[x+1]   =  tempB[x]
+                        self.RHO[x+1] =  tempRHO[x]
+                        self.QA[x+1]  =  tempQA[x]
+                        self.QB[x+1]  =  tempQB[x]
+                    else:
+                        self.D[x+1]   =  tempD[x]
+                        self.A[x+1]   =  tempA[x]
+                        self.B[x+1]   =  tempB[x]
+                        self.RHO[x+1] =  tempRHO[x]
+                        self.QA[x+1]  =  tempQA[x]
+                        self.QB[x+1]  =  tempQB[x]
+                break
+
+            else:
+                d += tempD[y]
+
+
+        if self.verbose:
+            for I in range(len(self.D)):
+                print "%s: %s\t%s\t%s\t%s\t%s\t%s" % (self.LMAX,self.D[I],self.A[I],self.B[I],self.RHO[I],self.QA[I],self.QB[I])
+
+        
+        if self.verbose: print "LMAX => %s" % self.LMAX
+
+        self.MMAX = len(self.D) - 1
+        if self.verbose: print "MMAX => %s" % self.MMAX
+
+        if self.verbose: print "DEPTH => %s" % self.DEPTH
+        if self.verbose: print "RANGE => %s" % self.DISTANCE
+
+
+        fortran_gg = defaultdict(lambda: defaultdict(dict))
+        self.GG = defaultdict(dict)
+        self.ALLOMEGA = []
+        self.LMAX += 1
+        self.MMAX += 1
+        template = self._file_format()
+        model = ''
+        for I in range(len(self.D)):
+            model += " %1.4E %1.4E %1.4E %1.4E   600.00    300.00\n" % (self.D[I],self.A[I],self.B[I],self.RHO[I])
+
+        model =  template % (self.DEPTH, self.MMAX,model,self.LMAX,self.DISTANCE)
+        try:
+            os.remove('./greens_funcs')
+        except:
+            pass
+        f = open('./greens_funcs', 'w')
+        f.write(model)
+        f.close()
+
+        print model
+        p = os.popen('fortran_fkrprog < ./greens_funcs',"r")
+        while 1:
+            line = p.readline()
+            line = line.strip('\n')
+            line = line.replace(' ','')
+                
+            if not line: break
+            #print line
+            #print "fortran_gg: %s" % fortran_gg
+            #print "OMEGA: %s" % self.ALLOMEGA
+            #if re.match("fortran_gg|OMEGA",line):
+            #    try:
+            #        eval(line)
+            #    except Exception,e:
+            #        print "\nERROR: cannot exec(%s) %s %s\n" % (line,Exception,e)
+            #else:
+            #    print "No match for fortran_gg or OMEGA: %s" % line
+            if re.match("GG",line):
+                m = re.match("GG\[(\d+)\]\[(\d+)\]\[(\d+)\]=(.+)",line)
+                if not m: continue
+                #if m.group(0): print "0: %s" % m.group(0)
+                #if m.group(1): print "0: %s" % m.group(1)
+                #if m.group(2): print "0: %s" % m.group(2)
+                #if m.group(3): print "0: %s" % m.group(3)
+                #if m.group(4): print "0: %s" % m.group(4)
+
+                #GG[m.group(1)][m.group(2)][m.group(3)] = eval(m.group(4))
+                fortran_gg[m.group(2)][m.group(3)][m.group(1)]= eval(m.group(4))
+                #print "fortran_gg[%s][%s][%s] = %s" % (m.group(2),m.group(3),m.group(1),fortran_gg[m.group(2)][m.group(3)][m.group(1)])
+            elif re.match(".*OMEGA",line):
+                m = re.match(".*\((.+)\)",line)
+                if not m: continue
+                self.ALLOMEGA.append(m.group(1))
+                #print "OMEGA: %s" % m.group(1)
+
+            else: 
+                if self.verbose: print "ERROR ** no match ** : %s" % line
+
+        for A in fortran_gg.keys():
+            self.GG[A] = defaultdict(list)
+            self.DATA[A] = {}
+            for J in fortran_gg[A].keys():
+                index = [ int(x) for x in fortran_gg[A][J].keys() ]
+                for L in sorted(index):
+                    s_l = str(L)
+                    # A will only be 1.... one set
+                    # J will go from 1-10.... each element
+                    #L will go from 1 to max freq.
+                    #print "\t%s => %s" % (L,fortran_gg[A][J][s_l])
+                    if self.verbose: print "GG[%s][%s][%s] => %s" % (A,J,L,fortran_gg[A][J][s_l])
+                    self.GG[A][J].append(fortran_gg[A][J][s_l])
+                    self.DATA[int(s_l)-1][int(J)-1] = fortran_gg[A][J][s_l]
+
+                #print "\n%s => %s\n" % (J,self.GG[A][J])
+
+        #exit()
+        #print "DATA => %s" % self.DATA
+        #print "GG => %s" % self.GG
+        #print self.ALLOMEGA
+        self._setup_vars()
+
+
+        self._wvint9()
+
 #}}}
 
     def _file_format(self):
     #{{{
-        print "File expected should have this format: \n \
-                .F. \n \
-                    0   64 \n \
-                GREEN.1 \n \
-                    6.0      8.00       1  512 1024    0.500     5    1 \n \
-                    1    1    1    1    1    1    1    1    1    1    0 \n \
-                0.5500E+01 0.5500E+01 0.3180E+01 0.2400E+01   600.00    300.00 \n \
-                0.2500E+01 0.6300E+01 0.3640E+01 0.2670E+01   600.00    300.00 \n \
-                0.8000E+01 0.6300E+01 0.3640E+01 0.2670E+01   600.00    300.00 \n \
-                0.1900E+02 0.6700E+01 0.3870E+01 0.2800E+01   600.00    300.00 \n \
-                0.4000E+03 0.7800E+01 0.4500E+01 0.3300E+01   600.00    300.00 \n \
-                    3 \n \
-                0.4000000E+03  1.500000E+00         0   \n \
-                    40  10000.0     30.0      2.9       2.5 \n \
-                10.00      0.0      10.0 \n \ "
+        return ".F.\n\
+    0   64\n\
+GREEN.1\n\
+    6.0      %2.2f      1  512 1024    0.500    %2d    1\n\
+    1    1    1    1    1    1    1    1    1    1    0\n\
+%s\
+    %d\n\
+  0.4000000E+03  1.500000E+00         0\n\
+    1   10000.0     30.0      2.9       2.5\n\
+  %4f        0.0      10.0\n"
     #}}}
 
     def _read_pf(self):
@@ -311,8 +505,8 @@ class GreenFunctions():
 
         if abs(self.DPH-self.DEPTH) <= 0.1: self.DEPTH = self.DPH
 
-        if abs(self.DPH-self.DEPTH) > 0.1:
-            raise SystemExit('\n\nCHECK TWO PARAMETERS <+> LMAX [%s] AND DEPTH [%s]\n'% (self.LMAX,self.DEPTH))
+        #if abs(self.DPH-self.DEPTH) > 0.1:
+        #    raise SystemExit('\n\nCHECK TWO PARAMETERS <+> LMAX [%s] AND DEPTH [%s]\n'% (self.LMAX,self.DEPTH))
 
         #
         # CALCULATE ALPHA FROM DECAY
@@ -402,6 +596,7 @@ class GreenFunctions():
         if self.verbose: print 'N2 = %s' % self.N2
         if self.verbose: print 'DF = %s' % self.DF
 
+        return
         #for x in range(self.N2):
         for x in range(self.N1,self.N2+1):
             if self.verbose: print 'I=%s' % x
@@ -2601,6 +2796,8 @@ class GreenFunctions():
 
     def _wvint9(self):
 #{{{
+        if self.verbose: print 'N2:  %s' % self.N2
+
         for i in range(self.N2):
             if self.verbose: print 'OMEGA(%s):   %s' % ( i, self.ALLOMEGA[i])
             for k in range(10):
@@ -2610,18 +2807,10 @@ class GreenFunctions():
                     self.DATA[i][k] = complex(0.0,0.0)
                     if self.verbose: print 'DATA(%s,%s,%s):   %s' % ( 1, i, k, Exception)
 
-
         self.REP = 'n'
-
-        """
-        Change ivel to "v" to output velocity.
-        """
-        self.IVEL = 'v'
 
 
         self.N = 2 * (self.NYQ-1)
-        #print "N => %s" % self.N
-        #exit()
 
         self.TAU = self.DT
 
@@ -2663,6 +2852,7 @@ class GreenFunctions():
                         #print "self.DATA= %s" % self.DATA
                         #print "j = %s l = %s" % (j,l)
                         self.TEMPDATA[j]=self.DATA[j][l]
+                        #print "TEMPDATA[%s] = %s" % (j,self.TEMPDATA[j])
                         #self.TEMPDATA[self.N2-1-j]=self.DATA[nd][j][l].conjugate()
 
                     else:
@@ -2670,6 +2860,8 @@ class GreenFunctions():
                         #self.TEMPDATA[self.N2-1-j] = complex(0.0,0.0).conjugate()
 
                 for j in range(self.NYQ):
+                    #print "TEMPTDATA:[%s]" % self.TEMPDATA
+                    #print "TEMPTDATA[%s]:[%s]" % (j,self.TEMPDATA[j])
                     temp[self.NYQ-j] =  self.TEMPDATA[j].conjugate() 
 
                 for j in range(self.NYQ):
@@ -2739,7 +2931,7 @@ class GreenFunctions():
                 self.ZEX = [x for x in self.TEMPDATA]
 
 
-            #plt.plot(self.TEMPDATA)
+            plt.plot(self.TEMPDATA)
 
 
 
