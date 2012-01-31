@@ -44,7 +44,7 @@ class GreenFunctions():
 
 #}}}
 
-    def generate(self,depth,distance,type='d'):
+    def generate_python(self,depth,distance,type='d'):
 #{{{
         self.IVEL = type
         self.DEPTH = depth
@@ -165,12 +165,20 @@ class GreenFunctions():
 
 #}}}
 
-    def generate_fortran(self,depth,distance,type='d'):
+    def generate(self,depth,distance,type='d'):
 #{{{
         self.IVEL = type
         self.DEPTH = depth
         self.DISTANCE = distance
+        self.NYQ = self.N / 2 + 1
+        self.DF = 1 / (self.N * self.DT)
+        self.FU = (self.NYQ - 1) * self.DF
+        self.TLEN = self.N * self.DT
+        self.ALPHA = -log(self.DECAY) / self.TLEN
 
+        """
+        Build new layers on earth model.
+        """
         tempD =  self.D
         tempA =  self.A
         tempB =  self.B
@@ -264,6 +272,9 @@ class GreenFunctions():
             else:
                 d += tempD[y]
 
+        """
+        Print new layers and other params.
+        """
 
         if self.verbose:
             for I in range(len(self.D)):
@@ -290,42 +301,33 @@ class GreenFunctions():
             model += " %1.4E %1.4E %1.4E %1.4E   600.00    300.00\n" % (self.D[I],self.A[I],self.B[I],self.RHO[I])
 
         model =  template % (self.DEPTH, self.MMAX,model,self.LMAX,self.DISTANCE)
+
+        """ 
+        Open temp file to put model.
+        """
         try:
             os.remove('./greens_funcs')
         except:
             pass
+
         f = open('./greens_funcs', 'w')
         f.write(model)
         f.close()
 
         print model
+        if self.verbose: print 'Running: fortran_fkrprog < ./greens_func'
         p = os.popen('fortran_fkrprog < ./greens_funcs',"r")
+
         while 1:
             line = p.readline()
             line = line.strip('\n')
             line = line.replace(' ','')
                 
             if not line: break
-            #print line
-            #print "fortran_gg: %s" % fortran_gg
-            #print "OMEGA: %s" % self.ALLOMEGA
-            #if re.match("fortran_gg|OMEGA",line):
-            #    try:
-            #        eval(line)
-            #    except Exception,e:
-            #        print "\nERROR: cannot exec(%s) %s %s\n" % (line,Exception,e)
-            #else:
-            #    print "No match for fortran_gg or OMEGA: %s" % line
+
             if re.match("GG",line):
                 m = re.match("GG\[(\d+)\]\[(\d+)\]\[(\d+)\]=(.+)",line)
                 if not m: continue
-                #if m.group(0): print "0: %s" % m.group(0)
-                #if m.group(1): print "0: %s" % m.group(1)
-                #if m.group(2): print "0: %s" % m.group(2)
-                #if m.group(3): print "0: %s" % m.group(3)
-                #if m.group(4): print "0: %s" % m.group(4)
-
-                #GG[m.group(1)][m.group(2)][m.group(3)] = eval(m.group(4))
                 fortran_gg[m.group(2)][m.group(3)][m.group(1)]= eval(m.group(4))
                 #print "fortran_gg[%s][%s][%s] = %s" % (m.group(2),m.group(3),m.group(1),fortran_gg[m.group(2)][m.group(3)][m.group(1)])
             elif re.match(".*OMEGA",line):
@@ -338,7 +340,6 @@ class GreenFunctions():
                 if self.verbose: print "ERROR ** no match ** : %s" % line
 
         for A in fortran_gg.keys():
-            self.GG[A] = defaultdict(list)
             self.DATA[A] = {}
             for J in fortran_gg[A].keys():
                 index = [ int(x) for x in fortran_gg[A][J].keys() ]
@@ -349,16 +350,15 @@ class GreenFunctions():
                     #L will go from 1 to max freq.
                     #print "\t%s => %s" % (L,fortran_gg[A][J][s_l])
                     if self.verbose: print "GG[%s][%s][%s] => %s" % (A,J,L,fortran_gg[A][J][s_l])
-                    self.GG[A][J].append(fortran_gg[A][J][s_l])
                     self.DATA[int(s_l)-1][int(J)-1] = fortran_gg[A][J][s_l]
 
-                #print "\n%s => %s\n" % (J,self.GG[A][J])
+        try:
+            os.remove('./greens_funcs')
+        except:
+            pass
 
-        #exit()
-        #print "DATA => %s" % self.DATA
-        #print "GG => %s" % self.GG
-        #print self.ALLOMEGA
-        self._setup_vars()
+
+        #self._setup_vars()
 
 
         self._wvint9()
@@ -623,7 +623,7 @@ GREEN.1\n\
             if self.verbose: print 'WVC2 => %s' % self.WVC2
             if self.verbose: print 'WVCN => %s' % self.WVCN
 
-            self._excit()
+            #self._excit()
             self.ALLOMEGA[x-1] = [self.OMEGA,self.NK]
             if self.verbose: print "\t\t\t\t%s  F =  %12.4E NBLOCK =  %5s IBLOCK= %3s" % (x,self.FREQ,self.NBLOCK,self.IBLOCK)
             #print "\t\t\t\t%s  DATA :  %s" % (x,self.DATA[x])
@@ -2944,43 +2944,43 @@ GREEN.1\n\
             plt.subplot(5,2,l)
 
             if l == 0:
-                plt.plot(self.ZDD)
+                plt.plot(self.ZDD[0:150])
                 plt.legend(["ZDD"])
 
             elif l == 1:
-                plt.plot(self.XDD)
+                plt.plot(self.XDD[0:150])
                 plt.legend(["XDD"])
 
             elif l == 2:
-                plt.plot(self.ZDS)
+                plt.plot(self.ZDS[0:150])
                 plt.legend(["ZDS"])
 
             elif l == 3:
-                plt.plot(self.XDS)
+                plt.plot(self.XDS[0:150])
                 plt.legend(["XDS"])
 
             elif l == 4:
-                plt.plot(self.TDS)
+                plt.plot(self.TDS[0:150])
                 plt.legend(["TDS"])
 
             elif l == 5:
-                plt.plot(self.ZSS)
+                plt.plot(self.ZSS[0:150])
                 plt.legend(["ZSS"])
 
             elif l == 6:
-                plt.plot(self.XSS)
+                plt.plot(self.XSS[0:150])
                 plt.legend(["XSS"])
 
             elif l == 7:
-                plt.plot(self.TSS)
+                plt.plot(self.TSS[0:150])
                 plt.legend(["TSS"])
 
             elif l == 8:
-                plt.plot(self.REX)
+                plt.plot(self.REX[0:150])
                 plt.legend(["REX"])
 
             elif l == 9:
-                plt.plot(self.ZEX)
+                plt.plot(self.ZEX[0:150])
                 plt.legend(["ZEX"])
 
         plt.suptitle("Green Functions: depth:%s distance:%s" % (self.DEPTH,self.DISTANCE))
