@@ -13,21 +13,21 @@ and verify the source file is accessible.
 """
 try:
 
-    opts, pargs = getopt.getopt(sys.argv[1:], 'vfp:')
+    opts, pargs = getopt.getopt(sys.argv[1:], 'vtp:')
 
 except getopt.GetoptError:
 
-    print "Usage: fkrprog [-v] [-f] [-p model_pf_file]\n"
+    print "Usage: fkrprog [-v] [-t] [-p model_pf_file]\n"
     sys.exit(-1)
 
 if( len(pargs) != 0):
 
-    print "Usage: fkrprog [-v] [-f] [-p model_pf_file]\n"
+    print "Usage: fkrprog [-v] [-t] [-p model_pf_file]\n"
     sys.exit(-1)
 
 
 verbose = False
-fortran = False
+test = False
 pf_file = 'SOCAL_MODEL'
 
 for option, value in opts:
@@ -38,8 +38,8 @@ for option, value in opts:
     if '-v' in option:
         verbose = True
 
-    if '-f' in option:
-        fortran = True
+    if '-t' in option:
+        test = True
 
 """
 Build object for GFs.
@@ -50,9 +50,9 @@ GF =  fkr.GreenFunctions(pf_file)
 """
 Generate GFs for depth of 8km and distance of 1km.
 """
-if fortran:
+if test:
     if verbose: print 'generate_fortran(depth=%s,distance=%s)' % (8,10)
-    GF.generate_fortran(depth=8,distance=10)
+    GF.generate_python(depth=8,distance=10)
 else:
     if verbose: print 'generate(depth=%s,distance=%s)' % (8,10)
     GF.generate(depth=8,distance=10)
