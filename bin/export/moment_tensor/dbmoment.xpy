@@ -46,9 +46,6 @@ from pylab import *
 from scipy.signal.filter_design import butter, buttord
 from scipy.signal import lfilter
 
-# FOR CROSS CORRELATION
-from scipy import fftpack
-
 # FKRPROG
 import moment_tensor.fkrprog as fkr
 
@@ -127,6 +124,7 @@ def parse_pf(pfname, verbosity=0):
         isoflag = 6
     else:
         isoflag = 5
+    model_name = stock.pfget_string(pfname, 'model_name')
     model_type = stock.pfget_string(pfname, 'model_type')
     statmax = stock.pfget_int(pfname,'statmax')
     clip_values = stock.pfget_arr(pfname, 'clip_values')
@@ -162,7 +160,7 @@ def parse_pf(pfname, verbosity=0):
     #         wave_db, green_db, green_pf, resp_db, 
     #         mag_filters, mt_images_dir, obspy_beachball, 
     #         distance_weighting)
-    return (chan_to_use, trim_value, isoflag, 
+    return (chan_to_use, trim_value, isoflag, model_name,
             model_type, statmax, clip_values, use_inc, event_db, 
             wave_db, green_file, green_pf, resp_db, 
             mag_filters, mt_images_dir, ttfont, obspy_beachball, 
@@ -178,11 +176,38 @@ def logmt(flag, message):
         return
     elif flag < 3:
         print curtime, message
-        # print message
     else:
         print curtime, 'ERROR:',message,'--> exiting'
-        # print 'ERROR:',message,'--> exiting'
         sys.exit(-1)
+
+def filter_data(unfiltered_data, data_type, filter_string, verbosity=False):
+    """Apply some filters
+    based on the filter string
+    defined"""
+    if verbosity > 1:
+        logmt(1, "  - Filter string to use: '%s'" % filter_string)
+
+    filter_type, cnr_fq_1, ord_1, cnr_fq_2, ord_2 = filter_string.split()
+    # Design the filters: Lower
+    b_1, a_1 = butter(float(ord_1), (float(cnr_fq_1) * math.pi * 2), btype='low')
+    # Design the filters: Upper
+    b_2, a_2 = butter(float(ord_2), (float(cnr_fq_2) * math.pi * 2), btype='low')
+
+    if data_type == 'list':
+        filtered_data = []
+        # Apply both filters to data
+        filtered_data = lfilter(b_1, a_1, unfiltered_data)
+        filtered_data = lfilter(b_2, a_2, filtered_data)
+    elif data_type == 'dict':
+        filtered_data = {}
+        for c in unfiltered_data:
+            # Apply both filters to data
+            filtered_data[c] = lfilter(b_1, a_1, unfiltered_data[c])
+            filtered_data[c] = lfilter(b_2, a_2, filtered_data[c])
+            # Converted filtered data to list
+            filtered_data[c] = filtered_data[c].tolist()
+    return filtered_data
+ 
 # }}}
 
 class MomentTensor():
@@ -235,41 +260,55 @@ class MomentTensor():
 
         return this_dict
 
-    def cross_cor(self, a, b):
+    def cross_cor(self, a, b, component=False):
         """Calculate cross correlation 
         between data and accompanying 
         Green's function. Returns the 
         max_cor and the shift
         """
         if self.verbosity > 1:
-            logmt(1, ' - Calculating cross correlation between station data and synthetic (Greens function) data')
+            logmt(1, ' - cross_cor(): %s' % component)
         xcor = np.correlate(a, b, 'full')
         maxval = np.amax(xcor)
         maxshift = np.argmax(xcor)
-        # Does this shift the data or the synthetic?
         shift = maxshift - (len(xcor)-1)/2
-
         if self.verbosity > 1:
-            logmt(1, "  - Max val: %s. Timeshift (in samples): %s" % (maxval, shift))
+            title_string = "Filtered data for %s" % component
+            logmt(1, "  - cross_cor(): Max val: %s, timeshift (in samples): %s" % (maxval, shift))
             fig = plt.figure()
+            fig.subplots_adjust(left=0.04, right=0.96, hspace=0.3)
             ax = fig.add_subplot(311)
-            # ax.title('Raw data')
+            ax.set_title(title_string)
             ax.plot(self.normalize(a), 'b-')
             ax.plot(self.normalize(b), 'g-')
+            setp(ax.get_yticklabels(), visible=False)
+            ax.legend(('Station', 'Synthetic'), 'upper right', prop={'size':'10'})
             # Print shifted time series
             bx = fig.add_subplot(312)
+            bx.set_title('Shifted time series')
             if shift < 0:
-                [a.insert(0, 0) for x in range(abs(shift))]
+                try:
+                    [a.insert(0, 0) for x in range(abs(shift))]
+                except Exception, e:
+                    logmt(1, "  - cross_cor(): Could not insert values at start of real data. Error: %s" % e)
+                    print a
             elif shift > 0:
-                [b.insert(0, 0) for x in range(abs(shift))]
+                try:
+                    [b.insert(0, 0) for x in range(abs(shift))]
+                except Exception, e:
+                    logmt(1, "  - cross_cor(): Could not insert values at start of synthetic data. Error: %s" % e)
+                    print b
             bx.plot(self.normalize(a), 'r-')
             bx.plot(self.normalize(b), 'c-')
+            setp(bx.get_yticklabels(), visible=False)
+            bx.legend(('Station', 'Synthetic'), 'upper right', prop={'size':'10'})
             # Print xcor
             cx = fig.add_subplot(313)
-            # cx.title('Cross correlation results')
+            cx.set_title('Cross correlation results')
             cx.plot(xcor)
-            plt.ylabel('xcor')
-            plt.xlabel('point shift')
+            setp(cx.get_yticklabels(), visible=False)
+            cx.set_ylabel('X-cor.')
+            cx.set_xlabel('Point shift (in samples)')
             plt.show()
         return maxval, shift
 
@@ -278,11 +317,14 @@ class MomentTensor():
         normalization factor
         for all the data
         """
-        normalizer = max([abs(x) for x in data_as_list])
-        if self.verbosity > 0:
-            logmt(1, "  - Normalization factor: %s" % normalizer)
-        return [x / normalizer for x in data_as_list]
-        # return normalized_list
+        try:
+            normalizer = max([abs(x) for x in data_as_list])
+        except Exception, e:
+            logmt(1, "  - Exception encountered: %s" % e)
+        else:
+            if self.verbosity > 1:
+                logmt(1, "  - Normalization factor: %s" % normalizer)
+            return [x / normalizer for x in data_as_list]
 
     def get_time_shift(self, data_dict, greens_dict, size):
         """Get time shift for each station
@@ -293,7 +335,7 @@ class MomentTensor():
         Return a list of tuples (stacode, timeshift).
         """
         if self.verbosity > 0:
-            logmt(1, '  - Get the time shift for all components & return the mean shift shift')
+            logmt(1, '  - Get the time shift for all components & return the max cross-cor and shift in samples')
         '''
         !!! NOTE: Loop over each stations data points.
                   Remember that the Green's Function 
@@ -301,27 +343,26 @@ class MomentTensor():
                   replicating the number of stations
                   (3D matrix). RLN (2011-12-02)
         '''
-        shift = 0
-        xcor = 0
-        if self.cross_cor(data_dict['T'][0:size], greens_dict['TSS'][0:size])[0] > xcor:
-            xcor, shift = self.cross_cor(data_dict['T'][0:size], greens_dict['TSS'][0:size])
-        if self.cross_cor(data_dict['T'][0:size], greens_dict['TDS'][0:size])[0] > xcor:
-            xcor, shift = self.cross_cor(data_dict['T'][0:size], greens_dict['TDS'][0:size])
-        if self.cross_cor(data_dict['R'][0:size], greens_dict['XSS'][0:size])[0] > xcor:
-            xcor, shift = self.cross_cor(data_dict['R'][0:size], greens_dict['XSS'][0:size])
-        if self.cross_cor(data_dict['R'][0:size], greens_dict['XDS'][0:size])[0] > xcor:
-            xcor, shift = self.cross_cor(data_dict['R'][0:size], greens_dict['XDS'][0:size])
-        if self.cross_cor(data_dict['R'][0:size], greens_dict['XDD'][0:size])[0] > xcor:
-            xcor, shift = self.cross_cor(data_dict['R'][0:size], greens_dict['XDD'][0:size])
-        if self.cross_cor(data_dict['Z'][0:size], greens_dict['ZSS'][0:size])[0] > xcor:
-            xcor, shift = self.cross_cor(data_dict['Z'][0:size], greens_dict['ZSS'][0:size])
-        if self.cross_cor(data_dict['Z'][0:size], greens_dict['ZDS'][0:size])[0] > xcor:
-            xcor, shift = self.cross_cor(data_dict['Z'][0:size], greens_dict['ZDS'][0:size])
-        if self.cross_cor(data_dict['Z'][0:size], greens_dict['ZDD'][0:size])[0] > xcor:
-            xcor, shift = self.cross_cor(data_dict['Z'][0:size], greens_dict['ZDD'][0:size])
+        shift = []
+        xcor = []
+        for c in greens_dict:
+            if c == 'REX' or c == 'ZEX':
+                continue
+            else:
+                if c[:1] == 'T':
+                    data_key = 'T'
+                elif c[:1] == 'X':
+                    data_key = 'R'
+                elif c[:1] == 'Z':
+                    data_key = 'Z'
+                this_xcor, this_shift = self.cross_cor(data_dict[data_key][0:size], greens_dict[c][0:size], c)
+                xcor.append(this_xcor)
+                shift.append(this_shift)
+        max_xcor = max(xcor)
+        max_shift = max(shift)
         if self.verbosity > 0:
-            logmt(1, '  - Cross-correlation value: %s, timeshift value: %s' % (xcor, shift))
-        return xcor, shift
+            logmt(1, '  - Cross-correlation value: %s, timeshift value: %s' % (max_xcor, max_shift))
+        return max_xcor, max_shift
 
     # def matrix_AIV_B(self, dict_s, dict_g, list_az, timeshift, size):
     def matrix_AIV_B(self, dict_s, dict_g, ev2sta, size):
@@ -993,8 +1034,14 @@ class Event():
             trace = wvdb.load_css(st, et)
             trace.apply_calib()
             trace.splice()
-            # Comment out this filtering - need same filtering as GF
+            '''
+            !!! NOTE: Comment out Antelope-filtering:
+                      need same filtering as GF
+                      so use filter_data function that
+                      uses the scipy built-in butter 
+                      filters. RLN (2012-02-01)
             # trace.filter(filter_string)
+            '''
             rotchan = ('R', 'T', 'Z')
             trace.rotate(esaz, vang, rotchan)
             trace.subset('chan =~ /R|T|Z/')
@@ -1007,24 +1054,12 @@ class Event():
                 ns_tra = 0
                 ns_req = 0
                 samples = trace.data()
-
-                # {{{ Bandpass filters
-                ord_1 = 5
-                wn_1 = 0.01 * math.pi * 2
-                b_1, a_1 = butter(ord_1, wn_1, btype='low')
-
-                ord_2 = 5
-                wn_2 = 0.07 * math.pi * 2
-                b_2, a_2 = butter(ord_2, wn_2, btype='low')
-
-                samples = lfilter(b_1, a_1, samples)
-                samples = (lfilter(b_2, a_2, samples)).tolist()
-                # }}} Bandpass filters
-
+                filtered_samples = filter_data(samples, 'list', filter_string, self.verbosity)
+                filtered_samples = filtered_samples.tolist()
                 use_data = 0
 
                 # {{{ Test for clipped data
-                for i in samples:
+                for i in filtered_samples:
                     if i > float(clip_values['max']):
                         use_data = 1
                     elif i < float(clip_values['min']):
@@ -1043,9 +1078,9 @@ class Event():
                               RLN (2011-12-06)
                     '''
                     max_size = (size * 3) + 10 # Only works if 1Hz (1 sample per second, LH.*)
-                    if self.verbosity > 1 and len(samples) > max_size:
-                        logmt(1, '  - Sample size for %s: %s. Max: %s. Trimming.' % (chan, len(samples), max_size))
-                    stachan_trace[chan] = samples[0:max_size]  
+                    if self.verbosity > 1 and len(filtered_samples) > max_size:
+                        logmt(1, '  - Sample size for %s: %s. Max: %s. Trimming.' % (chan, len(filtered_samples), max_size))
+                    stachan_trace[chan] = filtered_samples[0:max_size]  
                     if self.verbosity > 0:
                         logmt(1, '    - Trace extracted for %s samples:[%s], wanted:[%s]' % (chan, len(stachan_trace[chan]), max_size))
             trace.trdestroy()
@@ -1329,17 +1364,22 @@ class Event():
                 axis_num += 1
                 if self.verbosity > 0:
                     logmt(1, ' - Processing (%s)' % rc)
-                    logmt(1, 'ss[%s][%s], length:%s, timeshift: %s' % (i, rc, len(ss[i][rc]), ev2sta[i][3]))
-                start = ev2sta[i][3]
-                end = start + size
+                    logmt(1, '  - ss[%s][%s], length:%s, timeshift: %s' % (i, rc, len(ss[i][rc]), ev2sta[i][3]))
+                synthetic_vals = mod_gg[s][rc].values()
+                if ev2sta[i][3] < 0:
+                    real_start = 0
+                    syn_start = int(ev2sta[i][3]) * -1
+                    syn_end = len(mod_gg[s][rc])
+                    synthetic_list = synthetic_vals[syn_start:syn_end]
+                else:
+                    real_start = ev2sta[i][3]
+                    synthetic_list = synthetic_vals[0:len(mod_gg[s][rc])]
+                real_end = real_start + size
                 ax = plt.subplot(len(ev2sta), len(rotated_components), axis_num)
-                print start
-                print end
-                print ss[i][rc][start:end]
-                data_scale_factor = self.normalize_coefficient(ss[i][rc][start:end])
-                syn_scale_factor = self.normalize_coefficient(mod_gg[s][rc].values())
-                new_data_list = [(v/data_scale_factor) for v in ss[i][rc][start:end]]
-                new_synthetic_list = [(v/syn_scale_factor) for v in mod_gg[s][rc].values()]
+                data_scale_factor = self.normalize_coefficient(ss[i][rc][real_start:real_end])
+                syn_scale_factor = self.normalize_coefficient(synthetic_list)
+                new_data_list = [(v/data_scale_factor) for v in ss[i][rc][real_start:real_end]]
+                new_synthetic_list = [(v/syn_scale_factor) for v in synthetic_list]
                 if self.verbosity > 1:
                     print "\n\n  - NEW DATA LIST:"
                     pprint(new_data_list)
@@ -1451,7 +1491,7 @@ def main():
     verbosity = determine_verbosity(verbose, debug)
 
     # Parse the parameter file
-    (chan_to_use, trim_value, isoflag, 
+    (chan_to_use, trim_value, isoflag, model_name,
      model_type, statmax, clip_values, use_inc, event_db, 
      wave_db, green_file, green_pf, resp_db, 
      mag_filters, mt_images_dir, 
@@ -1528,7 +1568,6 @@ def main():
     ss = []
     gg = []
     stations_per_group = int(round(statmax/8))
-    print stations_per_group
     good_cross_corr_stations = {'NNE':0, 'ENE':0, 'ESE':0, 'SSE':0, 'SSW':0, 'WSW':0, 'WNW':0, 'NNW':0}
     '''
     !!! NOTE: This keeps track of what 
@@ -1553,12 +1592,10 @@ def main():
                 stacode, esaz, depth, distance, arrival_time = sta
                 depth = int(depth)
                 distance = int(distance)
-                if verbosity > 0:
-                    logmt(1, "  - Getting data for station %s (distance = %s, depth = %s)" % (stacode, distance, depth))
                 # Not sure we still need to define 200, but leave for now
                 real_data = my_event.get_chan_data(wave_db, chan_to_use, esaz, arrival_time, filter_string, stacode, 200, clip_values)
                 if verbosity > 0:
-                    logmt(1, "  - Generate Green's function for this depth (%s) & distance (%s)" % (depth, distance))
+                    logmt(1, "  - Generate Green's function for this depth (%skm) & distance (%skm)" % (depth, distance))
                 '''
                 !!! NOTE: Dynamic creation of Greens Functions
                           using Juan's new Python module. RLN (2011-12-02)
@@ -1578,37 +1615,17 @@ def main():
                           to the event.
                           RLN (2011-12-08)
                 '''
-                green = fkr.GreenFunctions('SOCAL_MODEL')
-                all_greens = green.generate(depth, distance)
+                green = fkr.GreenFunctions(model_name)
+                green.generate(depth, distance)
                 if verbosity > 1:
                     green.plot()
-                synthetic_data = green.ALL
-                # {{{ Bandpass filters on the GF
-                ord_1 = 5
-                wn_1 = 0.01 * math.pi * 2
-                b_1, a_1 = butter(ord_1, wn_1, btype='low')
-
-                ord_2 = 5
-                wn_2 = 0.07 * math.pi * 2
-                b_2, a_2 = butter(ord_2, wn_2, btype='low')
-                # }}}
-                for k in synthetic_data:
-                    # Apply both filters to Greens Function
-                    synthetic_data[k] = lfilter(b_1, a_1, synthetic_data[k])
-                    synthetic_data[k] = lfilter(b_2, a_2, synthetic_data[k])
-                    synthetic_data[k] = synthetic_data[k].tolist()
-
-                # Do the cross correlation and get the time shift
-                max_xcor, timeshift = my_mt.get_time_shift(real_data, synthetic_data, 120)
-
-                # If a good match, add to the solution
-                # if max_xcor > 0.8:
+                synthetics = green.ALL
+                filtered_synthetic_data = filter_data(synthetics, 'dict', filter_string, verbosity)
+                max_xcor, timeshift = my_mt.get_time_shift(real_data, filtered_synthetic_data, 120)
                 ss.append(real_data)
-                gg.append(synthetic_data)
+                gg.append(filtered_synthetic_data)
                 ev2sta.append((stacode, esaz, distance, timeshift))
                 good_cross_corr_stations[grp] += 1
-                # else:
-                #     logmt(1, "  - Cross correlation (%s) did not result in a good match (>0.8). Trying another station..." % max_xcor)
             else:
                 logmt(1, " - Found enough good matches between data and synthetics for group (%s)" % grp)
                 break
@@ -1636,7 +1653,6 @@ def main():
 
     if verbosity > 1:
         print 'Stachan traces:'
-        # pprint(stachan_traces)
         pprint(ss)
         print 'Event to station details:'
         pprint(ev2sta)

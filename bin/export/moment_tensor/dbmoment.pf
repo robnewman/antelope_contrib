@@ -5,6 +5,8 @@
 # the data is downsampled to 1 Hz.
 chan_to_use LH.*
 
+# Name of the model parameter file
+model_name SOCAL_MODEL
 # Use displacement (d) or velocity (v) 
 model_type v
 
@@ -12,7 +14,9 @@ model_type v
 distance_weighting off
 
 # Maximum number of stations to use in the inversion
-statmax 8
+#     - Minimum of eight, one for each division 
+#       of the cardinal and intercardinal directions
+statmax 24
 
 # Clipped value, for Q330s: 2**23 * 80% = 1.6**23
 clip_values &Arr{
