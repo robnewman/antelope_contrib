@@ -50,3 +50,9 @@ Green's functions blockettes represent
 Matt's visit
 * Work on generalizing the matrix comparisons, and make the db trexcepts
 as transparent as possible
+
+2012-02-01
+* Matt Koes visiting again from PGC
+* Add verbose output plotting of cross-correlation values, including
+plotting time-shifted data and the actual cross-correlation
+* Move the Greens Function model definition to dbmoment.pf
