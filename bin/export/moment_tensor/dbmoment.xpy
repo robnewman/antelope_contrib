@@ -46,6 +46,9 @@ from pylab import *
 from scipy.signal.filter_design import butter, buttord
 from scipy.signal import lfilter
 
+# FOR CROSS CORRELATION
+from scipy import fftpack
+
 # FKRPROG
 import moment_tensor.fkrprog as fkr
 
@@ -239,19 +242,47 @@ class MomentTensor():
         max_cor and the shift
         """
         if self.verbosity > 1:
-            logmt(1, ' - Calculating cross correlation between station data and Greens function')
+            logmt(1, ' - Calculating cross correlation between station data and synthetic (Greens function) data')
         xcor = np.correlate(a, b, 'full')
-        pr = len(xcor)/2 
-        maxval = 0
-        maxcoef = 0
-        for j in range(pr):
-            if abs(xcor[j+pr]) > maxval:
-                maxval = abs(xcor[j+pr])
-                # maxcoef = j+1
-                maxcoef = j
+        maxval = np.amax(xcor)
+        maxshift = np.argmax(xcor)
+        # Does this shift the data or the synthetic?
+        shift = maxshift - (len(xcor)-1)/2
+
         if self.verbosity > 1:
-            logmt(1, "  - maxval %s, maxcoef %s" % (maxval,maxcoef))
-        return (maxval, maxcoef)
+            logmt(1, "  - Max val: %s. Timeshift (in samples): %s" % (maxval, shift))
+            fig = plt.figure()
+            ax = fig.add_subplot(311)
+            # ax.title('Raw data')
+            ax.plot(self.normalize(a), 'b-')
+            ax.plot(self.normalize(b), 'g-')
+            # Print shifted time series
+            bx = fig.add_subplot(312)
+            if shift < 0:
+                [a.insert(0, 0) for x in range(abs(shift))]
+            elif shift > 0:
+                [b.insert(0, 0) for x in range(abs(shift))]
+            bx.plot(self.normalize(a), 'r-')
+            bx.plot(self.normalize(b), 'c-')
+            # Print xcor
+            cx = fig.add_subplot(313)
+            # cx.title('Cross correlation results')
+            cx.plot(xcor)
+            plt.ylabel('xcor')
+            plt.xlabel('point shift')
+            plt.show()
+        return maxval, shift
+
+    def normalize(self, data_as_list):
+        """Determine the 
+        normalization factor
+        for all the data
+        """
+        normalizer = max([abs(x) for x in data_as_list])
+        if self.verbosity > 0:
+            logmt(1, "  - Normalization factor: %s" % normalizer)
+        return [x / normalizer for x in data_as_list]
+        # return normalized_list
 
     def get_time_shift(self, data_dict, greens_dict, size):
         """Get time shift for each station
@@ -262,7 +293,7 @@ class MomentTensor():
         Return a list of tuples (stacode, timeshift).
         """
         if self.verbosity > 0:
-            logmt(1, '  - Get the time shift and return a list (xcor, shift)')
+            logmt(1, '  - Get the time shift for all components & return the mean shift shift')
         '''
         !!! NOTE: Loop over each stations data points.
                   Remember that the Green's Function 
@@ -272,22 +303,22 @@ class MomentTensor():
         '''
         shift = 0
         xcor = 0
-        if self.cross_cor(data_dict['T'], greens_dict['TSS'])[0] > xcor:
-            xcor, shift = self.cross_cor(data_dict['T'], greens_dict['TSS'])
-        if self.cross_cor(data_dict['T'], greens_dict['TDS'])[0] > xcor:
-            xcor, shift = self.cross_cor(data_dict['T'], greens_dict['TDS'])
-        if self.cross_cor(data_dict['R'], greens_dict['XSS'])[0] > xcor:
-            xcor, shift = self.cross_cor(data_dict['R'], greens_dict['XSS'])
-        if self.cross_cor(data_dict['R'], greens_dict['XDS'])[0] > xcor:
-            xcor, shift = self.cross_cor(data_dict['R'], greens_dict['XDS'])
-        if self.cross_cor(data_dict['R'], greens_dict['XDD'])[0] > xcor:
-            xcor, shift = self.cross_cor(data_dict['R'], greens_dict['XDD'])
-        if self.cross_cor(data_dict['Z'], greens_dict['ZSS'])[0] > xcor:
-            xcor, shift = self.cross_cor(data_dict['Z'], greens_dict['ZSS'])
-        if self.cross_cor(data_dict['Z'], greens_dict['ZDS'])[0] > xcor:
-            xcor, shift = self.cross_cor(data_dict['Z'], greens_dict['ZDS'])
-        if self.cross_cor(data_dict['Z'], greens_dict['ZDD'])[0] > xcor:
-            xcor, shift = self.cross_cor(data_dict['Z'], greens_dict['ZDD'])
+        if self.cross_cor(data_dict['T'][0:size], greens_dict['TSS'][0:size])[0] > xcor:
+            xcor, shift = self.cross_cor(data_dict['T'][0:size], greens_dict['TSS'][0:size])
+        if self.cross_cor(data_dict['T'][0:size], greens_dict['TDS'][0:size])[0] > xcor:
+            xcor, shift = self.cross_cor(data_dict['T'][0:size], greens_dict['TDS'][0:size])
+        if self.cross_cor(data_dict['R'][0:size], greens_dict['XSS'][0:size])[0] > xcor:
+            xcor, shift = self.cross_cor(data_dict['R'][0:size], greens_dict['XSS'][0:size])
+        if self.cross_cor(data_dict['R'][0:size], greens_dict['XDS'][0:size])[0] > xcor:
+            xcor, shift = self.cross_cor(data_dict['R'][0:size], greens_dict['XDS'][0:size])
+        if self.cross_cor(data_dict['R'][0:size], greens_dict['XDD'][0:size])[0] > xcor:
+            xcor, shift = self.cross_cor(data_dict['R'][0:size], greens_dict['XDD'][0:size])
+        if self.cross_cor(data_dict['Z'][0:size], greens_dict['ZSS'][0:size])[0] > xcor:
+            xcor, shift = self.cross_cor(data_dict['Z'][0:size], greens_dict['ZSS'][0:size])
+        if self.cross_cor(data_dict['Z'][0:size], greens_dict['ZDS'][0:size])[0] > xcor:
+            xcor, shift = self.cross_cor(data_dict['Z'][0:size], greens_dict['ZDS'][0:size])
+        if self.cross_cor(data_dict['Z'][0:size], greens_dict['ZDD'][0:size])[0] > xcor:
+            xcor, shift = self.cross_cor(data_dict['Z'][0:size], greens_dict['ZDD'][0:size])
         if self.verbosity > 0:
             logmt(1, '  - Cross-correlation value: %s, timeshift value: %s' % (xcor, shift))
         return xcor, shift
@@ -1244,7 +1275,7 @@ class Event():
                                                 + myz*gg[i]['ZDS'][j]*math.sin(az))
         return syn_plot_dict
 
-    def normalize(self, data_as_list):
+    def normalize_coefficient(self, data_as_list):
         """Determine the 
         normalization factor
         for all the data
@@ -1302,8 +1333,11 @@ class Event():
                 start = ev2sta[i][3]
                 end = start + size
                 ax = plt.subplot(len(ev2sta), len(rotated_components), axis_num)
-                data_scale_factor = self.normalize(ss[i][rc][start:end])
-                syn_scale_factor = self.normalize(mod_gg[s][rc].values())
+                print start
+                print end
+                print ss[i][rc][start:end]
+                data_scale_factor = self.normalize_coefficient(ss[i][rc][start:end])
+                syn_scale_factor = self.normalize_coefficient(mod_gg[s][rc].values())
                 new_data_list = [(v/data_scale_factor) for v in ss[i][rc][start:end]]
                 new_synthetic_list = [(v/syn_scale_factor) for v in mod_gg[s][rc].values()]
                 if self.verbosity > 1:
@@ -1493,7 +1527,8 @@ def main():
     '''
     ss = []
     gg = []
-    stations_per_group = 20
+    stations_per_group = int(round(statmax/8))
+    print stations_per_group
     good_cross_corr_stations = {'NNE':0, 'ENE':0, 'ESE':0, 'SSE':0, 'SSW':0, 'WSW':0, 'WNW':0, 'NNW':0}
     '''
     !!! NOTE: This keeps track of what 
@@ -1511,13 +1546,15 @@ def main():
         sta_list = ev2sta_azimuth_groups[grp]
         if stations_per_group > len(sta_list):
             if verbosity > 0:
-                logmt(1, " - # of stations requested (%s) > # of stations in %s azimuthal range (%s). Using max number in azimuthal range." % (stations_per_group, grp, len(sta_list))
+                logmt(1, " - # of stations requested (%s) > # of stations in %s azimuthal range (%s). Using max number in azimuthal range." % (stations_per_group, grp, len(sta_list)))
             stations_per_group = len(sta_list)
         for sta in sta_list:
             if good_cross_corr_stations[grp] < stations_per_group:
                 stacode, esaz, depth, distance, arrival_time = sta
+                depth = int(depth)
+                distance = int(distance)
                 if verbosity > 0:
-                    logmt(1, "  - Getting data for station %s (distance = %s)" % (stacode, distance))
+                    logmt(1, "  - Getting data for station %s (distance = %s, depth = %s)" % (stacode, distance, depth))
                 # Not sure we still need to define 200, but leave for now
                 real_data = my_event.get_chan_data(wave_db, chan_to_use, esaz, arrival_time, filter_string, stacode, 200, clip_values)
                 if verbosity > 0:
@@ -1562,16 +1599,16 @@ def main():
                     synthetic_data[k] = synthetic_data[k].tolist()
 
                 # Do the cross correlation and get the time shift
-                xcor, timeshift = my_mt.get_time_shift(real_data, synthetic_data, 120)
+                max_xcor, timeshift = my_mt.get_time_shift(real_data, synthetic_data, 120)
 
                 # If a good match, add to the solution
-                # if xcor > 0.8:
+                # if max_xcor > 0.8:
                 ss.append(real_data)
                 gg.append(synthetic_data)
                 ev2sta.append((stacode, esaz, distance, timeshift))
                 good_cross_corr_stations[grp] += 1
                 # else:
-                #     logmt(1, "  - Cross correlation (%s) did not result in a good match (>0.8). Trying another station..." % xcor)
+                #     logmt(1, "  - Cross correlation (%s) did not result in a good match (>0.8). Trying another station..." % max_xcor)
             else:
                 logmt(1, " - Found enough good matches between data and synthetics for group (%s)" % grp)
                 break
