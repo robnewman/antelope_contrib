@@ -4,6 +4,11 @@ Contributors: Frank Vernon (FLV), Rob Newman (RLN), Juan Reyes (JCR), Gert-Jan v
 
 Background: Moment tensor integration into BRTT Antelope Datascope using the Python interface to Antelope
 
+CAVEAT:
+This project is in HIGH FLUX. It is also extremely messy right now, as we translate
+the series of C, Shell, Fortran, SAC and ASCII files into a uniform Python library.
+The current state should NOT BE viewed as representative of the final codebase!
+
 History:
 
 Fall 2010

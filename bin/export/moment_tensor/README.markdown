@@ -1,6 +1,12 @@
 # Moment Tensor Code
 *Contributors: Frank Vernon (FLV), Rob Newman (RLN), Juan Reyes (JCR), Gert-Jan van den Hazel (GJV)*
 
+### CAVEAT:
+This project is in __HIGH FLUX__. It is also extremely messy right now, as we translate
+the series of C, Shell, Fortran, SAC and ASCII files into a uniform Python library.
+The current state should __NOT BE__ viewed as representative of the final codebase!
+
+
 ### Moment tensor integration into BRTT Antelope Datascope using the Python interface to Antelope
 Once installed, you run this from the command line:
 
