@@ -1,7 +1,13 @@
 # Moment Tensor Code
 *Contributors: Frank Vernon (FLV), Rob Newman (RLN), Juan Reyes (JCR), Gert-Jan van den Hazel (GJV)*
 
-### CAVEAT:
+### CAVEAT 2:
+The whole structure of Python in contrib has changed with the upcoming release of 
+Antelope 5.2. None of this code will work in its current form with the latest
+incarnation of the Antelope contributed code. Sorry, but you are on your own
+if you use the official contrib distribution.
+
+### CAVEAT 1:
 This project is in __HIGH FLUX__. It is also extremely messy right now, as we translate
 the series of C, Shell, Fortran, SAC and ASCII files into a uniform Python library.
 The current state should __NOT BE__ viewed as representative of the final codebase!
