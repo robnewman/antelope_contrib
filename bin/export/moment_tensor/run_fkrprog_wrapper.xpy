@@ -17,17 +17,12 @@ try:
 
 except getopt.GetoptError:
 
-    print "Usage: fkrprog [-v] [-t] [-p model_pf_file]\n"
-    sys.exit(-1)
+    raise SystemExit('\n\n\tUSAGE: fkrprog [-v] [-p model_pf_file]\n')
 
-if( len(pargs) != 0):
-
-    print "Usage: fkrprog [-v] [-t] [-p model_pf_file]\n"
-    sys.exit(-1)
+if len(pargs) != 0: raise SystemExit('\n\n\tUSAGE: fkrprog [-v] [-p model_pf_file]\n')
 
 
 verbose = False
-test = False
 pf_file = 'SOCAL_MODEL'
 
 for option, value in opts:
@@ -38,30 +33,23 @@ for option, value in opts:
     if '-v' in option:
         verbose = True
 
-    if '-t' in option:
-        test = True
-
 """
 Build object for GFs.
 """
 if verbose: print 'Load lib: GreenFunctions(%s)' % pf_file
-GF =  fkr.GreenFunctions(pf_file)
+GF =  fkr.GreenFunctions(pf_file,verbose)
 
 """
-Generate GFs for depth of 8km and distance of 1km.
+Generate GFs for depth of 8km and distance of 10km.
 """
-if test:
-    if verbose: print 'generate_fortran(depth=%s,distance=%s)' % (8,10)
-    GF.generate_python(depth=8,distance=10)
-else:
-    if verbose: print 'generate(depth=%s,distance=%s)' % (8,10)
-    GF.generate(depth=8,distance=10)
+if verbose: print 'generate(depth=%s,distance=%s)' % (8,10)
+GF.build(depth=8,distance=10)
 
 """
 Plot the GFs
 """
-if verbose: print 'plot()'
-GF.plot()
+if verbose: print 'plot(0,150)'
+GF.plot(0,150)
 
 if verbose: print 'Done!'
 
