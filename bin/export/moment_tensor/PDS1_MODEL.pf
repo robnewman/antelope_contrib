@@ -1,10 +1,9 @@
 #
 # 1D velocity structure appropiate
-# for the Sierra Nevada and 
-# Southern California regions.
+# used by PGC for the Washington area.
 #
 
-database            socal
+database            pds1
 
 db_path             ./greens_func
 
@@ -14,7 +13,7 @@ start_frequency     1
 
 end_frequency       512
 
-samplerate           0.5
+samplerate           1
 
 # Phase velocity window
 cmax    10000
@@ -30,8 +29,9 @@ velocity_reduction   10
 # MODEL PARAMETERS
 # Layer: thickness(km), p-velocity(km/s), s-velocity(km/s), dnesity(g/cc), Q-alpha, Q-beta
 model &Literal{
-5.5     5.5     3.18    2.4     600     300
-10.5    6.3     3.54    2.67    600     300
-19.0    6.7     3.87    2.8     600     300
-400.0   7.8     4.5     3.3     600     300
+4.00    2.29   2.14   1.00   225.0   100.0
+5.50    3.14   2.56   5.00   225.0   100.0
+6.60    3.77   2.87  16.00   225.0   100.0
+7.09    3.98   3.00  13.00   225.0   100.0
+8.10    4.55   3.29 120.00   225.0   100.0
  }

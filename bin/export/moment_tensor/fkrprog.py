@@ -2,6 +2,7 @@ import os
 import sys
 import re
 import getopt
+#from scipy.signal import decimate
 from scipy.integrate import cumtrapz
 from numpy.fft  import ifft
 from collections import defaultdict
@@ -11,40 +12,133 @@ from cmath import log as clog
 from cmath import sqrt as csqrt
 from cmath import exp as cexp
 import antelope.stock as stock
+import antelope.datascope as datascope
 
 
-
-"""
+class GreenFunctions():
+    """ 
       FREQUENCY WAVENUMBER-INTEGRATION PROGRAM.
 
     ORIGINAL FORTRAN CODE WRITTEN BY CHANDAN K. SAIKIA
     TRANSLATED TO PYTHON BY JUAN C. REYES 1/2012 <REYES@UCSD.EDU>
-"""
 
-class GreenFunctions():
-    " Build class to produce Green Functions "
+    NOTES:
+
+    Call generate to build your 10 element matrix. The produced elements are the same
+    as in Jost and Hermann (1989); transverse component vertical strike-slip(TSS) and vertical dip-slip (TDS) faluts,
+    radial component vertical strike-slip (XSS), vertical dip-slip (XDS) and 45-degree dip-slip (XDD) faults, and 
+    vertical component vertical strike-slip (ZSS), vertical dip-slip (ZDS), 45-degree (ZDD) faults, and radial (REX) 
+    and vertical (ZEX) explosions.
+
+    USAGE:
+
+    Initialize the library with:
+        GF =  fkr.GreenFunctions(pf_file)
+
+    The pf_file is the parameter file that contains the model that we want to use.
+    Generate GFs for depth of 8km and distance of 1km.
+        GF.generate_python(depth=8,distance=10)
+
+    Plot the GFs for the first 150 samples. 
+        GF.plot(0,150)
+
+    """
     def __init__(self,model,verbose=False):
 #{{{
-        if verbose: print "green_functions(): init..."
+        print '\n\n\t**** GreenFunctions(): decimation function NOT WORKING *****\n'
 
-        #
-        # Constants
-        #
+        self.verbose = verbose
+        self.pf = model
+
         self.IVEL = 'd'
         self.IB  = 100
         self.IFREQ = 0
         self.DATA = defaultdict(lambda: defaultdict(dict))
         self.ALLOMEGA = defaultdict(lambda: defaultdict(dict))
+        self.ELEMENTS = defaultdict(dict)
 
-        self.verbose = verbose
 
-        self.pf = model
+        if self.verbose: print "GreenFunctions(): init(%s)" % model
 
+        """ Read configuration from parameter file self.pf """
         self._read_pf()
+
+
+        """  
+        Open the database that will save our functions.
+
+            From PF file:
+            self.gf_db      => database name
+            self.gf_db_path => database path
+
+        """
+
+        """ Return a normalized absolutized version of the path. """
+        self.gf_db_path = os.path.abspath(self.gf_db_path)
+
+
+        """ Recursive directory creation function. """
+        try:
+            if not os.path.exists(self.gf_db_path): os.makedirs(self.gf_db_path)
+        except Exception,e:
+            raise SystemExit('\n\nERROR: GreenFunctions(): Cannot create direcotry (%s) %s => %s \n\n' % (self.gf_db_path,Exception,e))
+
+        """ Verify the directory. """
+        if not os.path.exists(self.gf_db_path):
+            raise SystemExit('\n\nERROR: GreenFunctions(): Cannot find direcotry (%s)\n\n' % self.gf_db_path)
+
+        """ Open database and keep pointer in self.db """
+        try: 
+            self.db = datascope.dbopen( os.path.normpath(self.gf_db_path + '/' + self.gf_db), "r+" )
+            self.db.lookup( table='wfdisc' )
+
+        except Exception, e:
+            raise SystemExit('\n\nERROR: dbopen() %s => %s\n\n' % (Exception,e))
+
+
+        if self.verbose: print "GreenFunctions(): Using database [%s]" % os.path.normpath(self.gf_db_path + '/' + self.gf_db + '.wfdisc')
 
 #}}}
 
-    def generate_python(self,depth,distance,type='d'):
+    def build(self,depth,distance,sps=1,type='d'):
+#{{{
+        """
+        Main function to retrieve ( and produce if missing )
+        the requested elements.
+        """
+        self.DEPTH = depth
+        self.DISTANCE = distance
+
+        if not self._get_from_db(depth,distance,None): 
+            self._generate(depth,distance)
+            self._get_from_db(depth,distance,None)
+
+        """
+        Integrate if needed.
+        """
+        if type == 'd':
+            pass
+        elif type == 'v':
+            self._integrate()
+        else:
+            raise SystemExit('\n\nERROR: GreenFunctions(): no valid data for type [%s] (only d or v)\n\n' % type)
+
+        """
+        After loading the objects into memory disseminate to requested samplerate.
+        """
+        if self.verbose: print 'GreenFunctions(): decimate **** NOT WORKING *****'
+
+        #for trace in self.ELEMENTS:
+        #    if sps == self.ELEMENTS[trace][samplerate]: continue
+        #    ratio = self.ELEMENTS[trace][samplerate] / sps
+        #    if self.verbose: print 'GreenFunctions(): decimate(%s)=>' % (sps,trace)
+        #    self.ELEMENTS[trace][data] = decimate(self.ELEMENTS[trace][data],ratio)
+
+
+
+#}}}
+
+    def _generate_python(self,depth,distance,type='d'):
 #{{{
         self.IVEL = type
         self.DEPTH = depth
@@ -165,7 +259,7 @@ class GreenFunctions():
 
 #}}}
 
-    def generate(self,depth,distance,type='d'):
+    def _generate(self,depth,distance,type='d'):
 #{{{
         self.IVEL = type
         self.DEPTH = depth
@@ -300,23 +394,26 @@ class GreenFunctions():
         for I in range(len(self.D)):
             model += " %1.4E %1.4E %1.4E %1.4E   600.00    300.00\n" % (self.D[I],self.A[I],self.B[I],self.RHO[I])
 
-        model =  template % (self.DEPTH, self.MMAX,model,self.LMAX,self.DISTANCE)
+        model =  template % (self.DEPTH,self.DT,self.MMAX,model,self.LMAX,self.DISTANCE)
 
         """ 
         Open temp file to put model.
         """
         try:
-            os.remove('./greens_funcs')
-        except:
+            os.remove('./.greens_funcs')
+        except Exception, e:
             pass
 
-        f = open('./greens_funcs', 'w')
-        f.write(model)
-        f.close()
+        try: 
+            f = open('./.greens_funcs', 'w')
+            f.write(model)
+            f.close()
+        except Exception,e:
+            raise SystemExit('\n\nERROR: Cannot open temp file .greens_funcs %s %s\n'% (Exception,e))
 
         print model
         if self.verbose: print 'Running: fortran_fkrprog < ./greens_func'
-        p = os.popen('fortran_fkrprog < ./greens_funcs',"r")
+        p = os.popen('fortran_fkrprog < ./.greens_funcs',"r")
 
         while 1:
             line = p.readline()
@@ -353,16 +450,252 @@ class GreenFunctions():
                     self.DATA[int(s_l)-1][int(J)-1] = fortran_gg[A][J][s_l]
 
         try:
-            os.remove('./greens_funcs')
+            os.remove('./.greens_funcs')
         except:
             pass
 
-
-        #self._setup_vars()
-
-
         self._wvint9()
 
+#}}}
+
+    def _get_from_db(self,depth,distance,filter=None):
+#{{{
+
+        """ 
+        Open the database and extract the traces for requested depth and distance. 
+
+        The functions are archived in ascii files referenced by Datascope using a simple 
+        wfdisc table. The value for the station is our DISTANCE. The value for the channel  
+        is our DEPTH and the element is specified in the location code. 
+        i.e.   
+            depth: 8
+            distance: 10
+            element: TDS
+            => 10_8_TDS ( format: sta_chan_loc )
+
+
+        All data will be extracted from the database and archived in memory internal to the class. We 
+        will use the dictionary self.ELEMENT for this. Each key in the dictionary will be dedicated
+        to a different component of the fundamental Green's Functions and will include objects for metadata. 
+        """
+
+        """ Make local copy of database pointer. """
+        db = self.db
+
+        try:
+            records = db.query(datascope.dbRECORD_COUNT)
+
+        except Exception,e:
+            records = 0 
+
+
+        if not records:
+            #raise SystemExit("\n\nERROR: GreenFunctions(): ERROR: No records in databse!.\n\n")
+            return False
+
+        """ Subset for distance and depth. """
+
+        try: 
+            db.subset('sta =~ /%s/ && chan =~ /%s_.*/' % (distance,depth))
+            records = db.query(datascope.dbRECORD_COUNT)
+        except: 
+            records = 0
+
+        if records: 
+            """ Get list of elements and get values for time, endtime, nsamp, samprate and LOC_CODE. """
+            for i in range(records):
+
+                db.record = i
+
+                try:
+                    (db_sta,db_chan,db_nsamp,db_time,db_endtime,db_samprate) = \
+                            db.getv('sta','chan','nsamp','time','endtime','samprate')
+                except Exception,e:
+                    raise SystemExit('\n\nERROR: GreenFunctions(): Problems while extracting from database %s: %s\n\n' % (Exception,e))
+
+                """ 
+                Save each trace in memory. 
+                """
+
+                """ Extract the elemnt name from the channel text. """
+                m = re.match(".?_(...)",db_chan)
+                comp = m.group(1)
+
+                if not comp: 
+                    raise SystemExit('\n\nERROR: GreenFunctions(): Cannot find component name in wfdisc entry: %s_%s\n\n' % (db_sta,db_chan))
+
+                if not self.ELEMENTS[comp]:
+                    self.ELEMENTS[comp] = {'data':[], 'samplerate':db_samprate, 'filter':filter} 
+
+                if self.verbose:
+                    print 'loadchan(',db_time,db_endtime,db_sta,db_chan,')'
+
+                try:
+                    #self.ELEMENTS[comp]['data'] = self.db.sample(db_time,db_endtime,db_sta,db_chan,False,filter)
+                    self.ELEMENTS[comp]['data'] = datascope.trsample(db, db_time, db_endtime, db_sta, db_chan ,False, filter)
+                    self.ELEMENTS[comp]['data'] = [ y for x,y in self.ELEMENTS[comp]['data'] ]
+                    #tr.splice()
+                    #if filter: tr.filter( filter_string)
+                    #self.ELEMENTS[comp]['data'] = tr.data()
+                    #tr.trdestroy()
+
+                except Exception,e:
+                    print '\n %s = db.sample(%s,%s,%s,%s) => %s: %s\n' % (m.group(1),db_time,db_endtime,db_sta,db_chan,Exception,e) 
+                    raise SystemExit('\n\nERROR: GreenFunctions(): Problems while extracting trace object %s: %s\n\n' % (Exception,e))
+
+                if self.verbose:
+                    print self.ELEMENTS[comp]['data']
+
+                if not self.ELEMENTS[comp]['data']:
+                    raise SystemExit('\n\nERROR: GreenFunctions(): Cannot build component [%s]: %s_%s\n\n' % (m.group(1),db_sta,db_chan))
+
+        else:
+            print "\n\nERROR: GreenFunctions(): ERROR: No records for subset [sta =~ /%s/ && chan =~ /%s/].\n\n" % (distance,depth)
+            return False
+
+        return True
+#}}}
+
+    def _save_to_db(self):
+#{{{
+        """ 
+        Open the database and save the new traces.
+
+        The functions are archived in ascii files referenced by Datascope using a simple 
+        wfdisc table. The value for the station is our DISTANCE. The value for the channel  
+        is our DEPTH and the element is specified in the location code. 
+        i.e.   
+            depth: 8
+            distance: 10
+            element: TDS
+            => 10_8_TDS ( format: sta_chan_loc )
+
+        """
+
+        if self.verbose: print "\nDatabase path: %s \n %s\n" % (self.gf_db_path,self.db)
+
+
+        """ Return a normalized absolutized version of the path. """
+        path = os.path.abspath(self.gf_db_path + '/' + self.gf_db + '/' + str(self.DEPTH)  )
+
+
+        """ Recursive directory creation function. """
+        try:
+            if not os.path.exists(path): os.makedirs(path)
+        except Exception,e:
+            raise SystemExit('\n\nERROR: GreenFunctions(): Cannot create direcotry (%s) %s => %s \n\n' % (path,Exception,e))
+
+
+        """ Save all data to file.  """
+        dfile = "%s_%s_%s.gf" % (self.DISTANCE,self.DEPTH,self.gf_db)
+        try:
+            os.remove("%s/%s"%(path,dfile))
+        except Exception, e:
+            pass
+
+        try: 
+            f = open("%s/%s"%(path,dfile), 'w')
+        except Exception,e:
+            raise SystemExit('\n\nERROR: Cannot open file %s %s %s\n'% (dfile,Exception,e))
+
+        """ Return a relative path to add to wfdisc. """
+        path = './' + self.gf_db + '/' + str(self.DEPTH)
+
+        for element in sorted(self.ELEMENTS.keys()):
+            if self.ELEMENTS[element]['data']:
+                sta = '%s' % self.DISTANCE
+                chan_loc = '%s_%s' % (self.DEPTH,element)
+                nsamp = len(self.ELEMENTS[element]['data'])
+                samprate = self.ELEMENTS[element]['samplerate']
+                endtime = (nsamp*samprate)+1.00
+                f.write('%s\t%s\t%s\n'%(element,nsamp,samprate))
+                start = f.tell()
+
+                try:
+                    [f.write('%s\n' % x )for x in self.ELEMENTS[element]['data'] ]
+                except Exception,e:
+                    raise SystemExit('\n\nERROR: Cannot add to file [%s] => %s\n'% (Exception,e))
+
+                if self.verbose: 
+                    print 'Add new record to wfdisc table:'
+                    print '\tsta=',sta,'chan=',chan_loc,'time=',1.00,'endtime=',endtime
+                    print '\tnsamp=',nsamp,'samprate=',samprate,'calib=',1,'datatype=','as'
+                    print '\tsegtype=','c','dir=',path,'dfile=',dfile,'foff=',start
+
+                try:
+                    self.db.addv('sta',sta,'chan',chan_loc,'time',1.00,'endtime',endtime,'nsamp',nsamp,'samprate',samprate,'calib',1,'datatype','as','segtype','c','dir',path,'dfile',dfile,'foff',start)
+                except Exception,e:
+                    raise SystemExit('\n\nERROR: Cannot add new line [%s] %s %s\n'% (element,Exception,e))
+
+            else: 
+                raise SystemExit('\n\nERROR: Empty element to dump into file %s %s\n'% (element,file))
+
+        try: 
+            f.close()
+        except Exception,e:
+            raise SystemExit('\n\nERROR: Cannot close file %s %s %s\n'% (file,Exception,e))
+
+
+
+        try:
+            records = self.db.query(datascope.dbRECORD_COUNT)
+
+        except Exception,e:
+            raise SystemExit('\n\nERROR: GreenFunctions(): Problems with database %s: %s\n\n' % (Exception,e))
+
+
+        #if not records:
+        #    raise SystemExit("\n\nERROR: GreenFunctions(): ERROR: No records in databse!.\n\n")
+
+        #""" Subset for distance and depth. """
+
+        #try: 
+        #    db.subset('sta =~ /%s/ && chan =~ /%s_.*/' % (distance,depth)
+        #    records = db.query(datascope.dbRECORD_COUNT)
+        #except: 
+        #    records = 0
+
+        #if records: 
+        #    """ Get list of elements and get values for time, endtime, nsamp, samprate and LOC_CODE. """
+        #    for i in range(records):
+
+        #        db.record = i
+
+        #        try:
+        #            (db_sta,db_chan,db_nsamp,db_time,db_endtime,db_samprate) = \
+        #                    db.getv('sta','chan','nsamp','time','endtime','samprate')
+        #        except Exception,e:
+        #            raise SystemExit('\n\nERROR: GreenFunctions(): Problems while extracting from database %s: %s\n\n' % (Exception,e))
+
+        #        """ 
+        #        Save each trace in memory. 
+        #        """
+
+        #        """ Extract the elemnt name from the channel text. """
+        #        m = re.match(".?_(...)",db_chan)
+        #        comp = m.group(1)
+
+        #        if not comp: 
+        #            raise SystemExit('\n\nERROR: GreenFunctions(): Cannot find component name in wfdisc entry: %s_%s\n\n' % (db_sta,db_chan))
+
+        #        if not self.ELEMENTS[comp]:
+        #            self.ELEMENTS[comp] = {'data':[], 'samplerate':1, 'filter':filter} 
+
+        #        try:
+        #            self.ELEMENTS[comp]['data'] = db.sample(db_time,db_endtime,db_sta,db_chan,False,filter)
+        #        except Exception,e:
+        #            print '\n %s = db.sample(%s,%s,%s,%s) => %s: %s\n' % (m.group(1),db_time,db_endtime,db_sta,db_chan,Exception,e) 
+        #            raise SystemExit('\n\nERROR: GreenFunctions(): Problems while extracting trace object %s: %s\n\n' % (Exception,e))
+
+
+        #        if not self.ELEMENTS[comp]['data']:
+        #            raise SystemExit('\n\nERROR: GreenFunctions(): Cannot build component [%s]: %s_%s\n\n' % (m.group(1),db_sta,db_chan))
+
+        #else:
+        #    print "\n\nERROR: GreenFunctions(): ERROR: No records for subset [sta =~ /%s/ && chan =~ /%s/].\n\n" % (distance,depth)
+        #    return False
+
+        #return True
 #}}}
 
     def _file_format(self):
@@ -370,7 +703,7 @@ class GreenFunctions():
         return ".F.\n\
     0   64\n\
 GREEN.1\n\
-    6.0      %2.2f      1  512 1024    0.500    %2d    1\n\
+    6.0      %2.2f      1  512 1024   %0.2f     %2d    1\n\
     1    1    1    1    1    1    1    1    1    1    0\n\
 %s\
     %d\n\
@@ -392,6 +725,11 @@ GREEN.1\n\
         #
         if self.verbose: print "Read PF file: %s.pf" % self.pf
 
+        try:
+            self.gf_db = stock.pfget_string(self.pf,'database')
+            self.gf_db_path = stock.pfget_string(self.pf,'db_path')
+        except Exception, e:
+            raise SystemExit('\n\nWrong Format of PF file[%s]. %s %s\n'% (self.pf,Exception,e))
 
         try:
             self.DECAY  = stock.pfget_double(self.pf,'decay')
@@ -2887,101 +3225,96 @@ GREEN.1\n\
                 #Convert to real values
                 self.TEMPDATA = self.TEMPDATA.real
 
-                #plt.plot(self.TEMPDATA)
-                #text = 'GF: range(%s) block(%s)' % (nd,l)
-                #plt.legend(text)
-                #plt.show()
-
-
-            """
-            Time Domain Integration
-            """
-            if self.IVEL == 'd': self.TEMPDATA = cumtrapz(self.TEMPDATA)
-
-
-
             if l == 0:
-                self.ZDD = [x * -1 for x in self.TEMPDATA ]
+                #self.ZDD = [x * -1 for x in self.TEMPDATA ]
+                if not 'ZDD' in self.ELEMENTS: self.ELEMENTS['ZDD'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                self.ELEMENTS['ZDD']['data'] = [x * -1 for x in self.TEMPDATA ]
 
             elif l == 1:
-                self.XDD = [x for x in self.TEMPDATA]
+                #self.XDD = [x for x in self.TEMPDATA]
+                if not 'XDD' in self.ELEMENTS: self.ELEMENTS['XDD'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                self.ELEMENTS['XDD']['data'] = [x for x in self.TEMPDATA ]
 
             elif l == 2:
-                self.ZDS = [x for x in self.TEMPDATA]
+                #self.ZDS = [x for x in self.TEMPDATA]
+                if not 'ZDS' in self.ELEMENTS: self.ELEMENTS['ZDS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                self.ELEMENTS['ZDS']['data'] = [x for x in self.TEMPDATA ]
 
             elif l == 3:
-                self.XDS = [x * -1 for x in self.TEMPDATA ]
+                #self.XDS = [x * -1 for x in self.TEMPDATA ]
+                if not 'XDS' in self.ELEMENTS: self.ELEMENTS['XDS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                self.ELEMENTS['XDS']['data'] = [x * -1 for x in self.TEMPDATA ]
 
             elif l == 4:
-                self.TDS = [x for x in self.TEMPDATA]
+                #self.TDS = [x for x in self.TEMPDATA]
+                if not 'TDS' in self.ELEMENTS: self.ELEMENTS['TDS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                self.ELEMENTS['TDS']['data'] = [x for x in self.TEMPDATA ]
 
             elif l == 5:
-                self.ZSS = [x * -1 for x in self.TEMPDATA ]
+                #self.ZSS = [x * -1 for x in self.TEMPDATA ]
+                if not 'ZSS' in self.ELEMENTS: self.ELEMENTS['ZSS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                self.ELEMENTS['ZSS']['data'] = [x * -1 for x in self.TEMPDATA ]
 
             elif l == 6:
-                self.XSS = [x for x in self.TEMPDATA]
+                #self.XSS = [x for x in self.TEMPDATA]
+                if not 'XSS' in self.ELEMENTS: self.ELEMENTS['XSS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                self.ELEMENTS['XSS']['data'] = [x for x in self.TEMPDATA ]
 
             elif l == 7:
-                self.TSS = [x * -1 for x in self.TEMPDATA ]
+                #self.TSS = [x * -1 for x in self.TEMPDATA ]
+                if not 'TSS' in self.ELEMENTS: self.ELEMENTS['TSS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                self.ELEMENTS['TSS']['data'] = [x * -1 for x in self.TEMPDATA ]
 
             elif l == 8:
-                self.REX = [x for x in self.TEMPDATA]
+                #self.REX = [x for x in self.TEMPDATA]
+                if not 'REX' in self.ELEMENTS: self.ELEMENTS['REX'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                self.ELEMENTS['REX']['data'] = [x for x in self.TEMPDATA ]
 
             elif l == 9:
-                self.ZEX = [x for x in self.TEMPDATA]
+                #self.ZEX = [x for x in self.TEMPDATA]
+                if not 'ZEX' in self.ELEMENTS: self.ELEMENTS['ZEX'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                self.ELEMENTS['ZEX']['data'] = [x for x in self.TEMPDATA ]
+            else:
+                raise SystemExit('\n\nERROR: GreenFunctions(): generate(): Too many elements\n\n')
 
 
-            plt.plot(self.TEMPDATA)
+        self._save_to_db()
+#}}}
 
+    def _integrate(self):
+#{{{
+        """
+        Time Domain Integration
+        """
+        for trace in self.ELEMENTS:
+            if not self[trace]['data']:
+                raise SystemExit('\n\nERROR: GreenFunctions(): Problems while integration(): no data for %s\n\n' % trace)
 
+            if self.verbose: print 'GreenFunctions(): integrat(%s)' % trace
+            self[trace]['data'] = cumtrapz(self[trace]['data'])
 
 #}}}
 
-    def plot(self):
+    def plot(self,start=0,end=-1):
 #{{{
-        for l in range(10):
+        """ 
+        Plot all traces in memory. They are containe in 
+        the dictionary ELEMENTS in self.
+        """
+        total = len(self.ELEMENTS)
 
-            plt.subplot(5,2,l)
+        half = int(total/2)
 
-            if l == 0:
-                plt.plot(self.ZDD[0:150])
-                plt.legend(["ZDD"])
+        if half != total/2: half += 1
 
-            elif l == 1:
-                plt.plot(self.XDD[0:150])
-                plt.legend(["XDD"])
+        now = 0
+        for trace in self.ELEMENTS:
 
-            elif l == 2:
-                plt.plot(self.ZDS[0:150])
-                plt.legend(["ZDS"])
-
-            elif l == 3:
-                plt.plot(self.XDS[0:150])
-                plt.legend(["XDS"])
-
-            elif l == 4:
-                plt.plot(self.TDS[0:150])
-                plt.legend(["TDS"])
-
-            elif l == 5:
-                plt.plot(self.ZSS[0:150])
-                plt.legend(["ZSS"])
-
-            elif l == 6:
-                plt.plot(self.XSS[0:150])
-                plt.legend(["XSS"])
-
-            elif l == 7:
-                plt.plot(self.TSS[0:150])
-                plt.legend(["TSS"])
-
-            elif l == 8:
-                plt.plot(self.REX[0:150])
-                plt.legend(["REX"])
-
-            elif l == 9:
-                plt.plot(self.ZEX[0:150])
-                plt.legend(["ZEX"])
+            now += 1
+            plt.subplot(5,2,now)
+            data = self.ELEMENTS[trace]['data']
+            plt.plot(data[start:end])
+            plt.legend([trace])
 
         plt.suptitle("Green Functions: depth:%s distance:%s" % (self.DEPTH,self.DISTANCE))
         plt.show()
@@ -2992,23 +3325,15 @@ GREEN.1\n\
         i.upper()
         if i == 'ALL':
             temp = {}
-            temp['TSS'] = self.TSS
-            temp['TDS'] = self.TDS
-            temp['XSS'] = self.XSS
-            temp['XDS'] = self.XDS
-            temp['XDD'] = self.XDD
-            temp['ZSS'] = self.ZSS
-            temp['ZDS'] = self.ZDS
-            temp['ZDD'] = self.ZDD
-            temp['REX'] = self.REX
-            temp['ZEX'] = self.ZEX
+            for x in self.ELEMENTS:
+                temp[x] = self.ELEMENTS[x]['data']
 
             return temp
 
         else:
 
             try:
-                return vars(self)[i]
+                return self.ELEMENTS[i]['data']
             except:
                 raise SystemExit('Wrong name of element. (%s)\n'% i)
 #}}}
@@ -3018,23 +3343,15 @@ GREEN.1\n\
         i.upper()
         if i == 'ALL':
             temp = {}
-            temp['TSS'] = self.TSS
-            temp['TDS'] = self.TDS
-            temp['XSS'] = self.XSS
-            temp['XDS'] = self.XDS
-            temp['XDD'] = self.XDD
-            temp['ZSS'] = self.ZSS
-            temp['ZDS'] = self.ZDS
-            temp['ZDD'] = self.ZDD
-            temp['REX'] = self.REX
-            temp['ZEX'] = self.ZEX
+            for x in self.ELEMENTS:
+                temp[x] = self.ELEMENTS[x]['data']
 
             return temp
 
         else:
 
             try:
-                return vars(self)[i]
+                return self.ELEMENTS[i]['data']
             except:
                 raise SystemExit('Wrong name of element. (%s)\n'% i)
 #}}}
@@ -3044,23 +3361,15 @@ GREEN.1\n\
         i.upper()
         if i == 'ALL':
             temp = {}
-            temp['TSS'] = self.TSS
-            temp['TDS'] = self.TDS
-            temp['XSS'] = self.XSS
-            temp['XDS'] = self.XDS
-            temp['XDD'] = self.XDD
-            temp['ZSS'] = self.ZSS
-            temp['ZDS'] = self.ZDS
-            temp['ZDD'] = self.ZDD
-            temp['REX'] = self.REX
-            temp['ZEX'] = self.ZEX
+            for x in self.ELEMENTS:
+                temp[x] = self.ELEMENTS[x]['data']
 
             return temp
 
         else:
 
             try:
-                return vars(self)[i]
+                return self.ELEMENTS[i]['data']
             except:
                 raise SystemExit('Wrong name of element. (%s)\n'% i)
 #}}}
@@ -3077,7 +3386,7 @@ if __name__ == "__main__":
     print "\t2) Build object for GF's.  "
     print "\t\tgf = GreenFunctions(modle.pf)"
     print "\t3) Build for [distance,depth]"
-    print "\t\tgf.generate(depth=8,distance=1)"
+    print "\t\tgf.build(depth=8,distance=1)"
     print "\t3) Get GF's matrix with elements"
     print "\t\tdata=gf.ALL"
 

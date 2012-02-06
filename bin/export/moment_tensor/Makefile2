@@ -1,8 +1,11 @@
 BIN = run_fkrprog_wrapper \
       fortran_fkrprog \
       dbmoment
+
 PF = dbmoment.pf \
-     SOCAL_MODEL.pf
+     SOCAL_MODEL.pf \
+     PDS1_MODEL.pf
+
 MAN1 = dbmoment.1
 
 DATADIR = python/moment_tensor
@@ -13,7 +16,6 @@ DATA = __init__.py\
 #UNINSTALL = $(ANTELOPE)/data/$(DATADIR)/*.pyc
 
 ANTELOPEMAKELOCAL = $(ANTELOPE)/local/include/antelopemake.local
-
 
 SUBDIR=/local
 
