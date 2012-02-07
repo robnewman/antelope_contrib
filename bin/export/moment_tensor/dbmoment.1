@@ -5,13 +5,21 @@ dbmoment \- moment tensor calculation for given origin
 .nf
 \fBdbmoment \fP[-vV] [-p \fIpfname\fP] \fIorid\fP
 .fi
+.SH SUPPORT
+Contributed: NO BRTT support -- please contact authors Rob Newman
+<robertlnewman@gmail.com> or Juan Reyes <jreyes1108@gmail.com>. We
+do not support any third-party modules or interfaces. If you have
+problems please speak to the respective authors.
+
 .SH DESCRIPTION
 The \fBdbmoment\fP application calculates the moment tensor for a given
-origin-id (\fIorid\fP) for a certain amount of stations. The accompanying
-Green's functions are either read from a pre-constructed database
+origin-id (\fIorid\fP) for a certain amount of stations (defined in the 
+parameter file). The accompanying
+Green's functions are either read from a pre-constructed wfdisc table in a database
 or generated and stored in a database wfdisc table. It relies 
-significantly on the Antelope Python Interface, NumPy, Matplotlib, ObsPy
+significantly on the Antelope Python Interface (Datascope and Stock), NumPy, Matplotlib, ObsPy
 and SciPy.
+
 .SH OPTIONS
 .IP -v
 Verbose output
@@ -21,6 +29,7 @@ More verbose output (debug)
 Override the default parameter-file \fBdbmoment\fP.pf
 .SH PARAMETER FILE
 An example \fBdbmoment\fP parameter file (as specified by \fIpfname\fP) is as follows:
+
 .nf
 chan_to_use LH.*
 clip_values &Arr{
