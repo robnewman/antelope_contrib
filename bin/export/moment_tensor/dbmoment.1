@@ -8,60 +8,67 @@ dbmoment \- moment tensor calculation for given origin
 .SH DESCRIPTION
 The \fBdbmoment\fP application calculates the moment tensor for a given
 origin-id (\fIorid\fP) for a certain amount of stations. The accompanying
-Green's functions are read from a pre-constructed database. It relies 
-significantly on the Antelope Python Interface.
+Green's functions are either read from a pre-constructed database
+or generated and stored in a database wfdisc table. It relies 
+significantly on the Antelope Python Interface, NumPy, Matplotlib, ObsPy
+and SciPy.
 .SH OPTIONS
 .IP -v
 Verbose output
 .IP -V
-More verbose output
+More verbose output (debug)
 .IP "-p pfname"
 Override the default parameter-file \fBdbmoment\fP.pf
 .SH PARAMETER FILE
 An example \fBdbmoment\fP parameter file (as specified by \fIpfname\fP) is as follows:
-
-#      parameter file for \fBdbmoment\fP
-
-model_type v                # Choose velocity (v) or displacement (d)
-
-distance_weighting off      # Turn station distance weighting (on/off)
-
-chan_to_use LH.*            # Channels to use in inversion 
-                            # (wildcards allowed)
-
-statmax 3                   # Maximum number of stations to use
-
-use_inc 0                   # Use incidence angle in rotation 
-                            # (yes=1/no=0)
-
-trim_value 0.6              # Trim value, percentage of data cut to 
-                            # remove edge-effects 
-
-isoflag 0                   # 0 = deviatoric inversion, 1 = isotropic
-
-event_db demo/demo          # Database containing event info
-
-wave_db                     # Database containing waveforms
-
-resp_db demo/resp           # Database containing response information
-
-green_db greendb/greendb    # Database containing Green's functions
-
-mag_filters &Tbl{
-        2.0         4.0        BW_0.02_5_0.10_5
-        4.0         5.0        BW_0.02_5_0.05_5
-        5.0                    BW_0.01_5_0.05_5
-.br
+.nf
+chan_to_use LH.*
+clip_values &Arr{
+    max 1.6**23
+    min -1.6**23
 }
-
-pf_revision_time 995560376
+distance_weighting  off
+event_db    /Users/rnewman/rtsystems/mt/db/mt
+green_db    /Users/rnewman/rtsystems/mt/greens_db
+isoflag 1
+mag_filters &Tbl{
+    2.0    4.0    120    BW_0.02_5_0.10_5
+    4.0    5.0    120    BW_0.02_5_0.05_5
+    5.0    6.0    120    BW_0.01_5_0.05_5
+    6.0    7.0    120    BW_0.01_5_0.07_5
+    7.0           120    BW_0.01_5_0.07_5
+}
+model_name  SOCAL_MODEL
+model_type  v
+mt_images_dir   /Users/rnewman/rtsystems/mt/mtimages
+obspy_beachball &Arr{
+    alpha   
+    bgcolor w
+    edgecolor   
+    facecolor   b
+    fig 
+    format  png
+    linewidth   2
+    nofill  
+    size    300
+    width   200
+    xy  
+}
+pf_revision_time    1328212187
+resp_db demo/resp
+statmax 24
+trim_value  0.2
+ttfont  /Library/Fonts/Verdana.ttf
+use_inc 0
+wave_db 
+.fi
 
 .IP \fImodel_type\fP
 Type of model which is ued in the inversion, v for
 velocity and d for displacement
 .IP \fIdistance_weighting\fP
 Switch distance weighting on/off
-.IP \fIchan_to_use"\fP
+.IP \fIchan_to_use\fP
 Channels which are used in the inversion. When using wildcards,
 the channels with sample-rate closest to 1 are used.
 .IP \fIstatmax\fP
@@ -90,22 +97,27 @@ Table describing the filters to be used for certain magnitude ranges.
 
 % \fB dbmoment\fP -v 1234
 
-Run moment tensor inversion for origig with \fIorid\fP = 1234. Using default parameter
-file dbmoment.pf. Verbosity level set to normal.
+Run moment tensor inversion for origid with \fIorid\fP = 1234. Using default parameter
+file pf/dbmoment.pf or $ANTELOPE/local/data/pf/dbmoment.pf. Verbosity level set to normal.
 
-% \fB dbmoment\fP -V -p local_pf/local_dbmoment 1234
+% \fB dbmoment\fP -V -p pf/dbmoment 1234
 
 Run momenttensor inversion for origin with orid \fIorid\fP = 1234. Using local parameter
-file local_pf/local_dbmoment. Verbosity level set to high.
+file local_pf/local_dbmoment. Verbosity level set to high (debugging). This will output 
+the Green's functions graph for every distance and depth, and each station time-series vs.
+Green's function component cross-correlation result.
 
 .SH RETURN VALUES
 
 .SH LIBRARY
 
 .SH SEE ALSO
-pythondb(1)
+pythondb(1), pythonstock(1)
 
-.SH AUTHOR
-Gert-Jan van den Hazel
-.br
-Orfeus Data Center / IGPP
+.SH AUTHORS
+.nf
+Matt Koes (PGC, Canada/UCSD)
+Rob Newman (UCSD)
+Juan Reyes (UCSD)
+Gert-Jan van den Hazel (Orfeus Data Center/UCSD)
+.fi

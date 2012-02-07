@@ -4,6 +4,7 @@ dbmoment.py
 @authors  Gert-Jan van den Hazel <hazelvd@knmi.nl>
           Juan Reyes <jreyes1108@gmail.com>
           Rob Newman <robertlnewman@gmail.com>
+          Matt Koes <mattkoes@uvic.ca>
 @notes    Look for initialized comments - they define questions to be answered
           e.g. # !!! BUG: Why this hard-coded value here? RLN (2011-07-28)
                # !!! FIX: This is a hacked solution. RLN (2011-07-28)
@@ -41,8 +42,15 @@ else:
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
+# PYLAB
+"""
+try:
+    from pylab import *
+except ImportError:
+    print "Import Error: Do you have Pylab installed correctly?"
+"""
+
 # SIGNAL PROCESSING
-from pylab import *
 from scipy.signal.filter_design import butter, buttord
 from scipy.signal import lfilter
 
@@ -134,10 +142,7 @@ def parse_pf(pfname, verbosity=0):
         wave_db = stock.pfget_string(self.pfname, 'wave_db')
     except:
         wave_db = False
-    # !!! FIX: Currently not using a Greens db, just a file. RLN (2011-11-03)
-    # green_db = stock.pfget_string(pfname, 'green_db')
-    green_file = stock.pfget_string(pfname, 'green_file')
-    green_pf = stock.pfget_string(pfname, 'green_pf')
+    green_db = stock.pfget_string(pfname, 'green_db')
     try:
         resp_db = stock.pfget_string(pfname, 'resp_db')
     except:
@@ -155,14 +160,9 @@ def parse_pf(pfname, verbosity=0):
     if not resp_db:
         resp_db = event_db
 
-    # return (chan_to_use, trim_value, isoflag, 
-    #         model_type, statmax, use_inc, event_db, 
-    #         wave_db, green_db, green_pf, resp_db, 
-    #         mag_filters, mt_images_dir, obspy_beachball, 
-    #         distance_weighting)
     return (chan_to_use, trim_value, isoflag, model_name,
             model_type, statmax, clip_values, use_inc, event_db, 
-            wave_db, green_file, green_pf, resp_db, 
+            wave_db, green_db, resp_db, 
             mag_filters, mt_images_dir, ttfont, obspy_beachball, 
             distance_weighting)
 
@@ -260,56 +260,63 @@ class MomentTensor():
 
         return this_dict
 
-    def cross_cor(self, a, b, component=False):
+    def plot_cross_cor(self, a, b, xcor, components):
+        """Plot the cross 
+        correlation for 
+        debugging purposes
+        """
+        stacode, component, shift = components
+        title_string = "Station %s. Filtered data for %s. Shift = %s" % (stacode, component, shift)
+        fig = plt.figure()
+        fig.subplots_adjust(left=0.04, right=0.96, hspace=0.3)
+        ax = fig.add_subplot(311)
+        ax.set_title(title_string)
+        ax.plot(self.normalize(a), 'b-')
+        ax.plot(self.normalize(b), 'g-')
+        plt.setp(ax.get_yticklabels(), visible=False)
+        ax.legend(('Station', 'Synthetic'), 'upper right', prop={'size':'10'})
+        # Print shifted time series
+        bx = fig.add_subplot(312)
+        bx.set_title('Shifted time series')
+        if shift < 0:
+            try:
+                [a.insert(0, 0) for x in range(abs(shift))]
+            except Exception, e:
+                logmt(1, "   - plot_cross_cor(): Could not insert values at start of real data. Error: %s" % e)
+                print a
+        elif shift > 0:
+            try:
+                [b.insert(0, 0) for x in range(abs(shift))]
+            except Exception, e:
+                logmt(1, "   - plot_cross_cor(): Could not insert values at start of synthetic data. Error: %s" % e)
+                print b
+        bx.plot(self.normalize(a), 'r-')
+        bx.plot(self.normalize(b), 'c-')
+        plt.setp(bx.get_yticklabels(), visible=False)
+        bx.legend(('Station', 'Synthetic'), 'upper right', prop={'size':'10'})
+        # Print xcor
+        cx = fig.add_subplot(313)
+        cx.set_title('Cross correlation results')
+        cx.plot(xcor)
+        plt.setp(cx.get_yticklabels(), visible=False)
+        cx.set_ylabel('X-cor.')
+        cx.set_xlabel('Point shift (in samples)')
+        plt.show()
+        return True
+ 
+    def cross_cor(self, a, b, component=False, stacode=False):
         """Calculate cross correlation 
         between data and accompanying 
         Green's function. Returns the 
         max_cor and the shift
         """
-        if self.verbosity > 1:
-            logmt(1, ' - cross_cor(): %s' % component)
         xcor = np.correlate(a, b, 'full')
         maxval = np.amax(xcor)
         maxshift = np.argmax(xcor)
         shift = maxshift - (len(xcor)-1)/2
         if self.verbosity > 1:
-            title_string = "Filtered data for %s" % component
-            logmt(1, "  - cross_cor(): Max val: %s, timeshift (in samples): %s" % (maxval, shift))
-            fig = plt.figure()
-            fig.subplots_adjust(left=0.04, right=0.96, hspace=0.3)
-            ax = fig.add_subplot(311)
-            ax.set_title(title_string)
-            ax.plot(self.normalize(a), 'b-')
-            ax.plot(self.normalize(b), 'g-')
-            setp(ax.get_yticklabels(), visible=False)
-            ax.legend(('Station', 'Synthetic'), 'upper right', prop={'size':'10'})
-            # Print shifted time series
-            bx = fig.add_subplot(312)
-            bx.set_title('Shifted time series')
-            if shift < 0:
-                try:
-                    [a.insert(0, 0) for x in range(abs(shift))]
-                except Exception, e:
-                    logmt(1, "  - cross_cor(): Could not insert values at start of real data. Error: %s" % e)
-                    print a
-            elif shift > 0:
-                try:
-                    [b.insert(0, 0) for x in range(abs(shift))]
-                except Exception, e:
-                    logmt(1, "  - cross_cor(): Could not insert values at start of synthetic data. Error: %s" % e)
-                    print b
-            bx.plot(self.normalize(a), 'r-')
-            bx.plot(self.normalize(b), 'c-')
-            setp(bx.get_yticklabels(), visible=False)
-            bx.legend(('Station', 'Synthetic'), 'upper right', prop={'size':'10'})
-            # Print xcor
-            cx = fig.add_subplot(313)
-            cx.set_title('Cross correlation results')
-            cx.plot(xcor)
-            setp(cx.get_yticklabels(), visible=False)
-            cx.set_ylabel('X-cor.')
-            cx.set_xlabel('Point shift (in samples)')
-            plt.show()
+            logmt(1, '  - cross_cor(): Component: %s, max val: %s, timeshift (in samples): %s' % (component, maxval, shift))
+            self.plot_cross_cor(a, b, xcor, [stacode, component, shift])
         return maxval, shift
 
     def normalize(self, data_as_list):
@@ -326,13 +333,17 @@ class MomentTensor():
                 logmt(1, "  - Normalization factor: %s" % normalizer)
             return [x / normalizer for x in data_as_list]
 
-    def get_time_shift(self, data_dict, greens_dict, size):
+    def get_time_shift(self, data_dict, greens_dict, stacode, size):
         """Get time shift for each station
         using cross correlation of station 
         data points and the Green's Function
         data points. Make sure both matrices
         are the same size for the comparison.
         Return a list of tuples (stacode, timeshift).
+
+        !!! NOTE: They don't have to be the same
+                  size for a successful cross 
+                  correlation
         """
         if self.verbosity > 0:
             logmt(1, '  - Get the time shift for all components & return the max cross-cor and shift in samples')
@@ -343,8 +354,9 @@ class MomentTensor():
                   replicating the number of stations
                   (3D matrix). RLN (2011-12-02)
         '''
-        shift = []
-        xcor = []
+        size = len(greens_dict['XDS'])
+        max_shift = 0
+        max_xcor = 0
         for c in greens_dict:
             if c == 'REX' or c == 'ZEX':
                 continue
@@ -355,11 +367,10 @@ class MomentTensor():
                     data_key = 'R'
                 elif c[:1] == 'Z':
                     data_key = 'Z'
-                this_xcor, this_shift = self.cross_cor(data_dict[data_key][0:size], greens_dict[c][0:size], c)
-                xcor.append(this_xcor)
-                shift.append(this_shift)
-        max_xcor = max(xcor)
-        max_shift = max(shift)
+                this_xcor, this_shift = self.cross_cor(data_dict[data_key][0:size], greens_dict[c][0:size], c, stacode)
+                if this_xcor > max_xcor:
+                    max_xcor = this_xcor
+                    max_shift = this_shift
         if self.verbosity > 0:
             logmt(1, '  - Cross-correlation value: %s, timeshift value: %s' % (max_xcor, max_shift))
         return max_xcor, max_shift
@@ -386,11 +397,18 @@ class MomentTensor():
 
         # Iterate over number of stations
         for i in range(len(ev2sta)):
+            # Allocate the dictionary space for each section
             cnt1 = cnt2 = cnt3
             cnt2 += size - trim
             cnt3 += 2*size - 2*trim
             if self.verbosity > 0:
                 logmt(1, '  - Working on inversion for station (%s)' % ev2sta[i][0])
+                print "cnt1:"
+                print cnt1
+                print "cnt2:"
+                print cnt2
+                print "cnt3:"
+                print cnt3
             # Convert azimuth to radians
             this_azimuth = ev2sta[i][1] * math.pi/180
             '''
@@ -398,6 +416,10 @@ class MomentTensor():
                       the datapoints for the first station. 
                       Use var size instead because of timeshift.
                       RLN (2011-12-06)
+
+            !!! NOTE: Abstract this out, because different GF's might have
+                      nulls in different blockettes. This may want to be 
+                      customized on a per-user basis.
             '''
             for j in range(size - trim):
                 # Mxx term
@@ -412,14 +434,14 @@ class MomentTensor():
                 AJ[2][cnt3] = -math.sin(2*this_azimuth)*dict_g[i]['ZSS'][j]
 
                 # Mxz term
-                AJ[3][cnt1] = -math.sin(this_azimuth)*dict_g[i]['TDS'][i]
-                AJ[3][cnt2] =  math.cos(this_azimuth)*dict_g[i]['XDS'][i]
-                AJ[3][cnt3] =  math.cos(this_azimuth)*dict_g[i]['ZDS'][i]
+                AJ[3][cnt1] = -math.sin(this_azimuth)*dict_g[i]['TDS'][j]
+                AJ[3][cnt2] =  math.cos(this_azimuth)*dict_g[i]['XDS'][j]
+                AJ[3][cnt3] =  math.cos(this_azimuth)*dict_g[i]['ZDS'][j]
 
                 # Myz term
-                AJ[4][cnt1] =  math.cos(this_azimuth)*dict_g[i]['TDS'][i]
-                AJ[4][cnt2] =  math.sin(this_azimuth)*dict_g[i]['XDS'][i]
-                AJ[4][cnt3] =  math.sin(this_azimuth)*dict_g[i]['ZDS'][i]
+                AJ[4][cnt1] =  math.cos(this_azimuth)*dict_g[i]['TDS'][j]
+                AJ[4][cnt2] =  math.sin(this_azimuth)*dict_g[i]['XDS'][j]
+                AJ[4][cnt3] =  math.sin(this_azimuth)*dict_g[i]['ZDS'][j]
 
                 # Vary the other values depending on isoflag value
                 if self.isoflag == 5:
@@ -447,11 +469,17 @@ class MomentTensor():
             logmt(1, ' - Created matrix AJ with length: %s' % len(AJ))
             logmt(1, ' - Final counts: cnt1=%s, cnt2=%s, cnt3=%s' % (cnt1, cnt2, cnt3))
             logmt(1, ' - Now apply the timeshift if needed')
+
         '''
         !!! NOTE: Make placeholder AIV 
                   (or reset it like Dreger?)
                   RLN (2011-12-02)
+        !!! NOTE: Attempt to replace this with scipy.linalg.lstsq
+                  http://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.lstsq.html#scipy.linalg.lstsq
+                  RLN & MK (2012-02-07)
         '''
+
+
         AIV = defaultdict(dict) 
         for i in range(self.isoflag):
             for j in range(self.isoflag):
@@ -465,6 +493,9 @@ class MomentTensor():
         B = defaultdict(dict) 
         for i in range(self.isoflag):
             B[i][0] = 0.0
+
+
+
 
         cnt1 = cnt2 = cnt3 = 0
         tmp = defaultdict(dict) 
@@ -515,6 +546,9 @@ class MomentTensor():
             logmt(3, 'Matrix AIV has dimension [%s,i%s] should be [%s,1]' % (len(B), len(B[0]), self.isoflag))
         elif self.verbosity > 0:
             logmt(1, 'Matrices AIV and B created and have correct dimensions')
+
+
+
         return AIV, B
 
     def swap(self, a, b):
@@ -545,6 +579,9 @@ class MomentTensor():
             Call Bobs MT decomposition routines
             The minus one is needed to map Helmbergers convention into Aki's
             Jost and Hermann (1989) state that AKI's convention is -1*LANGSTONS
+
+        !!! NOTE: Matt thinks we can replace this with a library in SciPy
+            RLN (2012-02-07)
         """
         if self.verbosity > 0:
             logmt(1, 'Solve the inversion problem and return the moment tensor')
@@ -771,7 +808,7 @@ class MomentTensor():
 
         return m0, Mw, strike, dip, slip, pcdc, pcclvd, pciso
 
-    def fitcheck(self, dict_g, dict_s, list_W, matrix_M, m0, ev2sta, size):
+    def fitcheck(self, dict_g, dict_s, matrix_M, m0, ev2sta, size):
         """Calculate the variance, 
         variance reduction
         and flag bad stations
@@ -823,13 +860,16 @@ class MomentTensor():
                 dpower += dict_s[i]['Z'][correction_iter]*dict_s[i]['Z'][correction_iter]
                 cnt += 1
             
-            wsum += list_W[i]
+            # wsum += list_W[i]
+            wsum += 1
             etot += e
-            var += list_W[i]*e
+            # var += list_W[i]*e
+            var += 1*e
             dtot += dpower
-            dvar += list_W[i]*dpower
+            # dvar += list_W[i]*dpower
+            dvar += 1*dpower
             e /= dpower
-            svar.append((1.0 - e)*100.0)
+            svar.append((ev2sta[i][0], (1.0 - e)*100.0))
             sdpower.append(dpower)
         pvar = etot/(3*cnt - self.isoflag - 1.0)
         etot /= dtot
@@ -924,26 +964,26 @@ class Event():
                 logmt(3, 'No arrivals for selected origin %s' % self.orid)
             elif self.verbosity > 0:
                 logmt(1, 'There are %d records between 1 & 10 deg that match this origin arrival and iphase' % evdb.nrecs())
-            lower_mags = []
-            upper_mags = []
-            filters = []
+            mag_filter_list = []
             for line in mag_filters:
                 splitline = line.split()
-                if not len(splitline) == 3:
-                    lower_magnitude, filter = splitline
+                if len(splitline) == 3:
+                    lower_magnitude, timepad, filter = splitline
+                    upper_magnitude = False
+                elif len(splitline) == 4:
+                    lower_magnitude, upper_magnitude, timepad, filter = splitline
                 else:
-                    lower_magnitude, upper_magnitude, filter = splitline
-                lower_mags.append(lower_magnitude)
-                upper_mags.append(upper_magnitude)
-                filters.append(filter)
-            min_mag = lower_mags[0] # !!! NOTE: Assumes order correct in pf. RLN (2011-07-28)
-            max_mag = upper_mags[-1] # !!! NOTE: Assumes order correct in pf. RLN (2011-07-28)
-            filter = filters[-1] # !!! NOTE: Assumes all filters are the same. RLN (2011-07-28)
-            if float(evparams['magnitude']) > float(min_mag) and float(evparams['magnitude']) < float(max_mag):
-                filter_string = filter.replace('_', ' ')
-            else:
-                logmt(3, 'Magnitude %s not within bounds (%s - %s) defined in the parameter file' % (evparams['magnitude'], float(min_mag), float(max_mag)))
-            return evdb, evparams, filter_string
+                    logmt(3, 'Filter format not recognized')
+                mag_filter_list.append({'lowermag':lower_magnitude, 'uppermag':upper_magnitude, 'timepad':timepad, 'filter':filter})
+            for mfl in mag_filter_list:
+                if float(evparams['magnitude']) >= float(mfl['lowermag']) and float(evparams['magnitude']) < float(mfl['uppermag']):
+                    filter_string = (mfl['filter']).replace('_', ' ')
+                    filter_timepad = int(mfl['timepad'])
+            if not filter_string and not filter_timepad:
+                logmt(1, 'Magnitude %s not within magnitude bounds defined in the parameter file:' % evparams['magnitude'])
+                print mag_filter_list
+                logmt(3, '')
+            return evdb, evparams, filter_string, filter_timepad
 
     def get_stations_and_orientations(self, dbptr):
         """Return a list of 
@@ -984,13 +1024,19 @@ class Event():
                 sta_list['NNW'].append((sta, esaz, depth, distance_km, at))
         return sta_list
 
-    def get_chan_data(self, wave_db, chan_to_use, esaz, at, filter_string, stacode, size, clip_values):
+    def get_chan_data(self, wave_db, chan_to_use, esaz, at, filter_string, filter_timepad, stacode, size, clip_values):
         """Opens waveform database and returns
         trace objects based on sta_chan. Applies
         calibration, splice, filter, decimation
         and rotation of channels
+        !!! NOTE: To avoid filter transient problems
+                  we need to ensure we get a large enough
+                  record section prior to the P-arrival time,
+                  on the order of minutes (filter_timepad in secs). 
+                  Once we filter, then subset the trace object 
+                  to the window around the arrival time.
+                  RLN (2012-02-02)
         """
-
         if self.verbosity > 0:
             logmt(1, '  - Get channel data (trace objects) for station (%s)' % stacode)
         '''
@@ -1017,14 +1063,15 @@ class Event():
             wvdb.subset('sta =~ /%s/' % stacode)
             wvdb[3] = 0
             '''
-            !!!! NOTE: Want maximium x2 the size 
+            !!!! NOTE: Want maximium x3 the size 
                        to account for timeshifts
-                       and add 10 seconds before
-                       RLN (2011-12-06)
-            st   p arrival.time             et
-            | <-------->*<--------><-------->|
+                       and add filter_timepad before
+                       RLN (2012-02-02)
+            st              p arr.time            et
+            | <---------------->*<----><----><---->|
+                filter_timepad
             '''
-            st = at - 10
+            st = at - filter_timepad
             et = at + (size * 3) 
             resample = 0
             vang = 0
@@ -1033,7 +1080,7 @@ class Event():
             wvdb.subset('sta=~/^%s$/ && chan=~/%s/' % (stacode, chan_to_use))
             trace = wvdb.load_css(st, et)
             trace.apply_calib()
-            trace.splice()
+            trace.splice() # Join all segments together
             '''
             !!! NOTE: Comment out Antelope-filtering:
                       need same filtering as GF
@@ -1060,9 +1107,9 @@ class Event():
 
                 # {{{ Test for clipped data
                 for i in filtered_samples:
-                    if i > float(clip_values['max']):
+                    if i > float(eval(clip_values['max'])):
                         use_data = 1
-                    elif i < float(clip_values['min']):
+                    elif i < float(eval(clip_values['min'])):
                         use_data = -1
                 # }}}
 
@@ -1072,15 +1119,15 @@ class Event():
                     logmt(1, '    - %s: One or more samples < clip_values[min] (%s). IGNORE.' % (stachan, clip_values['min']))
                 else:
                     '''
-                    !!! NOTE: Get three times the size 
-                              to allow for time shift of 
-                              max length either side.
+                    !!! NOTE: Get three times the size to 
+                              allow for a positive time shift 
                               RLN (2011-12-06)
                     '''
-                    max_size = (size * 3) + 10 # Only works if 1Hz (1 sample per second, LH.*)
+                    max_size = int(size * 3) # Only works if 1Hz (1 sample per second, LH.*)
+                    # max_size = int(size) # Only works if 1Hz (1 sample per second, LH.*)
                     if self.verbosity > 1 and len(filtered_samples) > max_size:
                         logmt(1, '  - Sample size for %s: %s. Max: %s. Trimming.' % (chan, len(filtered_samples), max_size))
-                    stachan_trace[chan] = filtered_samples[0:max_size]  
+                    stachan_trace[chan] = filtered_samples[filter_timepad:max_size]  
                     if self.verbosity > 0:
                         logmt(1, '    - Trace extracted for %s samples:[%s], wanted:[%s]' % (chan, len(stachan_trace[chan]), max_size))
             trace.trdestroy()
@@ -1261,6 +1308,7 @@ class Event():
 
         if self.verbosity > 0:
             logmt(1, 'Calculating synthetics to plot (rotated) for orid: %s' % self.orid)
+            logmt(1, 'Size of synthetics: %s, Override size: %s' % (len(gg), size))
 
         syn_plot_dict = defaultdict(lambda: defaultdict(defaultdict))
         rotated_comps = ['T', 'R', 'Z']
@@ -1316,7 +1364,7 @@ class Event():
         for all the data
         """
         normalizer = max([abs(x) for x in data_as_list])
-        if self.verbosity > 0:
+        if self.verbosity > 1:
             logmt(1, "  - Normalization factor: %s" % normalizer)
         return normalizer
 
@@ -1376,15 +1424,27 @@ class Event():
                     synthetic_list = synthetic_vals[0:len(mod_gg[s][rc])]
                 real_end = real_start + size
                 ax = plt.subplot(len(ev2sta), len(rotated_components), axis_num)
-                data_scale_factor = self.normalize_coefficient(ss[i][rc][real_start:real_end])
-                syn_scale_factor = self.normalize_coefficient(synthetic_list)
-                new_data_list = [(v/data_scale_factor) for v in ss[i][rc][real_start:real_end]]
-                new_synthetic_list = [(v/syn_scale_factor) for v in synthetic_list]
+
+                try:
+                    data_scale_factor = self.normalize_coefficient(ss[i][rc][real_start:real_end])
+                except ValueError, e:
+                    logmt(1, '  *** create_data_synthetics_plot(): Error: %s' % e)
+                else:
+                    new_data_list = [(v/data_scale_factor) for v in ss[i][rc][real_start:real_end]]
+
+                try:
+                    syn_scale_factor = self.normalize_coefficient(synthetic_list)
+                except ValueError, e:
+                    logmt(1, '  *** create_data_synthetics_plot(): Error: %s' % e)
+                else:
+                    new_synthetic_list = [(v/syn_scale_factor) for v in synthetic_list]
+                '''
                 if self.verbosity > 1:
                     print "\n\n  - NEW DATA LIST:"
                     pprint(new_data_list)
                     print "\n\n  - NEW SYNTHETICS LIST:"
                     pprint(new_synthetic_list)
+                '''
                 plt.plot(new_data_list, 'b', new_synthetic_list, 'g')
                 ax.set_yticklabels([])
                 ax.set_xticklabels([])
@@ -1493,7 +1553,7 @@ def main():
     # Parse the parameter file
     (chan_to_use, trim_value, isoflag, model_name,
      model_type, statmax, clip_values, use_inc, event_db, 
-     wave_db, green_file, green_pf, resp_db, 
+     wave_db, green_db, resp_db, 
      mag_filters, mt_images_dir, 
      ttfont, obspy_beachball, 
      distance_weighting) = parse_pf(pf, verbosity)
@@ -1501,7 +1561,7 @@ def main():
     # !!! NOTE: Instantiate Event. RLN (2011-11-21)
     my_event = Event(orid, event_db, verbosity)
     my_mt = MomentTensor(distance_weighting, isoflag, trim_value, verbosity)
-    evdbptr, evparams, filter_string = my_event.extract_data(mag_filters)
+    evdbptr, evparams, filter_string, filter_timepad = my_event.extract_data(mag_filters)
 
     '''
     !!! NOTE: Is this relevant?
@@ -1593,7 +1653,7 @@ def main():
                 depth = int(depth)
                 distance = int(distance)
                 # Not sure we still need to define 200, but leave for now
-                real_data = my_event.get_chan_data(wave_db, chan_to_use, esaz, arrival_time, filter_string, stacode, 200, clip_values)
+                real_data = my_event.get_chan_data(wave_db, chan_to_use, esaz, arrival_time, filter_string, filter_timepad, stacode, 200, clip_values)
                 if verbosity > 0:
                     logmt(1, "  - Generate Green's function for this depth (%skm) & distance (%skm)" % (depth, distance))
                 '''
@@ -1616,12 +1676,12 @@ def main():
                           RLN (2011-12-08)
                 '''
                 green = fkr.GreenFunctions(model_name)
-                green.generate(depth, distance)
+                green.build(depth, distance)
                 if verbosity > 1:
                     green.plot()
                 synthetics = green.ALL
                 filtered_synthetic_data = filter_data(synthetics, 'dict', filter_string, verbosity)
-                max_xcor, timeshift = my_mt.get_time_shift(real_data, filtered_synthetic_data, 120)
+                max_xcor, timeshift = my_mt.get_time_shift(real_data, filtered_synthetic_data, stacode, 120)
                 ss.append(real_data)
                 gg.append(filtered_synthetic_data)
                 ev2sta.append((stacode, esaz, distance, timeshift))
@@ -1675,18 +1735,28 @@ def main():
         logmt(1, 'Data matrix S created --> %s stations used' % len(ss))
 
     '''
-    !!! NOTE: Weighting factor:
-              number of stations to be used 
-              in solution. If set to 1 then 
-              station fully incorporated into 
-              solution. If < 1, don't include. 
-              For now, use ALL stations.
+    !!! NOTE: New weighting factor based on timeshift:
+              If timeshift < 50, include station in
+              solution. Else reject.
               RLN (2011-12-02)
     '''
-    W = []
+    # print ss
+    # pprint(gg)
+    cleaned_ss = []
+    cleaned_gg = []
+    cleaned_ev2sta = []
     for i in range(len(ss)):
-        W.append(1.0)
+        print "\n\n**** %s ***" % ev2sta[i][0]
+        if abs(ev2sta[i][3]) > 50:
+            print "**** Timeshift: %s. Ignoring! ***" % ev2sta[i][3]
+        else:
+            cleaned_ss.append(ss[i])
+            cleaned_gg.append(gg[i])
+            cleaned_ev2sta.append(ev2sta[i])
 
+    # print cleaned_ss
+    # print cleaned_gg
+    # print cleaned_ev2sta
     '''
     !!! NOTE: INVERSION ROUTINE
               Dreger normalizes AtA (B?) and AIV (AIV) matrix. 
@@ -1698,7 +1768,7 @@ def main():
     B = defaultdict(dict) 
 
     # AIV, B = my_mt.matrix_AIV_B(ss, gg, ev2sta_azimuths, timeshift, nl)
-    AIV, B = my_mt.matrix_AIV_B(ss, gg, ev2sta, nl)
+    AIV, B = my_mt.matrix_AIV_B(cleaned_ss, cleaned_gg, cleaned_ev2sta, nl)
 
     # !!! NOTE: DETERMINE SOLUTION VECTOR. RLN (2011-08-24)
     M = my_mt.determine_solution_vector(AIV, B)
@@ -1712,7 +1782,8 @@ def main():
     # !!! NOTE: DECOMPOSE MOMENT TENSOR INTO VARIOUS REPRESENTATIONS. RLN (2011-11-03)
     m0, Mw, strike, dip, rake, pcdc, pcclvd, pciso = my_mt.decompose_moment_tensor(M)
     # E, VR, VAR, svar, sdpower = my_mt.fitcheck(gg, ss, W, M, m0, timeshift, ev2sta_azimuths, nl)
-    E, VR, VAR, svar, sdpower = my_mt.fitcheck(gg, ss, W, M, m0, ev2sta, nl)
+    # E, VR, VAR, svar, sdpower = my_mt.fitcheck(cleaned_gg, cleaned_ss, W, M, m0, cleaned_ev2sta, nl)
+    E, VR, VAR, svar, sdpower = my_mt.fitcheck(cleaned_gg, cleaned_ss, M, m0, cleaned_ev2sta, nl)
 
     qlt = my_mt.quality_check(VR)
 
@@ -1744,10 +1815,10 @@ def main():
                           ('VAR', '%.3f' % VAR)
                           ]
     # !!! FIX: CREATE DATA vs. SYNTHETICS PLOTS - DONE. RLN (2011-11-03)
-    mod_gg = my_event.calculate_synthetics_to_plot(gg, ev2sta, M, nl)
-    pprint(mod_gg)
+    mod_gg = my_event.calculate_synthetics_to_plot(cleaned_gg, cleaned_ev2sta, M, nl)
+    # pprint(mod_gg)
 
-    synthetics_img = my_event.create_data_synthetics_plot(ss, ev2sta, mod_gg, nl, mt_images_dir)
+    synthetics_img = my_event.create_data_synthetics_plot(cleaned_ss, cleaned_ev2sta, mod_gg, nl, mt_images_dir)
 
     # !!! NOTE: CREATE THE COMPOSITE (FINAL) IMAGE AND UPDATE DB. RLN (2011-11-28)
     my_event.create_composite_plot(ttfont, image_annotations, mt_images_dir, synthetics_img, focalmech_img)
@@ -1768,7 +1839,7 @@ def main():
 
     # !!! NOTE: From Dreger's fitcheck fprintf() commands. RLN (2011-08-24)
     for j in range(len(svar)):
-        print 'Station (%d) = %s  %s' % (j,svar[j],sdpower[j])
+        print 'Station (%s) = %s  %s' % (svar[j][0], svar[j][1], sdpower[j])
     print 'Var     = %s' % E
     print 'VR      = %s (UNWEIGHTED)' % VR
     print 'VR      = %s (WEIGHTED)' % VR
