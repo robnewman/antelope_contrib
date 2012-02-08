@@ -13,7 +13,7 @@ start_frequency     1
 
 end_frequency       512
 
-samplerate           1
+samplerate           2
 
 # Phase velocity window
 cmax    10000

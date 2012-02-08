@@ -48,8 +48,20 @@ GF.build(depth=8,distance=10)
 """
 Plot the GFs
 """
-if verbose: print 'plot(0,150)'
-GF.plot(0,150)
+if verbose: print 'plot()'
+GF.plot()
+
+"""
+Generate GFs for depth of 25 and distance of 20km.
+"""
+if verbose: print 'generate(depth=%s,distance=%s)' % (25,20)
+GF.build(depth=25,distance=20)
+
+"""
+Plot the GFs
+"""
+if verbose: print 'plot()'
+GF.plot()
 
 if verbose: print 'Done!'
 

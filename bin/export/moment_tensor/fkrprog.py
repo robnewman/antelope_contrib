@@ -50,7 +50,7 @@ class GreenFunctions():
         self.verbose = verbose
         self.pf = model
 
-        self.IVEL = 'd'
+        self.IVEL = 'v'
         self.IB  = 100
         self.IFREQ = 0
         self.DATA = defaultdict(lambda: defaultdict(dict))
@@ -63,19 +63,31 @@ class GreenFunctions():
         """ Read configuration from parameter file self.pf """
         self._read_pf()
 
+        """ Return a normalized absolutized version of the path. """
+        self.gf_db_path = os.path.abspath(self.gf_db_path)
 
+        """ Verify database """
+        db = self._open_db()
+
+        db.close()
+
+        if self.verbose: 
+            print "GreenFunctions(): Using database [%s]" % os.path.normpath(self.gf_db_path + '/' + self.gf_db + '.wfdisc')
+
+#}}}
+
+    def _open_db(self):
+#{{{
         """  
         Open the database that will save our functions.
 
             From PF file:
             self.gf_db      => database name
-            self.gf_db_path => database path
+            self.gf_db_path => database path *
+
+            * Already nomalized by __init__()
 
         """
-
-        """ Return a normalized absolutized version of the path. """
-        self.gf_db_path = os.path.abspath(self.gf_db_path)
-
 
         """ Recursive directory creation function. """
         try:
@@ -87,58 +99,42 @@ class GreenFunctions():
         if not os.path.exists(self.gf_db_path):
             raise SystemExit('\n\nERROR: GreenFunctions(): Cannot find direcotry (%s)\n\n' % self.gf_db_path)
 
-        """ Open database and keep pointer in self.db """
+        if self.verbose: print "GreenFunctions(): Open database: %s %s\n" % (self.gf_db_path,self.gf_db)
+
+        """ Open database and keep pointer in db object"""
         try: 
-            self.db = datascope.dbopen( os.path.normpath(self.gf_db_path + '/' + self.gf_db), "r+" )
-            self.db.lookup( table='wfdisc' )
+            db = datascope.dbopen( os.path.normpath(self.gf_db_path + '/' + self.gf_db), "r+" )
+            db.lookup( table='wfdisc' )
 
         except Exception, e:
             raise SystemExit('\n\nERROR: dbopen() %s => %s\n\n' % (Exception,e))
 
-
-        if self.verbose: print "GreenFunctions(): Using database [%s]" % os.path.normpath(self.gf_db_path + '/' + self.gf_db + '.wfdisc')
-
+        return db
 #}}}
 
-    def build(self,depth,distance,sps=1,type='d'):
+    def build(self,depth,distance,sps=1,type='v',filter=None):
 #{{{
         """
         Main function to retrieve ( and produce if missing )
         the requested elements.
+
+        sps: The requested samplerate for the data
+        type: Output velocity of displacepment
+        filter: Apply this filter to the data 
+
         """
+
         self.DEPTH = depth
         self.DISTANCE = distance
+        self.IVEL = type
 
-        if not self._get_from_db(depth,distance,None): 
+        if not self._get_from_db(depth,distance,sps,type,filter): 
             self._generate(depth,distance)
-            self._get_from_db(depth,distance,None)
-
-        """
-        Integrate if needed.
-        """
-        if type == 'd':
-            pass
-        elif type == 'v':
-            self._integrate()
-        else:
-            raise SystemExit('\n\nERROR: GreenFunctions(): no valid data for type [%s] (only d or v)\n\n' % type)
-
-        """
-        After loading the objects into memory disseminate to requested samplerate.
-        """
-        if self.verbose: print 'GreenFunctions(): decimate **** NOT WORKING *****'
-
-        #for trace in self.ELEMENTS:
-        #    if sps == self.ELEMENTS[trace][samplerate]: continue
-        #    ratio = self.ELEMENTS[trace][samplerate] / sps
-        #    if self.verbose: print 'GreenFunctions(): decimate(%s)=>' % (sps,trace)
-        #    self.ELEMENTS[trace][data] = decimate(self.ELEMENTS[trace][data],ratio)
-
-
+            self._get_from_db(depth,distance,sps,type,filter)
 
 #}}}
 
-    def _generate_python(self,depth,distance,type='d'):
+    def _generate_python(self,depth,distance,type='v'):
 #{{{
         self.IVEL = type
         self.DEPTH = depth
@@ -259,15 +255,15 @@ class GreenFunctions():
 
 #}}}
 
-    def _generate(self,depth,distance,type='d'):
+    def _generate(self,depth,distance,type='v'):
 #{{{
         self.IVEL = type
         self.DEPTH = depth
         self.DISTANCE = distance
         self.NYQ = self.N / 2 + 1
-        self.DF = 1 / (self.N * self.DT)
+        self.DF = 1 / (self.N * (1/self.DT))
         self.FU = (self.NYQ - 1) * self.DF
-        self.TLEN = self.N * self.DT
+        self.TLEN = self.N * (1/self.DT)
         self.ALPHA = -log(self.DECAY) / self.TLEN
 
         """
@@ -394,7 +390,7 @@ class GreenFunctions():
         for I in range(len(self.D)):
             model += " %1.4E %1.4E %1.4E %1.4E   600.00    300.00\n" % (self.D[I],self.A[I],self.B[I],self.RHO[I])
 
-        model =  template % (self.DEPTH,self.DT,self.MMAX,model,self.LMAX,self.DISTANCE)
+        model =  template % (self.DEPTH,(1/self.DT),self.MMAX,model,self.LMAX,self.DISTANCE)
 
         """ 
         Open temp file to put model.
@@ -458,7 +454,7 @@ class GreenFunctions():
 
 #}}}
 
-    def _get_from_db(self,depth,distance,filter=None):
+    def _get_from_db(self,depth,distance,sps=1,type='v',filter=None):
 #{{{
 
         """ 
@@ -480,17 +476,14 @@ class GreenFunctions():
         """
 
         """ Make local copy of database pointer. """
-        db = self.db
+        db = self._open_db()
 
         try:
             records = db.query(datascope.dbRECORD_COUNT)
-
         except Exception,e:
             records = 0 
 
-
         if not records:
-            #raise SystemExit("\n\nERROR: GreenFunctions(): ERROR: No records in databse!.\n\n")
             return False
 
         """ Subset for distance and depth. """
@@ -513,38 +506,74 @@ class GreenFunctions():
                 except Exception,e:
                     raise SystemExit('\n\nERROR: GreenFunctions(): Problems while extracting from database %s: %s\n\n' % (Exception,e))
 
-                """ 
-                Save each trace in memory. 
-                """
+                if self.verbose:
+                    print 'GreenFunctions(): getv()=> ',db_sta,db_chan,db_nsamp,db_time,db_endtime,db_samprate
+
+                """ Get steps needed to get to new samplerate. """
+                decimate_files = self._decimate_file(db_samprate,sps)
+                if self.verbose: print 'GreenFunctions(): decimate factor [%s] file [%s]' % ( db_samprate/sps,decimate_files)
 
                 """ Extract the elemnt name from the channel text. """
-                m = re.match(".?_(...)",db_chan)
-                comp = m.group(1)
+                try:
+                    m = re.match(".*_(...)",db_chan)
+                    comp = m.group(1)
+                except Exception,e:
+                    raise SystemExit('\n\nERROR: GreenFunctions(): Problems in regex [.*_(...)] on [%s] %s: %s\n\n' % (db_chan,Exception,e))
 
                 if not comp: 
                     raise SystemExit('\n\nERROR: GreenFunctions(): Cannot find component name in wfdisc entry: %s_%s\n\n' % (db_sta,db_chan))
 
-                if not self.ELEMENTS[comp]:
-                    self.ELEMENTS[comp] = {'data':[], 'samplerate':db_samprate, 'filter':filter} 
+                """ Build/clean object for selected channel. """
+                self.ELEMENTS[comp] = {'data':[], 'samplerate':db_samprate, 'filter':filter} 
 
-                if self.verbose:
-                    print 'loadchan(',db_time,db_endtime,db_sta,db_chan,')'
+
+                # With TRACEOBJECTS
+                try:
+                    if self.verbose: print 'GreenFunctions(): trloadchan(%s,%s,%s,%s)' % (db_time,db_endtime,db_sta,db_chan)
+                    tr = datascope.trloadchan(db,db_time,db_endtime,db_sta,db_chan)
+                    if self.verbose: print 'GreenFunctions(): tr.slice()'
+                    tr.splice()
+                except Exception,e:
+                    raise SystemExit('\n\nERROR: GreenFunctions(): trace object %s: %s\n\n' % (Exception,e))
 
                 try:
-                    #self.ELEMENTS[comp]['data'] = self.db.sample(db_time,db_endtime,db_sta,db_chan,False,filter)
-                    self.ELEMENTS[comp]['data'] = datascope.trsample(db, db_time, db_endtime, db_sta, db_chan ,False, filter)
-                    self.ELEMENTS[comp]['data'] = [ y for x,y in self.ELEMENTS[comp]['data'] ]
-                    #tr.splice()
-                    #if filter: tr.filter( filter_string)
-                    #self.ELEMENTS[comp]['data'] = tr.data()
-                    #tr.trdestroy()
-
+                    # integrate data
+                    if type == 'D' or type == 'd':
+                        if self.verbose: print 'GreenFunctions(): integrate for velocity()'
+                        tr.filter('INT')
                 except Exception,e:
-                    print '\n %s = db.sample(%s,%s,%s,%s) => %s: %s\n' % (m.group(1),db_time,db_endtime,db_sta,db_chan,Exception,e) 
-                    raise SystemExit('\n\nERROR: GreenFunctions(): Problems while extracting trace object %s: %s\n\n' % (Exception,e))
+                    raise SystemExit('\n\nERROR: GreenFunctions(): integrate %s: %s\n\n' % (Exception,e))
 
-                if self.verbose:
-                    print self.ELEMENTS[comp]['data']
+                try:
+                    # filter data
+                    if filter:
+                        if self.verbose: print 'GreenFunctions(): filter(%s)' % filter
+                        tr.filter(filter)
+                except Exception,e:
+                    raise SystemExit('\n\nERROR: GreenFunctions(): filter %s: %s\n\n' % (Exception,e))
+
+                try:
+                    # decimate data
+                    for f in decimate_files:
+                        full_path = os.environ['ANTELOPE'] + '/data/responses/' + f
+                        if self.verbose: print 'GreenFunctions(): filter(DECIMATE %s)' % full_path
+                        tr.filter('DECIMATE %s' % full_path)
+                except Exception,e:
+                    raise SystemExit('\n\nERROR: GreenFunctions(): decimate %s: %s\n\n' % (Exception,e))
+
+                try:
+                    tr[3] = 0
+                    self.ELEMENTS[comp]['data'] = tr.data()
+                except Exception,e:
+                    raise SystemExit('\n\nERROR: GreenFunctions(): extract data %s: %s\n\n' % (Exception,e))
+
+                try:
+                    tr.trdestroy()
+                except:
+                    pass
+
+                self.ELEMENTS[comp]['data'] = self.ELEMENTS[comp]['data'][int(len(self.ELEMENTS[comp]['data'])/2):-1]
+
 
                 if not self.ELEMENTS[comp]['data']:
                     raise SystemExit('\n\nERROR: GreenFunctions(): Cannot build component [%s]: %s_%s\n\n' % (m.group(1),db_sta,db_chan))
@@ -552,6 +581,11 @@ class GreenFunctions():
         else:
             print "\n\nERROR: GreenFunctions(): ERROR: No records for subset [sta =~ /%s/ && chan =~ /%s/].\n\n" % (distance,depth)
             return False
+
+        try:
+            db.close()
+        except:
+            pass
 
         return True
 #}}}
@@ -572,10 +606,13 @@ class GreenFunctions():
 
         """
 
-        if self.verbose: print "\nDatabase path: %s \n %s\n" % (self.gf_db_path,self.db)
+        """ Open the database. """
+        try:
+            db = self._open_db()
+        except Exception,e:
+            raise SystemExit('\n\nERROR: GreenFunctions(): Cannot open database (%s) %s => %s \n\n' % (db,Exception,e))
 
-
-        """ Return a normalized absolutized version of the path. """
+        """ Return a normalized absolutized version of the path to save the files. """
         path = os.path.abspath(self.gf_db_path + '/' + self.gf_db + '/' + str(self.DEPTH)  )
 
 
@@ -586,7 +623,7 @@ class GreenFunctions():
             raise SystemExit('\n\nERROR: GreenFunctions(): Cannot create direcotry (%s) %s => %s \n\n' % (path,Exception,e))
 
 
-        """ Save all data to file.  """
+        """ Save all data to file. """
         dfile = "%s_%s_%s.gf" % (self.DISTANCE,self.DEPTH,self.gf_db)
         try:
             os.remove("%s/%s"%(path,dfile))
@@ -599,7 +636,7 @@ class GreenFunctions():
             raise SystemExit('\n\nERROR: Cannot open file %s %s %s\n'% (dfile,Exception,e))
 
         """ Return a relative path to add to wfdisc. """
-        path = './' + self.gf_db + '/' + str(self.DEPTH)
+        dbpath = os.path.relpath(path, self.gf_db_path)
 
         for element in sorted(self.ELEMENTS.keys()):
             if self.ELEMENTS[element]['data']:
@@ -616,14 +653,14 @@ class GreenFunctions():
                 except Exception,e:
                     raise SystemExit('\n\nERROR: Cannot add to file [%s] => %s\n'% (Exception,e))
 
-                if self.verbose: 
+                if self.verbose:
                     print 'Add new record to wfdisc table:'
                     print '\tsta=',sta,'chan=',chan_loc,'time=',1.00,'endtime=',endtime
                     print '\tnsamp=',nsamp,'samprate=',samprate,'calib=',1,'datatype=','as'
-                    print '\tsegtype=','c','dir=',path,'dfile=',dfile,'foff=',start
+                    print '\tsegtype=','c','dir=',dbpath,'dfile=',dfile,'foff=',start
 
                 try:
-                    self.db.addv('sta',sta,'chan',chan_loc,'time',1.00,'endtime',endtime,'nsamp',nsamp,'samprate',samprate,'calib',1,'datatype','as','segtype','c','dir',path,'dfile',dfile,'foff',start)
+                    db.addv('sta',sta,'chan',chan_loc,'time',1.00,'endtime',endtime,'nsamp',nsamp,'samprate',samprate,'calib',1,'datatype','as','segtype','c','dir',dbpath,'dfile',dfile,'foff',start)
                 except Exception,e:
                     raise SystemExit('\n\nERROR: Cannot add new line [%s] %s %s\n'% (element,Exception,e))
 
@@ -638,11 +675,15 @@ class GreenFunctions():
 
 
         try:
-            records = self.db.query(datascope.dbRECORD_COUNT)
+            records = db.query(datascope.dbRECORD_COUNT)
 
         except Exception,e:
             raise SystemExit('\n\nERROR: GreenFunctions(): Problems with database %s: %s\n\n' % (Exception,e))
 
+        try: 
+            db.close()
+        except Exception,e:
+            raise SystemExit('\n\nERROR: Cannot close database %s %s %s\n'% (db,Exception,e))
 
         #if not records:
         #    raise SystemExit("\n\nERROR: GreenFunctions(): ERROR: No records in databse!.\n\n")
@@ -696,6 +737,66 @@ class GreenFunctions():
         #    return False
 
         #return True
+#}}}
+
+    def _decimate_file(self,have=1,want=1):
+#{{{
+
+        """
+        Function to return needed response file for proper decimation of the sample 
+        during the filtering process in the extraction routine. Reead manpage for wffilbrtt.
+        ...
+            DECIMATE fir_file
+                This implements a decimation filter. The decimation is performed
+                after applying one or more FIR anti-alias filters to  the  data.
+                The  FIR  filters  are  specified  in  the  standard  instrument
+                response  file,   fir_file   (the   format   is   specified   in
+                response(5)).   The  response  function  specified  in  fir_file
+                should only contain FIR stages with  their  decimation  factors.
+                The  output  filtered  data  will  have the new decimated sample
+                rate. Therefore any software that assumes sample  rates  do  not
+                change  with  filtering will not work properly with this filter.
+                The output filtered results are only computed for  time  samples
+                for  which  the FIR filter sequences do not encounter data gaps.
+                Therefore gaps in the data will grow larger when using this fil-
+                ter to account for the edge effects of the FIR filtering.
+        ...
+        
+
+        I'm selecting a series of files with simple decimation factors to build our
+        new time-series with the requested samplerate. 
+
+            % egrep "decimation factor" * |grep trident
+                (standard input):93:trident_1000sps_fir1:# decimation factor     5 
+                (standard input):94:trident_1000sps_fir2:# decimation factor     3 
+                (standard input):95:trident_1000sps_fir3:# decimation factor     2 
+                (standard input):96:trident_100sps_fir1:# decimation factor     15 
+                (standard input):97:trident_100sps_fir2:# decimation factor     10 
+                
+
+        """
+
+        factor = int(have/want)
+
+        if factor == 1: 
+            return [] 
+        elif factor == 2:
+            return ['trident_1000sps_fir3']
+        elif factor == 3:
+            return ['trident_1000sps_fir2']
+        elif factor == 4:
+            return ['trident_1000sps_fir3','trident_1000sps_fir3']
+        elif factor == 5:
+            return ['trident_1000sps_fir1']
+        elif factor == 6:
+            return ['trident_1000sps_fir3','trident_1000sps_fir2']
+        elif factor == 10:
+            return ['trident_100sps_fir2']
+        elif factor == 15:
+            return ['trident_100sps_fir1']
+        else:
+            raise SystemExit('\n\nERROR: GreenFunctions(): Cannot decimate by (%s) only [2,3,4,5,6,10,15]\n\n' % factor)
+
 #}}}
 
     def _file_format(self):
@@ -3228,52 +3329,62 @@ GREEN.1\n\
             if l == 0:
                 #self.ZDD = [x * -1 for x in self.TEMPDATA ]
                 if not 'ZDD' in self.ELEMENTS: self.ELEMENTS['ZDD'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
-                self.ELEMENTS['ZDD']['data'] = [x * -1 for x in self.TEMPDATA ]
+                self.ELEMENTS['ZDD']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                self.ELEMENTS['ZDD']['data'].extend( [x * -1 for x in self.TEMPDATA ])
 
             elif l == 1:
                 #self.XDD = [x for x in self.TEMPDATA]
                 if not 'XDD' in self.ELEMENTS: self.ELEMENTS['XDD'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
-                self.ELEMENTS['XDD']['data'] = [x for x in self.TEMPDATA ]
+                self.ELEMENTS['XDD']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                self.ELEMENTS['XDD']['data'].extend( [x for x in self.TEMPDATA ])
 
             elif l == 2:
                 #self.ZDS = [x for x in self.TEMPDATA]
                 if not 'ZDS' in self.ELEMENTS: self.ELEMENTS['ZDS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
-                self.ELEMENTS['ZDS']['data'] = [x for x in self.TEMPDATA ]
+                self.ELEMENTS['ZDS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                self.ELEMENTS['ZDS']['data'].extend( [x for x in self.TEMPDATA ])
 
             elif l == 3:
                 #self.XDS = [x * -1 for x in self.TEMPDATA ]
                 if not 'XDS' in self.ELEMENTS: self.ELEMENTS['XDS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
-                self.ELEMENTS['XDS']['data'] = [x * -1 for x in self.TEMPDATA ]
+                self.ELEMENTS['XDS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                self.ELEMENTS['XDS']['data'].extend( [x * -1 for x in self.TEMPDATA ])
 
             elif l == 4:
                 #self.TDS = [x for x in self.TEMPDATA]
                 if not 'TDS' in self.ELEMENTS: self.ELEMENTS['TDS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
-                self.ELEMENTS['TDS']['data'] = [x for x in self.TEMPDATA ]
+                self.ELEMENTS['TDS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                self.ELEMENTS['TDS']['data'].extend( [x for x in self.TEMPDATA ])
 
             elif l == 5:
                 #self.ZSS = [x * -1 for x in self.TEMPDATA ]
                 if not 'ZSS' in self.ELEMENTS: self.ELEMENTS['ZSS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
-                self.ELEMENTS['ZSS']['data'] = [x * -1 for x in self.TEMPDATA ]
+                self.ELEMENTS['ZSS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                self.ELEMENTS['ZSS']['data'].extend( [x * -1 for x in self.TEMPDATA ])
 
             elif l == 6:
                 #self.XSS = [x for x in self.TEMPDATA]
                 if not 'XSS' in self.ELEMENTS: self.ELEMENTS['XSS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
-                self.ELEMENTS['XSS']['data'] = [x for x in self.TEMPDATA ]
+                self.ELEMENTS['XSS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                self.ELEMENTS['XSS']['data'].extend( [x for x in self.TEMPDATA ])
 
             elif l == 7:
                 #self.TSS = [x * -1 for x in self.TEMPDATA ]
                 if not 'TSS' in self.ELEMENTS: self.ELEMENTS['TSS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
-                self.ELEMENTS['TSS']['data'] = [x * -1 for x in self.TEMPDATA ]
+                self.ELEMENTS['TSS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                self.ELEMENTS['TSS']['data'].extend( [x * -1 for x in self.TEMPDATA ])
 
             elif l == 8:
                 #self.REX = [x for x in self.TEMPDATA]
                 if not 'REX' in self.ELEMENTS: self.ELEMENTS['REX'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
-                self.ELEMENTS['REX']['data'] = [x for x in self.TEMPDATA ]
+                self.ELEMENTS['REX']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                self.ELEMENTS['REX']['data'].extend( [x for x in self.TEMPDATA ])
 
             elif l == 9:
                 #self.ZEX = [x for x in self.TEMPDATA]
                 if not 'ZEX' in self.ELEMENTS: self.ELEMENTS['ZEX'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
-                self.ELEMENTS['ZEX']['data'] = [x for x in self.TEMPDATA ]
+                self.ELEMENTS['ZEX']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                self.ELEMENTS['ZEX']['data'].extend( [x for x in self.TEMPDATA ])
             else:
                 raise SystemExit('\n\nERROR: GreenFunctions(): generate(): Too many elements\n\n')
 
@@ -3287,11 +3398,11 @@ GREEN.1\n\
         Time Domain Integration
         """
         for trace in self.ELEMENTS:
-            if not self[trace]['data']:
+            if not self.ELEMENTS[trace]['data']:
                 raise SystemExit('\n\nERROR: GreenFunctions(): Problems while integration(): no data for %s\n\n' % trace)
 
             if self.verbose: print 'GreenFunctions(): integrat(%s)' % trace
-            self[trace]['data'] = cumtrapz(self[trace]['data'])
+            self.ELEMENTS[trace]['data'] = cumtrapz(self.ELEMENTS[trace]['data'])
 
 #}}}
 
