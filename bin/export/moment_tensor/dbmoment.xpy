@@ -176,34 +176,6 @@ def logmt(flag, message):
         print curtime, 'ERROR:',message,'--> exiting'
         sys.exit(-1)
 
-def filter_data(unfiltered_data, data_type, filter_string, verbosity=False):
-    """Apply some filters
-    based on the filter string
-    defined"""
-    if verbosity > 1:
-        logmt(1, "  - Filter string to use: '%s'" % filter_string)
-
-    filter_type, cnr_fq_1, ord_1, cnr_fq_2, ord_2 = filter_string.split()
-    # Design the filters: Lower
-    b_1, a_1 = butter(float(ord_1), (float(cnr_fq_1) * math.pi * 2), btype='low')
-    # Design the filters: Upper
-    b_2, a_2 = butter(float(ord_2), (float(cnr_fq_2) * math.pi * 2), btype='low')
-
-    if data_type == 'list':
-        filtered_data = []
-        # Apply both filters to data
-        filtered_data = lfilter(b_1, a_1, unfiltered_data)
-        filtered_data = lfilter(b_2, a_2, filtered_data)
-    elif data_type == 'dict':
-        filtered_data = {}
-        for c in unfiltered_data:
-            # Apply both filters to data
-            filtered_data[c] = lfilter(b_1, a_1, unfiltered_data[c])
-            filtered_data[c] = lfilter(b_2, a_2, filtered_data[c])
-            # Converted filtered data to list
-            filtered_data[c] = filtered_data[c].tolist()
-    return filtered_data
- 
 # }}}
 
 class MomentTensor():
@@ -1658,10 +1630,10 @@ def main():
                 if verbosity > 1:
                     green.plot()
                 synthetics = green.ALL
-                filtered_synthetic_data = filter_data(synthetics, 'dict', filter_string, verbosity)
-                max_xcor, timeshift = my_mt.get_time_shift(real_data, filtered_synthetic_data, stacode, 120)
+                # filtered_synthetic_data = filter_data(synthetics, 'dict', filter_string, verbosity)
+                max_xcor, timeshift = my_mt.get_time_shift(real_data, synthetics, stacode, 120)
                 ss.append(real_data)
-                gg.append(filtered_synthetic_data)
+                gg.append(synthetics)
                 ev2sta.append((stacode, esaz, distance, timeshift))
                 good_cross_corr_stations[grp] += 1
             else:
