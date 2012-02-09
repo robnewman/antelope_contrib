@@ -390,6 +390,7 @@ class MomentTensor():
         AJ = defaultdict(dict)
         trim = 0
         cnt1 = cnt2 = cnt3 = 0
+
         if self.verbosity > 0:
             # logmt(1, ' - Timeshift: %s' % timeshift)
             # logmt(1, ' - Azimuthal distances tuple: %s' % list_az)
@@ -397,18 +398,12 @@ class MomentTensor():
 
         # Iterate over number of stations
         for i in range(len(ev2sta)):
+            if self.verbosity > 0:
+                logmt(1, '  - Working on inversion for station (%s)' % ev2sta[i][0])
             # Allocate the dictionary space for each section
             cnt1 = cnt2 = cnt3
             cnt2 += size - trim
             cnt3 += 2*size - 2*trim
-            if self.verbosity > 0:
-                logmt(1, '  - Working on inversion for station (%s)' % ev2sta[i][0])
-                print "cnt1:"
-                print cnt1
-                print "cnt2:"
-                print cnt2
-                print "cnt3:"
-                print cnt3
             # Convert azimuth to radians
             this_azimuth = ev2sta[i][1] * math.pi/180
             '''
@@ -417,9 +412,6 @@ class MomentTensor():
                       Use var size instead because of timeshift.
                       RLN (2011-12-06)
 
-            !!! NOTE: Abstract this out, because different GF's might have
-                      nulls in different blockettes. This may want to be 
-                      customized on a per-user basis.
             '''
             for j in range(size - trim):
                 # Mxx term
@@ -479,7 +471,6 @@ class MomentTensor():
                   RLN & MK (2012-02-07)
         '''
 
-
         AIV = defaultdict(dict) 
         for i in range(self.isoflag):
             for j in range(self.isoflag):
@@ -493,9 +484,6 @@ class MomentTensor():
         B = defaultdict(dict) 
         for i in range(self.isoflag):
             B[i][0] = 0.0
-
-
-
 
         cnt1 = cnt2 = cnt3 = 0
         tmp = defaultdict(dict) 
@@ -546,8 +534,6 @@ class MomentTensor():
             logmt(3, 'Matrix AIV has dimension [%s,i%s] should be [%s,1]' % (len(B), len(B[0]), self.isoflag))
         elif self.verbosity > 0:
             logmt(1, 'Matrices AIV and B created and have correct dimensions')
-
-
 
         return AIV, B
 
@@ -921,8 +907,8 @@ class Event():
             logmt(3, 'Database (%s) does not exist' % self.event_db)
         try:
             evdb = antdb.dbopen(self.event_db, 'r')
-        except:
-            logmt(3, 'Could not open database (%s)' % self.event_db)
+        except Exception, e:
+            logmt(3, 'Could not open database (%s). Exception: %s' % (self.event_db, e))
         else:
             evdb.lookup(table='origin')
             if self.verbosity > 0:
@@ -944,8 +930,8 @@ class Event():
             for f in evdb.query('dbTABLE_FIELDS'):
                 try: 
                     evparams[f] = evdb.getv(f)[0]
-                except:
-                    logmt(3, 'Could not find field (%s) in join of origin & netmag tables for orid %s' % (f, self.orid))
+                except Exception, e:
+                    logmt(3, 'Could not find field (%s) in join of origin & netmag tables for orid %s. Exception: %s' % (f, self.orid, e))
             evdb.join('assoc')
             evdb.join('arrival')
             evdb.join('site')
@@ -1037,6 +1023,9 @@ class Event():
                   to the window around the arrival time.
                   RLN (2012-02-02)
         """
+        clip_max = float(eval(clip_values['max']))
+        clip_min = float(eval(clip_values['min']))
+
         if self.verbosity > 0:
             logmt(1, '  - Get channel data (trace objects) for station (%s)' % stacode)
         '''
@@ -1055,8 +1044,8 @@ class Event():
         '''
         try:
             wvdb = antdb.dbopen(wave_db, 'r')
-        except:
-            logmt(3, 'Could not open waveform database %s' % wave_db)
+        except Exception, e:
+            logmt(3, 'Could not open waveform database %s. Exception: %s' % (wave_db, e))
             return False
         else:
             wvdb.lookup(table='wfdisc')
@@ -1089,6 +1078,7 @@ class Event():
                       filters. RLN (2012-02-01)
             # trace.filter(filter_string)
             '''
+            trace.filter(filter_string)
             rotchan = ('R', 'T', 'Z')
             trace.rotate(esaz, vang, rotchan)
             trace.subset('chan =~ /R|T|Z/')
@@ -1100,36 +1090,36 @@ class Event():
                 stachan = '%s_%s' % (sta, chan)
                 ns_tra = 0
                 ns_req = 0
-                samples = trace.data()
-                filtered_samples = filter_data(samples, 'list', filter_string, self.verbosity)
-                filtered_samples = filtered_samples.tolist()
+                filtered_samples = list(trace.data())
                 use_data = 0
 
                 # {{{ Test for clipped data
+                '''
                 for i in filtered_samples:
-                    if i > float(eval(clip_values['max'])):
+                    if i > clip_max:
                         use_data = 1
-                    elif i < float(eval(clip_values['min'])):
+                    elif i < clip_min:
                         use_data = -1
+                '''
                 # }}}
 
-                if use_data == 1:
-                    logmt(1, '    - %s: One or more samples > clip_values[max] (%s). IGNORE.' % (stachan, clip_values['max']))
-                elif use_data == -1:
-                    logmt(1, '    - %s: One or more samples < clip_values[min] (%s). IGNORE.' % (stachan, clip_values['min']))
-                else:
-                    '''
-                    !!! NOTE: Get three times the size to 
-                              allow for a positive time shift 
-                              RLN (2011-12-06)
-                    '''
-                    max_size = int(size * 3) # Only works if 1Hz (1 sample per second, LH.*)
-                    # max_size = int(size) # Only works if 1Hz (1 sample per second, LH.*)
-                    if self.verbosity > 1 and len(filtered_samples) > max_size:
-                        logmt(1, '  - Sample size for %s: %s. Max: %s. Trimming.' % (chan, len(filtered_samples), max_size))
-                    stachan_trace[chan] = filtered_samples[filter_timepad:max_size]  
-                    if self.verbosity > 0:
-                        logmt(1, '    - Trace extracted for %s samples:[%s], wanted:[%s]' % (chan, len(stachan_trace[chan]), max_size))
+                # if use_data == 1:
+                #     logmt(1, '    - %s: One or more samples > clip_values[max] (%s). IGNORE.' % (stachan, clip_values['max']))
+                # elif use_data == -1:
+                #     logmt(1, '    - %s: One or more samples < clip_values[min] (%s). IGNORE.' % (stachan, clip_values['min']))
+                # else:
+                #    '''
+                #    !!! NOTE: Get three times the size to 
+                #              allow for a positive time shift 
+                #              RLN (2011-12-06)
+                #    '''
+                max_size = int(size * 3) # Only works if 1Hz (1 sample per second, LH.*)
+                # max_size = int(size) # Only works if 1Hz (1 sample per second, LH.*)
+                if self.verbosity > 1 and len(filtered_samples) > max_size:
+                    logmt(1, '  - Sample size for %s: %s. Max: %s. Trimming.' % (chan, len(filtered_samples), max_size))
+                stachan_trace[chan] = filtered_samples[filter_timepad:max_size]  
+                if self.verbosity > 0:
+                    logmt(1, '    - Trace extracted for %s samples:[%s], wanted:[%s]' % (chan, len(stachan_trace[chan]), max_size))
             trace.trdestroy()
             wvdb.free()
             wvdb.close()
@@ -1202,8 +1192,8 @@ class Event():
                 logmt(1, 'Images dir (%s) does not exist. Try to create...' % mt_images_dir)
             try:
                 os.mkdir(mt_images_dir, 0775)
-            except:
-                logmt(3, 'Moment tensor images dir (%s) does not exist and cannot be created!' % mt_images_dir)
+            except Exception, e:
+                logmt(3, 'Moment tensor images dir (%s) does not exist and cannot be created! Exception: %s' % (mt_images_dir, e))
 
         '''
         !!! NOTE: Focal mechanism can be 
@@ -1676,7 +1666,7 @@ def main():
                           RLN (2011-12-08)
                 '''
                 green = fkr.GreenFunctions(model_name)
-                green.build(depth, distance)
+                green.build(depth, distance, 1, 'v', filter_string)
                 if verbosity > 1:
                     green.plot()
                 synthetics = green.ALL
@@ -1789,8 +1779,8 @@ def main():
 
     try:
         evdbptr.close()
-    except:
-        logmt(1, 'Error closing event database. Already closed?')
+    except Exception, e:
+        logmt(1, 'Error closing event database. Already closed? Exception: %s' % e)
 
     '''
     !!! NOTE: In ObsPy there are two different 

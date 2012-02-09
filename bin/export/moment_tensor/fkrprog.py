@@ -775,7 +775,6 @@ class GreenFunctions():
                 
 
         """
-
         factor = int(have/want)
 
         if factor == 1: 
