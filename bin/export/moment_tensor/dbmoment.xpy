@@ -50,10 +50,6 @@ except ImportError:
     print "Import Error: Do you have Pylab installed correctly?"
 """
 
-# SIGNAL PROCESSING
-from scipy.signal.filter_design import butter, buttord
-from scipy.signal import lfilter
-
 # FKRPROG
 import moment_tensor.fkrprog as fkr
 
@@ -1070,14 +1066,6 @@ class Event():
             trace = wvdb.load_css(st, et)
             trace.apply_calib()
             trace.splice() # Join all segments together
-            '''
-            !!! NOTE: Comment out Antelope-filtering:
-                      need same filtering as GF
-                      so use filter_data function that
-                      uses the scipy built-in butter 
-                      filters. RLN (2012-02-01)
-            # trace.filter(filter_string)
-            '''
             trace.filter(filter_string)
             rotchan = ('R', 'T', 'Z')
             trace.rotate(esaz, vang, rotchan)
