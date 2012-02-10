@@ -253,207 +253,15 @@ class GreenFunctions():
 
 #}}}
 
-    def _generate_fortran(self,depth,distance,type='v'):
-#{{{
-        self.IVEL = type
-        self.DEPTH = depth
-        self.DISTANCE = distance
-        self.NYQ = self.N / 2 + 1
-        self.DF = 1 / (self.N * (1/self.DT))
-        self.FU = (self.NYQ - 1) * self.DF
-        self.TLEN = self.N * (1/self.DT)
-        self.ALPHA = -log(self.DECAY) / self.TLEN
-
-        """
-        Build new layers on earth model.
-        """
-        tempD =  self.D
-        tempA =  self.A
-        tempB =  self.B
-        tempRHO =  self.RHO
-        tempQA =  self.QA
-        tempQB =  self.QB
-
-        # Init vars for model layers
-        self.D   = defaultdict(int)
-        self.A   = defaultdict(int)
-        self.B   = defaultdict(int)
-        self.RHO = defaultdict(int)
-        self.QA  = defaultdict(int)
-        self.QB  = defaultdict(int)
-
-        d = 0
-        delta = 0
-        for y in range(len(tempD)):
-            if self.DEPTH == (d + tempD[y]):
-                delta  = 1
-
-                self.LMAX = y + 2
-                for x in range(len(tempD)):
-                    if x < y:
-                        self.D[x]   =  tempD[x]
-                        self.A[x]   =  tempA[x]
-                        self.B[x]   =  tempB[x]
-                        self.RHO[x] =  tempRHO[x]
-                        self.QA[x]  =  tempQA[x]
-                        self.QB[x]  =  tempQB[x]
-                    elif x == y:
-                        # new layer
-                        self.D[x]   =  tempD[x] - delta
-                        self.A[x]   =  tempA[x]
-                        self.B[x]   =  tempB[x]
-                        self.RHO[x] =  tempRHO[x]
-                        self.QA[x]  =  tempQA[x]
-                        self.QB[x]  =  tempQB[x]
-                        # old layer
-                        self.D[x+1]   =  delta
-                        self.A[x+1]   =  tempA[x+1]
-                        self.B[x+1]   =  tempB[x+1]
-                        self.RHO[x+1] =  tempRHO[x+1]
-                        self.QA[x+1]  =  tempQA[x+1]
-                        self.QB[x+1]  =  tempQB[x+1]
-                    else:
-                        self.D[x+1]   =  tempD[x]
-                        self.A[x+1]   =  tempA[x]
-                        self.B[x+1]   =  tempB[x]
-                        self.RHO[x+1] =  tempRHO[x]
-                        self.QA[x+1]  =  tempQA[x]
-                        self.QB[x+1]  =  tempQB[x]
-                break
-
-            elif self.DEPTH < (d + tempD[y]):
-                self.LMAX = y + 1
-                delta = d + tempD[y] - self.DEPTH
-
-                for x in range(len(tempD)):
-                    if x < y:
-                        self.D[x]   =  tempD[x]
-                        self.A[x]   =  tempA[x]
-                        self.B[x]   =  tempB[x]
-                        self.RHO[x] =  tempRHO[x]
-                        self.QA[x]  =  tempQA[x]
-                        self.QB[x]  =  tempQB[x]
-                    elif x == y:
-                        # new layer
-                        self.D[x]   =  tempD[x] - delta
-                        self.A[x]   =  tempA[x]
-                        self.B[x]   =  tempB[x]
-                        self.RHO[x] =  tempRHO[x]
-                        self.QA[x]  =  tempQA[x]
-                        self.QB[x]  =  tempQB[x]
-                        # old layer
-                        self.D[x+1]   =  delta
-                        self.A[x+1]   =  tempA[x]
-                        self.B[x+1]   =  tempB[x]
-                        self.RHO[x+1] =  tempRHO[x]
-                        self.QA[x+1]  =  tempQA[x]
-                        self.QB[x+1]  =  tempQB[x]
-                    else:
-                        self.D[x+1]   =  tempD[x]
-                        self.A[x+1]   =  tempA[x]
-                        self.B[x+1]   =  tempB[x]
-                        self.RHO[x+1] =  tempRHO[x]
-                        self.QA[x+1]  =  tempQA[x]
-                        self.QB[x+1]  =  tempQB[x]
-                break
-
-            else:
-                d += tempD[y]
-
-        """
-        Print new layers and other params.
-        """
-
-        if self.verbose:
-            for I in range(len(self.D)):
-                print "%s: %s\t%s\t%s\t%s\t%s\t%s" % (self.LMAX,self.D[I],self.A[I],self.B[I],self.RHO[I],self.QA[I],self.QB[I])
-
-        
-        if self.verbose: print "LMAX => %s" % self.LMAX
-
-        self.MMAX = len(self.D) - 1
-        if self.verbose: print "MMAX => %s" % self.MMAX
-
-        if self.verbose: print "DEPTH => %s" % self.DEPTH
-        if self.verbose: print "RANGE => %s" % self.DISTANCE
-
-
-        fortran_gg = defaultdict(lambda: defaultdict(dict))
-        self.GG = defaultdict(dict)
-        self.ALLOMEGA = []
-        self.LMAX += 1
-        self.MMAX += 1
-        template = self._file_format()
-        model = ''
-        for I in range(len(self.D)):
-            model += " %1.4E %1.4E %1.4E %1.4E   600.00    300.00\n" % (self.D[I],self.A[I],self.B[I],self.RHO[I])
-
-        model =  template % (self.DEPTH,(1/self.DT),self.MMAX,model,self.LMAX,self.DISTANCE)
-
-        """ 
-        Open temp file to put model.
-        """
-        try:
-            os.remove('./.greens_funcs')
-        except Exception, e:
-            pass
-
-        try: 
-            f = open('./.greens_funcs', 'w')
-            f.write(model)
-            f.close()
-        except Exception,e:
-            raise SystemExit('\n\nERROR: Cannot open temp file .greens_funcs %s %s\n'% (Exception,e))
-
-        print model
-        if self.verbose: print 'Running: fortran_fkrprog < ./greens_func'
-        p = os.popen('fortran_fkrprog < ./.greens_funcs',"r")
-
-        while 1:
-            line = p.readline()
-            line = line.strip('\n')
-            line = line.replace(' ','')
-                
-            if not line: break
-
-            if re.match("GG",line):
-                m = re.match("GG\[(\d+)\]\[(\d+)\]\[(\d+)\]=(.+)",line)
-                if not m: continue
-                fortran_gg[m.group(2)][m.group(3)][m.group(1)]= eval(m.group(4))
-                #print "fortran_gg[%s][%s][%s] = %s" % (m.group(2),m.group(3),m.group(1),fortran_gg[m.group(2)][m.group(3)][m.group(1)])
-            elif re.match(".*OMEGA",line):
-                m = re.match(".*\((.+)\)",line)
-                if not m: continue
-                self.ALLOMEGA.append(m.group(1))
-                #print "OMEGA: %s" % m.group(1)
-
-            else: 
-                if self.verbose: print "ERROR ** no match ** : %s" % line
-
-        for A in fortran_gg.keys():
-            self.DATA[A] = {}
-            for J in fortran_gg[A].keys():
-                index = [ int(x) for x in fortran_gg[A][J].keys() ]
-                for L in sorted(index):
-                    s_l = str(L)
-                    # A will only be 1.... one set
-                    # J will go from 1-10.... each element
-                    #L will go from 1 to max freq.
-                    #print "\t%s => %s" % (L,fortran_gg[A][J][s_l])
-                    if self.verbose: print "GG[%s][%s][%s] => %s" % (A,J,L,fortran_gg[A][J][s_l])
-                    self.DATA[int(s_l)-1][int(J)-1] = fortran_gg[A][J][s_l]
-
-        #try:
-        #    os.remove('./.greens_funcs')
-        #except:
-        #    pass
-
-        self._wvint9()
-
-#}}}
-
     def _generate(self,depth,distance,type='v'):
 #{{{
+
+        try:
+            os.remove('./.greens_funcs')
+            os.remove('./GREEN.1')
+            os.remove('./junk')
+        except:
+            pass
 
         #
         # Build model
@@ -611,14 +419,9 @@ class GreenFunctions():
             raise SystemExit('\n\nERROR: Cannot open temp file .greens_funcs %s %s\n'% (Exception,e))
 #}}}
 
-        try:
-            os.remove('./GREEN.1')
-        except:
-            pass
-
         print model
         if self.verbose: print 'Running: fortran_fkrprog < ./greens_func'
-        p = os.popen('fortran_fkrprog_auto < ./.greens_funcs',"r")
+        p = os.popen('fortran_fkrprog < ./.greens_funcs',"r")
         while 1:
             line = p.readline()
             print line
@@ -642,16 +445,15 @@ class GreenFunctions():
                 n = int(m.group(2))-1
                 self.DATA[l][n]= eval(m.group(3))
                 print "DATA[%s][%s] = %s" % (l,n,m.group(3))
-                #print "fortran_gg[%s][%s][%s] = %s" % (m.group(2),m.group(3),m.group(1),fortran_gg[m.group(2)][m.group(3)][m.group(1)])
             else: 
                 if self.verbose: print "ERROR ** no match ** : %s" % line
 
         p.close()
 
-        #if self.verbose: print "GG %s" % self.DATA
-
         try:
             os.remove('./.greens_funcs')
+            os.remove('./GREEN.1')
+            os.remove('./junk')
         except:
             pass
 
