@@ -2,3 +2,8 @@ dbmoment
 run_fkrprog_wrapper
 fortran_fkrprog
 greens_funcs
+fortran_fkrprog_auto
+wvint9
+GREEN.1
+junk
+greens_func

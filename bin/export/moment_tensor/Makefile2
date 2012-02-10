@@ -1,5 +1,7 @@
 BIN = run_fkrprog_wrapper \
       fortran_fkrprog \
+      fortran_fkrprog_auto \
+      wvint9 \
       dbmoment
 
 PF = dbmoment.pf \

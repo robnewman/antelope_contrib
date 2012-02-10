@@ -43,7 +43,7 @@ GF =  fkr.GreenFunctions(pf_file,verbose)
 Generate GFs for depth of 8km and distance of 10km.
 """
 if verbose: print 'generate(depth=%s,distance=%s)' % (8,10)
-GF.build(depth=8,distance=10)
+GF.build(depth=8,distance=10,sps=1,type='v',filter='BW 0.01 5 0.05 5')
 
 """
 Plot the GFs
@@ -51,11 +51,8 @@ Plot the GFs
 if verbose: print 'plot()'
 GF.plot()
 
-"""
-Generate GFs for depth of 25 and distance of 20km.
-"""
-if verbose: print 'generate(depth=%s,distance=%s)' % (25,20)
-GF.build(depth=25,distance=20)
+if verbose: print 'generate(depth=%s,distance=%s)' % (8,10)
+GF.build(depth=30,distance=200,sps=1,type='v',filter='BW 0.01 5 0.05 5')
 
 """
 Plot the GFs

@@ -45,8 +45,6 @@ class GreenFunctions():
     """
     def __init__(self,model,verbose=False):
 #{{{
-        print '\n\n\t**** GreenFunctions(): decimation function NOT WORKING *****\n'
-
         self.verbose = verbose
         self.pf = model
 
@@ -255,7 +253,7 @@ class GreenFunctions():
 
 #}}}
 
-    def _generate(self,depth,distance,type='v'):
+    def _generate_fortran(self,depth,distance,type='v'):
 #{{{
         self.IVEL = type
         self.DEPTH = depth
@@ -445,12 +443,219 @@ class GreenFunctions():
                     if self.verbose: print "GG[%s][%s][%s] => %s" % (A,J,L,fortran_gg[A][J][s_l])
                     self.DATA[int(s_l)-1][int(J)-1] = fortran_gg[A][J][s_l]
 
+        #try:
+        #    os.remove('./.greens_funcs')
+        #except:
+        #    pass
+
+        self._wvint9()
+
+#}}}
+
+    def _generate(self,depth,distance,type='v'):
+#{{{
+
+        #
+        # Build model
+        # output new model to ./greens_funcs 
+        #
+#{{{
+        self.IVEL = type
+        self.DEPTH = depth
+        self.DISTANCE = distance
+        self.NYQ = self.N / 2 + 1
+        self.DF = 1 / (self.N * (1/self.DT))
+        self.FU = (self.NYQ - 1) * self.DF
+        self.TLEN = self.N * (1/self.DT)
+        self.ALPHA = -log(self.DECAY) / self.TLEN
+
+        """
+        Build new layers on earth model.
+        """
+        tempD =  self.D
+        tempA =  self.A
+        tempB =  self.B
+        tempRHO =  self.RHO
+        tempQA =  self.QA
+        tempQB =  self.QB
+
+        # Init vars for model layers
+        self.D   = defaultdict(int)
+        self.A   = defaultdict(int)
+        self.B   = defaultdict(int)
+        self.RHO = defaultdict(int)
+        self.QA  = defaultdict(int)
+        self.QB  = defaultdict(int)
+
+        d = 0
+        delta = 0
+        for y in range(len(tempD)):
+            if self.DEPTH == (d + tempD[y]):
+                delta  = 1
+
+                self.LMAX = y + 2
+                for x in range(len(tempD)):
+                    if x < y:
+                        self.D[x]   =  tempD[x]
+                        self.A[x]   =  tempA[x]
+                        self.B[x]   =  tempB[x]
+                        self.RHO[x] =  tempRHO[x]
+                        self.QA[x]  =  tempQA[x]
+                        self.QB[x]  =  tempQB[x]
+                    elif x == y:
+                        # new layer
+                        self.D[x]   =  tempD[x] - delta
+                        self.A[x]   =  tempA[x]
+                        self.B[x]   =  tempB[x]
+                        self.RHO[x] =  tempRHO[x]
+                        self.QA[x]  =  tempQA[x]
+                        self.QB[x]  =  tempQB[x]
+                        # old layer
+                        self.D[x+1]   =  delta
+                        self.A[x+1]   =  tempA[x+1]
+                        self.B[x+1]   =  tempB[x+1]
+                        self.RHO[x+1] =  tempRHO[x+1]
+                        self.QA[x+1]  =  tempQA[x+1]
+                        self.QB[x+1]  =  tempQB[x+1]
+                    else:
+                        self.D[x+1]   =  tempD[x]
+                        self.A[x+1]   =  tempA[x]
+                        self.B[x+1]   =  tempB[x]
+                        self.RHO[x+1] =  tempRHO[x]
+                        self.QA[x+1]  =  tempQA[x]
+                        self.QB[x+1]  =  tempQB[x]
+                break
+
+            elif self.DEPTH < (d + tempD[y]):
+                self.LMAX = y + 1
+                delta = d + tempD[y] - self.DEPTH
+
+                for x in range(len(tempD)):
+                    if x < y:
+                        self.D[x]   =  tempD[x]
+                        self.A[x]   =  tempA[x]
+                        self.B[x]   =  tempB[x]
+                        self.RHO[x] =  tempRHO[x]
+                        self.QA[x]  =  tempQA[x]
+                        self.QB[x]  =  tempQB[x]
+                    elif x == y:
+                        # new layer
+                        self.D[x]   =  tempD[x] - delta
+                        self.A[x]   =  tempA[x]
+                        self.B[x]   =  tempB[x]
+                        self.RHO[x] =  tempRHO[x]
+                        self.QA[x]  =  tempQA[x]
+                        self.QB[x]  =  tempQB[x]
+                        # old layer
+                        self.D[x+1]   =  delta
+                        self.A[x+1]   =  tempA[x]
+                        self.B[x+1]   =  tempB[x]
+                        self.RHO[x+1] =  tempRHO[x]
+                        self.QA[x+1]  =  tempQA[x]
+                        self.QB[x+1]  =  tempQB[x]
+                    else:
+                        self.D[x+1]   =  tempD[x]
+                        self.A[x+1]   =  tempA[x]
+                        self.B[x+1]   =  tempB[x]
+                        self.RHO[x+1] =  tempRHO[x]
+                        self.QA[x+1]  =  tempQA[x]
+                        self.QB[x+1]  =  tempQB[x]
+                break
+
+            else:
+                d += tempD[y]
+
+        """
+        Print new layers and other params.
+        """
+
+        if self.verbose:
+            for I in range(len(self.D)):
+                print "%s: %s\t%s\t%s\t%s\t%s\t%s" % (self.LMAX,self.D[I],self.A[I],self.B[I],self.RHO[I],self.QA[I],self.QB[I])
+
+        
+        if self.verbose: print "LMAX => %s" % self.LMAX
+
+        self.MMAX = len(self.D) - 1
+        if self.verbose: print "MMAX => %s" % self.MMAX
+
+        if self.verbose: print "DEPTH => %s" % self.DEPTH
+        if self.verbose: print "RANGE => %s" % self.DISTANCE
+
+
+        fortran_gg = defaultdict(lambda: defaultdict(dict))
+        self.GG = defaultdict(dict)
+        self.ALLOMEGA = []
+        self.LMAX += 1
+        self.MMAX += 1
+        template = self._file_format()
+        model = ''
+        for I in range(len(self.D)):
+            model += " %1.4E %1.4E %1.4E %1.4E   600.00    300.00\n" % (self.D[I],self.A[I],self.B[I],self.RHO[I])
+
+        model =  template % (self.DEPTH,(1/self.DT),self.MMAX,model,self.LMAX,self.DISTANCE)
+
+        """ 
+        Open temp file to put model.
+        """
+        try:
+            os.remove('./.greens_funcs')
+        except Exception, e:
+            pass
+
+        try: 
+            f = open('./.greens_funcs', 'w')
+            f.write(model)
+            f.close()
+        except Exception,e:
+            raise SystemExit('\n\nERROR: Cannot open temp file .greens_funcs %s %s\n'% (Exception,e))
+#}}}
+
+        try:
+            os.remove('./GREEN.1')
+        except:
+            pass
+
+        print model
+        if self.verbose: print 'Running: fortran_fkrprog < ./greens_func'
+        p = os.popen('fortran_fkrprog_auto < ./.greens_funcs',"r")
+        while 1:
+            line = p.readline()
+            print line
+            if not line: break
+
+        p.close()
+
+        if self.verbose: print 'Running: wvint9'
+        p = os.popen('wvint9',"r")
+        while 1:
+            line = p.readline()
+            line = line.strip('\n')
+            line = line.replace(' ','')
+                
+            if not line: break
+
+            if re.match("GG",line):
+                m = re.match("GG\[(\d+)\]\[(\d+)\]=(.+)",line)
+                if not m: continue
+                l = int(m.group(1))-1
+                n = int(m.group(2))-1
+                self.DATA[l][n]= eval(m.group(3))
+                print "DATA[%s][%s] = %s" % (l,n,m.group(3))
+                #print "fortran_gg[%s][%s][%s] = %s" % (m.group(2),m.group(3),m.group(1),fortran_gg[m.group(2)][m.group(3)][m.group(1)])
+            else: 
+                if self.verbose: print "ERROR ** no match ** : %s" % line
+
+        p.close()
+
+        #if self.verbose: print "GG %s" % self.DATA
+
         try:
             os.remove('./.greens_funcs')
         except:
             pass
 
-        self._wvint9()
+        self._reformat()
 
 #}}}
 
@@ -552,6 +757,15 @@ class GreenFunctions():
                 except Exception,e:
                     raise SystemExit('\n\nERROR: GreenFunctions(): filter %s: %s\n\n' % (Exception,e))
 
+
+                #
+                # TEST DECIMATION
+                #
+                #tr[3] = 0
+                #x =  tr.data()
+                #plt.plot(x[1000:1200])
+
+
                 try:
                     # decimate data
                     for f in decimate_files:
@@ -560,6 +774,14 @@ class GreenFunctions():
                         tr.filter('DECIMATE %s' % full_path)
                 except Exception,e:
                     raise SystemExit('\n\nERROR: GreenFunctions(): decimate %s: %s\n\n' % (Exception,e))
+
+                #tr[3] = 0
+                #y =  tr.data()
+                #plt.plot(y[500:700])
+                #plt.legend(['original','decimated'])
+
+                #plt.suptitle("Green Functions: ")
+                #plt.show()
 
                 try:
                     tr[3] = 0
@@ -572,8 +794,7 @@ class GreenFunctions():
                 except:
                     pass
 
-                self.ELEMENTS[comp]['data'] = self.ELEMENTS[comp]['data'][int(len(self.ELEMENTS[comp]['data'])/2):-1]
-
+                self.ELEMENTS[comp]['data'] = self.ELEMENTS[comp]['data'][int(len(self.ELEMENTS[comp]['data'])/2):-1] 
 
                 if not self.ELEMENTS[comp]['data']:
                     raise SystemExit('\n\nERROR: GreenFunctions(): Cannot build component [%s]: %s_%s\n\n' % (m.group(1),db_sta,db_chan))
@@ -639,6 +860,8 @@ class GreenFunctions():
         dbpath = os.path.relpath(path, self.gf_db_path)
 
         for element in sorted(self.ELEMENTS.keys()):
+
+            #print '%s' % self.ELEMENTS[element]
             if self.ELEMENTS[element]['data']:
                 sta = '%s' % self.DISTANCE
                 chan_loc = '%s_%s' % (self.DEPTH,element)
@@ -804,13 +1027,13 @@ class GreenFunctions():
         return ".F.\n\
     0   64\n\
 GREEN.1\n\
-    6.0      %2.2f      1  512 1024   %0.2f     %2d    1\n\
+    6.0      %05.2f      1  512 1024    %03.1f      %2d    1\n\
     1    1    1    1    1    1    1    1    1    1    0\n\
 %s\
     %d\n\
   0.4000000E+03  1.500000E+00         0\n\
-    1   10000.0     30.0      2.9       2.5\n\
-  %4f        0.0      10.0\n"
+    1  10000.0     30.0      2.9       2.5\n\
+  %03.1f        0.0      10.0\n"
     #}}}
 
     def _read_pf(self):
@@ -3233,6 +3456,128 @@ GREEN.1\n\
         if self.verbose: print ""
         #}}}
 
+    def _reformat(self):
+#{{{
+        for l in range(10):
+
+            print "NOW: %s" % l
+            TEMPDATA = self.DATA[l]
+            if l == 0:
+                #self.ZDD = [x * -1 for x in self.TEMPDATA ]
+                if not 'ZDD' in self.ELEMENTS: self.ELEMENTS['ZDD'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['ZDD']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['ZDD']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['ZDD']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['ZDD']['data'].extend( TEMPDATA.values() )
+                print "\tZDD: %s" % len(self.ELEMENTS['ZDD']['data'])
+                #self.ELEMENTS['ZDD']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['ZDD']['data'].extend( [x * -1 for x in self.TEMPDATA ])
+
+            elif l == 1:
+                #self.XDD = [x for x in self.TEMPDATA]
+                if not 'XDD' in self.ELEMENTS: self.ELEMENTS['XDD'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['XDD']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['XDD']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['XDD']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['XDD']['data'].extend( TEMPDATA.values() )
+                print "\tXDD: %s" % len(self.ELEMENTS['XDD']['data'])
+                #self.ELEMENTS['XDD']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['XDD']['data'].extend( [x for x in self.TEMPDATA ])
+
+            elif l == 2:
+                #self.ZDS = [x for x in self.TEMPDATA]
+                if not 'ZDS' in self.ELEMENTS: self.ELEMENTS['ZDS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['ZDS']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['ZDS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['ZDS']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['ZDS']['data'].extend( TEMPDATA.values() )
+                print "\tZDS: %s" % len(self.ELEMENTS['ZDS']['data'])
+                #self.ELEMENTS['ZDS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['ZDS']['data'].extend( [x for x in self.TEMPDATA ])
+
+            elif l == 3:
+                #self.XDS = [x * -1 for x in self.TEMPDATA ]
+                if not 'XDS' in self.ELEMENTS: self.ELEMENTS['XDS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['XDS']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['XDS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['XDS']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['XDS']['data'].extend( TEMPDATA.values() )
+                print "\tXDS: %s" % len(self.ELEMENTS['XDS']['data'])
+                #self.ELEMENTS['XDS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['XDS']['data'].extend( [x * -1 for x in self.TEMPDATA ])
+
+            elif l == 4:
+                #self.TDS = [x for x in self.TEMPDATA]
+                if not 'TDS' in self.ELEMENTS: self.ELEMENTS['TDS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['TDS']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['TDS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['TDS']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['TDS']['data'].extend( TEMPDATA.values() )
+                print "\tTDS: %s" % len(self.ELEMENTS['TDS']['data'])
+                #self.ELEMENTS['TDS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['TDS']['data'].extend( [x for x in self.TEMPDATA ])
+
+            elif l == 5:
+                #self.ZSS = [x * -1 for x in self.TEMPDATA ]
+                if not 'ZSS' in self.ELEMENTS: self.ELEMENTS['ZSS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['ZSS']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['ZSS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['ZSS']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['ZSS']['data'].extend( TEMPDATA.values() )
+                print "\tZSS: %s" % len(self.ELEMENTS['ZSS']['data'])
+                #self.ELEMENTS['ZSS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['ZSS']['data'].extend( [x * -1 for x in self.TEMPDATA ])
+
+            elif l == 6:
+                #self.XSS = [x for x in self.TEMPDATA]
+                if not 'XSS' in self.ELEMENTS: self.ELEMENTS['XSS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['XSS']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['XSS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['XSS']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['XSS']['data'].extend( TEMPDATA.values() )
+                print "\tXSS: %s" % len(self.ELEMENTS['XSS']['data'])
+                #self.ELEMENTS['XSS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['XSS']['data'].extend( [x for x in self.TEMPDATA ])
+
+            elif l == 7:
+                #self.TSS = [x * -1 for x in self.TEMPDATA ]
+                if not 'TSS' in self.ELEMENTS: self.ELEMENTS['TSS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['TSS']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['TSS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['TSS']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['TSS']['data'].extend( TEMPDATA.values() )
+                print "\tTSS: %s" % len(self.ELEMENTS['TSS']['data'])
+                #self.ELEMENTS['TSS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['TSS']['data'].extend( [x * -1 for x in self.TEMPDATA ])
+
+            elif l == 8:
+                #self.REX = [x for x in self.TEMPDATA]
+                if not 'REX' in self.ELEMENTS: self.ELEMENTS['REX'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['REX']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['REX']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['REX']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['REX']['data'].extend( TEMPDATA.values() )
+                print "\tREX: %s" % len(self.ELEMENTS['REX']['data'])
+                #self.ELEMENTS['REX']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['REX']['data'].extend( [x for x in self.TEMPDATA ])
+
+            elif l == 9:
+                #self.ZEX = [x for x in self.TEMPDATA]
+                if not 'ZEX' in self.ELEMENTS: self.ELEMENTS['ZEX'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['ZEX']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['ZEX']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['ZEX']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['ZEX']['data'].extend( TEMPDATA.values() )
+                print "\tZEX: %s" % len(self.ELEMENTS['ZEX']['data'])
+                #self.ELEMENTS['ZEX']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['ZEX']['data'].extend( [x for x in self.TEMPDATA ])
+            else:
+                raise SystemExit('\n\nERROR: GreenFunctions(): generate(): Too many elements\n\n')
+
+
+        self._save_to_db()
+#}}}
+
     def _wvint9(self):
 #{{{
         if self.verbose: print 'N2:  %s' % self.N2
@@ -3430,6 +3775,7 @@ GREEN.1\n\
         plt.suptitle("Green Functions: depth:%s distance:%s" % (self.DEPTH,self.DISTANCE))
         plt.show()
 #}}}
+
 
     def __getitem__(self,i):
 #{{{
