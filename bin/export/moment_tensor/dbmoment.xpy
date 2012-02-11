@@ -49,6 +49,8 @@ try:
 except ImportError:
     print "Import Error: Do you have Pylab installed correctly?"
 """
+# FOR MATTS LEAST SQRS ANALYSIS
+import scipy.linalg as linalg
 
 # FKRPROG
 import moment_tensor.fkrprog as fkr
@@ -184,11 +186,12 @@ class MomentTensor():
     """
     # {{{
 
-    def __init__(self, distance_weighting, isoflag, trim_value, verbosity=0):
+    def __init__(self, distance_weighting, isoflag, trim_value, mt_images_dir, verbosity=0):
         """Initialize"""
         self.distance_weighting = distance_weighting
         self.isoflag = isoflag
         self.trim_value = trim_value
+        self.mt_images_dir = mt_images_dir
         self.verbosity = verbosity
 
     def construct_data_matrix(self, stachan_traces):
@@ -233,7 +236,7 @@ class MomentTensor():
         correlation for 
         debugging purposes
         """
-        stacode, component, shift = components
+        stacode, component, shift, maxval = components
         title_string = "Station %s. Filtered data for %s. Shift = %s" % (stacode, component, shift)
         fig = plt.figure()
         fig.subplots_adjust(left=0.04, right=0.96, hspace=0.3)
@@ -264,12 +267,15 @@ class MomentTensor():
         bx.legend(('Station', 'Synthetic'), 'upper right', prop={'size':'10'})
         # Print xcor
         cx = fig.add_subplot(313)
-        cx.set_title('Cross correlation results')
+        cx.set_title('Cross correlation results (max cross-corr val = %s)' % maxval)
         cx.plot(xcor)
         plt.setp(cx.get_yticklabels(), visible=False)
         cx.set_ylabel('X-cor.')
         cx.set_xlabel('Point shift (in samples)')
-        plt.show()
+        if self.verbosity > 1:
+            plt.show()
+        cross_corr_outfile = '%s/%s_%s.png' % (self.mt_images_dir, stacode, component)
+        plt.savefig(cross_corr_outfile)
         return True
  
     def cross_cor(self, a, b, component=False, stacode=False):
@@ -282,9 +288,12 @@ class MomentTensor():
         maxval = np.amax(xcor)
         maxshift = np.argmax(xcor)
         shift = maxshift - (len(xcor)-1)/2
+        # If shift < 0, STATION data must move to the right
+        # If shift > 0, STATION data must move to the left
         if self.verbosity > 1:
             logmt(1, '  - cross_cor(): Component: %s, max val: %s, timeshift (in samples): %s' % (component, maxval, shift))
-            self.plot_cross_cor(a, b, xcor, [stacode, component, shift])
+        if self.verbosity > 0:
+            self.plot_cross_cor(a, b, xcor, [stacode, component, shift, maxval])
         return maxval, shift
 
     def normalize(self, data_as_list):
@@ -343,7 +352,171 @@ class MomentTensor():
             logmt(1, '  - Cross-correlation value: %s, timeshift value: %s' % (max_xcor, max_shift))
         return max_xcor, max_shift
 
-    # def matrix_AIV_B(self, dict_s, dict_g, list_az, timeshift, size):
+    def convertdict2list(self, A_dict, b_dict):
+        ''' 
+        Convert a dictionary input to a list ouput
+        IN:
+           - A_dict = dictionary to be converted to a MxN list (M columns, N rows)
+           - b_dict = dictionary to be converted to a Mx1 list (M columns, 1 row )
+        OUT: 
+           - list A
+           - list b
+           
+        Comments: 
+        For the dbmoment inversion script A_dict = AJ (the greens function matrix)
+        and b_dict = the waveform data
+
+        A_dict is a dictionary
+        b_dict is the station data and is a list (ordered) and looks like:
+        b_dict = [ 
+                stacode: {
+                    'T': [ list_of_data_points ],
+                    'R': [ list_of_data_points ],
+                    'Z': [ list_of_data_points ]
+                    },
+                stacode: {
+                    'T': [ list_of_data_points ],
+                    'R': [ list_of_data_points ],
+                    'Z': [ list_of_data_points ]
+            ]
+        '''
+        # A list
+        A = []
+        tmp = [v for k,v in A_dict.items()]
+        for i in range(len(tmp)):
+            tmp2 = tmp[i]
+            A.append([subv for subv in tmp2.itervalues()])
+
+        # Rotate the matrix. Do we need to do this?
+        # Adash = np.array(A)
+        # newA = Adash.T.tolist()
+        # newA = Adash.T.tolist()
+
+        # print "\n\nA:"
+        # print A
+        # print "\n\nAdash:"
+        # print Adash
+        # print "\n\nnewA:"
+        # print newA
+
+        # print 'The converted list (from dicitonary) is A =',A
+        # b list
+        b = []
+        for v in b_dict:
+            for subk, subv in v.items():
+                b.extend(subv)
+        # 
+        # for i in range(len(tmp2)):
+        #     tmp2 = tmp[i]
+        #     b += [v for k,v in tmp2.items()]
+        
+        # print 'The converted list (from dicitonary) is b =',b
+        # return(Adash,b)
+        return(A, b)
+	
+    def matrix_AIV_B_SCIPY(self, dict_s, dict_g, ev2sta, size):
+        """MATTS INVERSION USING SCIPY
+        """
+        if self.verbosity > 0:
+            logmt(1, 'INVERSION ROUTINE: Construct matrices AIV and B using the data and Greens function matrices')
+
+        AJ = defaultdict(dict)
+        trim = 0
+        cnt1 = cnt2 = cnt3 = 0
+
+        if self.verbosity > 0:
+            # logmt(1, ' - Timeshift: %s' % timeshift)
+            # logmt(1, ' - Azimuthal distances tuple: %s' % list_az)
+            logmt(1, ' - Number of stations used in calculation: %s' % len(dict_s))
+
+        # Iterate over number of stations
+        for i in range(len(ev2sta)):
+            if self.verbosity > 0:
+                logmt(1, '  - Working on inversion for station (%s)' % ev2sta[i][0])
+            # Allocate the dictionary space for each section
+            cnt1 = cnt2 = cnt3
+            cnt2 += size - trim
+            cnt3 += 2*size - 2*trim
+            # Convert azimuth to radians
+            this_azimuth = ev2sta[i][1] * math.pi/180
+            '''
+            !!! NOTE: len(dict_s['T'][0]) is the number of 
+                      the datapoints for the first station. 
+                      Use var size instead because of timeshift.
+                      RLN (2011-12-06)
+
+            '''
+            for j in range(size - trim):
+                # Mxx term
+                AJ[0][cnt1] =  math.sin(2*this_azimuth)*dict_g[i]['TSS'][j]/2
+
+                # Myy term
+                AJ[1][cnt1] = -math.sin(2*this_azimuth)*dict_g[i]['TSS'][j]/2
+
+                # Mxy term
+                AJ[2][cnt1] = -math.cos(2*this_azimuth)*dict_g[i]['TSS'][j]
+                AJ[2][cnt2] = -math.sin(2*this_azimuth)*dict_g[i]['XSS'][j]
+                AJ[2][cnt3] = -math.sin(2*this_azimuth)*dict_g[i]['ZSS'][j]
+
+                # Mxz term
+                AJ[3][cnt1] = -math.sin(this_azimuth)*dict_g[i]['TDS'][j]
+                AJ[3][cnt2] =  math.cos(this_azimuth)*dict_g[i]['XDS'][j]
+                AJ[3][cnt3] =  math.cos(this_azimuth)*dict_g[i]['ZDS'][j]
+
+                # Myz term
+                AJ[4][cnt1] =  math.cos(this_azimuth)*dict_g[i]['TDS'][j]
+                AJ[4][cnt2] =  math.sin(this_azimuth)*dict_g[i]['XDS'][j]
+                AJ[4][cnt3] =  math.sin(this_azimuth)*dict_g[i]['ZDS'][j]
+
+                # Vary the other values depending on isoflag value
+                if self.isoflag == 5:
+                    # Mxx term
+                    AJ[0][cnt2] = (dict_g[i]['XDD'][j])/2 - (math.cos(2*this_azimuth)*dict_g[i]['XSS'][j])/2
+                    AJ[0][cnt3] = (dict_g[i]['ZDD'][j])/2 - (math.cos(2*this_azimuth)*dict_g[i]['ZSS'][j])/2
+                    # Myy term
+                    AJ[1][cnt2] = (dict_g[i]['XDD'][j])/2 + (math.cos(2*this_azimuth)*dict_g[i]['XSS'][j])/2
+                    AJ[1][cnt3] = (dict_g[i]['ZDD'][j])/2 + (math.cos(2*this_azimuth)*dict_g[i]['ZSS'][j])/2
+                if self.isoflag == 6:
+                    # Mxx term
+                    AJ[0][cnt2] = (dict_g[i]['XDD'][j])/6 - (math.cos(2*this_azimuth)*dict_g[i]['XSS'][j])/2 + (dict_g[i]['REX'][j])/3
+                    AJ[0][cnt3] = (dict_g[i]['ZDD'][j])/6 - (math.cos(2*this_azimuth)*dict_g[i]['ZSS'][j])/2 + (dict_g[i]['ZEX'][j])/3
+                    # Myy term
+                    AJ[1][cnt2] = (dict_g[i]['XDD'][j])/6 + (math.cos(2*this_azimuth)*dict_g[i]['XSS'][j])/2 + (dict_g[i]['REX'][j])/3
+                    AJ[1][cnt3] = (dict_g[i]['ZDD'][j])/6 + (math.cos(2*this_azimuth)*dict_g[i]['ZSS'][j])/2 + (dict_g[i]['ZEX'][j])/3
+                    # Explosion-related values
+                    AJ[5][cnt1] = 0.0
+                    AJ[5][cnt2] = (dict_g[i]['REX'][j])/3  - (dict_g[i]['XDD'][j])/3
+                    AJ[5][cnt3] = (dict_g[i]['ZEX'][j])/3 - (dict_g[i]['ZDD'][j])/3
+                cnt1 += 1
+                cnt2 += 1
+                cnt3 += 1
+        if self.verbosity > 0:
+            logmt(1, ' - Created matrix AJ with length: %s' % len(AJ))
+            logmt(1, ' - Final counts: cnt1=%s, cnt2=%s, cnt3=%s' % (cnt1, cnt2, cnt3))
+            logmt(1, ' - Now apply the timeshift if needed')
+
+
+        # APPLY MATTS CONVERSION ROUTINE
+        listA, listB = self.convertdict2list(AJ, dict_s)
+        # print "\n\nFIRST ELEMENT OF listA"
+        # print listA[0]
+        print "Length of listA = %s" % len(listA)
+        print "Length of listA = %s" % len(listA[0])
+        # print "\n\nlistB"
+        # print listB
+        print "Length of listB = %s" % len(listB)
+
+        try:
+            x = linalg.lstsq(listA, listB)
+        except ValueError, e:
+            logmt(3, '  - ValueError: %s' % e)
+        else:
+           print x
+           x = x[0]
+           print 'linalg.lstsq solution x =',x
+           print 'the size of x is',x.shape		
+        exit()
+
     def matrix_AIV_B(self, dict_s, dict_g, ev2sta, size):
         """INVERSION ROUTINE
 
@@ -553,15 +726,17 @@ class MomentTensor():
                                     irow = j
                                     icol = k
                         elif ipiv[k] > 1:
-                            logmt(3, 'determine_solution_vector(): ERROR... 1')
+                            logmt(3, 'determine_solution_vector(): ERROR... 1: GAUSSJ: Singular Matrix-1')
             ipiv[icol] += 1
+
             if not irow == icol:
                 for l in range(self.isoflag):
-                    (dict_AIV[irow][l],dict_AIV[icol][l]) = swap(dict_AIV[irow][l],dict_AIV[icol][l])
+                    (dict_AIV[irow][l], dict_AIV[icol][l]) = swap(dict_AIV[irow][l], dict_AIV[icol][l])
                 for l in range(1):
-                    (dict_B[irow][l],dict_B[icol][l]) = swap(dict_B[irow][l],dict_B[icol][l])
+                    (dict_B[irow][l], dict_B[icol][l]) = swap(dict_B[irow][l], dict_B[icol][l])
+
             if dict_AIV[icol][icol] == 0.0:
-                logmt(3, 'determine_solution_vector(): ERROR... 2')
+                logmt(3, 'determine_solution_vector(): ERROR... 2: GAUSSJ: Singular Matrix-2')
             pivinv = 1.0/dict_AIV[icol][icol]
             dict_AIV[icol][icol] = 1.0
             for l in range(self.isoflag):
@@ -594,6 +769,7 @@ class MomentTensor():
             logmt(3, 'Wrong dimension returned for matrix M after inversion')
         elif self.verbosity > 0:
             logmt(1, ' - Moment tensor matrix M[3,3] created')
+        logmt(1, '\n\t\tMxx=%s\n\t\tMxy=%s\n\t\tMxz=%s\n\t\tMyy=%s\n\t\tMyz=%s\n\t\tMzz=%s\n' % (M[0,0], M[0,1], M[0,2], M[1,1], M[1,2], M[2,2]))
         return M
 
     def decompose_moment_tensor(self, matrix_M):
@@ -857,11 +1033,20 @@ class Event():
     """
     # {{{
 
-    def __init__(self, orid, event_db, verbosity=0):
+    def __init__(self, orid, event_db, mt_images_dir, verbosity=0):
         """Initialize"""
         self.orid = orid
         self.event_db = event_db
+        self.mt_images_dir = mt_images_dir
         self.verbosity = verbosity
+
+        if not os.path.exists(self.mt_images_dir):
+            if self.verbosity > 0:
+                logmt(1, 'Images dir (%s) does not exist. Try to create...' % self.mt_images_dir)
+            try:
+                os.makedirs(self.mt_images_dir, 0775)
+            except Exception, e:
+                logmt(3, 'Moment tensor images dir (%s) does not exist and cannot be created! Exception: %s' % (self.mt_images_dir, e))
 
     def extract_data(self, mag_filters):
         """Open event database and get 
@@ -957,7 +1142,7 @@ class Event():
         sta_list = {'NNE':[], 'ENE':[], 'ESE':[], 'SSE':[], 'SSW':[], 'WSW':[], 'WNW':[], 'NNW':[]}
         for i in range(dbptr.nrecs()):
             dbptr[3] = i
-            sta, esaz, depth, at, ev_lat, ev_lon, site_lat, site_lon = dbptr.getv('sta', 'esaz', 'depth', 'arrival.time', 'lat', 'lon', 'site.lat', 'site.lon')
+            sta, esaz, depth, at, ev_lat, ev_lon, site_lat, site_lon = dbptr.getv('sta', 'esaz', 'depth', 'origin.time', 'lat', 'lon', 'site.lat', 'site.lon')
             distance_deg = dbptr.ex_eval('distance(%s, %s, %s, %s)' % (ev_lat, ev_lon, site_lat, site_lon))
             distance_km = dbptr.ex_eval('deg2km(%s)' % (distance_deg))
             if esaz >= 0 and esaz < 45:
@@ -1024,7 +1209,7 @@ class Event():
                        to account for timeshifts
                        and add filter_timepad before
                        RLN (2012-02-02)
-            st              p arr.time            et
+            st              p origin.time            et
             | <---------------->*<----><----><---->|
                 filter_timepad
             '''
@@ -1140,20 +1325,12 @@ class Event():
             moment_dbptr.close()
             return True
 
-    def create_focal_mechanism(self, obspy_beachball, mt_images_dir, matrix_M=False, strike=False, dip=False, rake=False):
+    def create_focal_mechanism(self, obspy_beachball, matrix_M=False, strike=False, dip=False, rake=False):
         """Write out focal mechanism
         to images directory
         """
         if self.verbosity > 0:
-            logmt(1, 'Writing file to images dir (%s)' % mt_images_dir)
-
-        if not os.path.exists(mt_images_dir):
-            if self.verbosity > 0:
-                logmt(1, 'Images dir (%s) does not exist. Try to create...' % mt_images_dir)
-            try:
-                os.mkdir(mt_images_dir, 0775)
-            except Exception, e:
-                logmt(3, 'Moment tensor images dir (%s) does not exist and cannot be created! Exception: %s' % (mt_images_dir, e))
+            logmt(1, 'Writing file to images dir (%s)' % self.mt_images_dir)
 
         '''
         !!! NOTE: Focal mechanism can be 
@@ -1214,7 +1391,7 @@ class Event():
                 logmt(1, 'write_results(): Beachball(): Arg: %s, Val: %s' % (k, beachball_vals[k]))
 
         my_outfile = '%s_focal_mechanism.%s' % (self.orid, beachball_vals['format'])
-        my_outpath = '%s/%s' % (mt_images_dir, my_outfile)
+        my_outpath = '%s/%s' % (self.mt_images_dir, my_outfile)
 
         try:
             Beachball(focal_mechanism, 
@@ -1318,7 +1495,7 @@ class Event():
             logmt(1, "  - Normalization factor: %s" % normalizer)
         return normalizer
 
-    def create_data_synthetics_plot(self, ss, ev2sta, mod_gg, size, mt_images_dir):
+    def create_data_synthetics_plot(self, ss, ev2sta, mod_gg, size):
         """Create and save data vs. 
         synthetic waveform plots. 
         Equivalent to Dreger's function 
@@ -1400,7 +1577,7 @@ class Event():
                 ax.set_xticklabels([])
                 if j == 0:
                     ax.set_ylabel(s, rotation='horizontal')
-        syn_plot_outfile = '%s/%s_synthetics_fit.png' % (mt_images_dir, self.orid)
+        syn_plot_outfile = '%s/%s_synthetics_fit.png' % (self.mt_images_dir, self.orid)
         my_plot.savefig(syn_plot_outfile)
         if os.path.isfile(syn_plot_outfile) and self.verbosity > 0:
             logmt(1, 'Successfully created data vs. synthetics plot (%s)' % syn_plot_outfile)
@@ -1408,7 +1585,7 @@ class Event():
             logmt(3, 'Error creating data vs. synthetics plot (%s)' % syn_plot_outfile)
         return syn_plot_outfile
 
-    def create_composite_plot(self, ttfont, img_anno, mt_images_dir, synthetics_img, focalmech_img):
+    def create_composite_plot(self, ttfont, img_anno, synthetics_img, focalmech_img):
         """
         Create a composite image 
         from focal mechanism and 
@@ -1429,7 +1606,7 @@ class Event():
             logmt(3, 'Error importing font: %s' % e)
 
         final_file = '%s.png' % self.orid
-        path_to_file = '%s/%s' % (mt_images_dir, final_file)
+        path_to_file = '%s/%s' % (self.mt_images_dir, final_file)
         syn_img = Image.open(synthetics_img, 'r')
         fm_img = Image.open(focalmech_img, 'r')
         fm_position = (size[0] - (fm_img.size)[0] - 50, size[1] - (fm_img.size)[1] - 50)
@@ -1466,7 +1643,7 @@ class Event():
                         mtimages_dbptr.addv(
                             'sta', '109C',
                             'orid', int(self.orid),
-                            'dir', mt_images_dir,
+                            'dir', self.mt_images_dir,
                             'dfile', final_file)
                     except Exception, e:
                         logmt(3, 'Adding record to moment_tensor_images table unknown error: %s' % e)
@@ -1480,7 +1657,7 @@ class Event():
                             mtimages_dbptr.putv(
                                 'sta', '109C',
                                 'orid', int(self.orid),
-                                'dir', mt_images_dir,
+                                'dir', self.mt_images_dir,
                                 'dfile', final_file)
                         except Exception, e:
                             logmt(3, 'Update record in moment_tensor_images table unknown error: %s' % e)
@@ -1507,35 +1684,12 @@ def main():
      mag_filters, mt_images_dir, 
      ttfont, obspy_beachball, 
      distance_weighting) = parse_pf(pf, verbosity)
+    mt_images_dir = '%s/%s' % (mt_images_dir, orid)
 
-    # !!! NOTE: Instantiate Event. RLN (2011-11-21)
-    my_event = Event(orid, event_db, verbosity)
-    my_mt = MomentTensor(distance_weighting, isoflag, trim_value, verbosity)
+    # Instantiate objects. RLN (2011-11-21)
+    my_event = Event(orid, event_db, mt_images_dir, verbosity)
+    my_mt = MomentTensor(distance_weighting, isoflag, trim_value, mt_images_dir, verbosity)
     evdbptr, evparams, filter_string, filter_timepad = my_event.extract_data(mag_filters)
-
-    '''
-    !!! NOTE: Is this relevant?
-              In Dreger's code look
-              for the comments:
-              /*Note the vertical GF's are*/ 
-              /*flipped in earqt1.f and TW's*/
-              /* Blackbox.f DVH conv. z + down*/
-              RLN (2011-12-07)
-    '''
-    '''
-    if verbosity > 1:
-        print "\n\n\nOLD GREENS FUNCTION FORMAT:"
-        pprint(gg)
-    new_zss = [val*-1 for val in gg['ZSS']]
-    new_zds = [val*-1 for val in gg['ZDS']]
-    new_zdd = [val*-1 for val in gg['ZDD']]
-    gg['ZSS'] = new_zss
-    gg['ZDS'] = new_zds
-    gg['ZDD'] = new_zdd
-    if verbosity > 1:
-        print "\n\n\nNEWLY FORMATTED GREENS FUNCTION, VERTICAL COMPS * -1 (LOOK AT ZSS, ZDS & ZDD):"
-        pprint(gg)
-    '''
 
     '''
     !!! NOTE: We have an inherent problem
@@ -1550,18 +1704,6 @@ def main():
               the stachan_traces have a length
               of 3 * size of Greens Functions.
               RLN (2011-12-06)
-
-    !!! NOTE: We don't want to be limited by
-              the number of stations in 
-              determining a solution. Need a
-              while loop that makes sure the 
-              cross-correlation is good before
-              accepting the data as part of 
-              generating the MT solution.
-              Would be nice to have a minimum
-              of 8 stations with good cross-
-              correlations results to use.
-              RLN (2011-12-12)
     '''
 
     ev2sta_azimuth_groups = my_event.get_stations_and_orientations(evdbptr)
@@ -1577,12 +1719,15 @@ def main():
     '''
     ss = []
     gg = []
-    stations_per_group = int(round(statmax/8))
+    stations_per_group = 1
+    # stations_per_group = int(round(statmax/8))
     good_cross_corr_stations = {'NNE':0, 'ENE':0, 'ESE':0, 'SSE':0, 'SSW':0, 'WSW':0, 'WNW':0, 'NNW':0}
     '''
     !!! NOTE: This keeps track of what 
               we used and the metadata 
               associated with the station.
+              It is important that it is
+              a list - order is critical.
               RLN (2011-12-13)
     '''
     ev2sta = []
@@ -1602,8 +1747,6 @@ def main():
                 stacode, esaz, depth, distance, arrival_time = sta
                 depth = int(depth)
                 distance = int(distance)
-                # Not sure we still need to define 200, but leave for now
-                real_data = my_event.get_chan_data(wave_db, chan_to_use, esaz, arrival_time, filter_string, filter_timepad, stacode, 200, clip_values)
                 if verbosity > 0:
                     logmt(1, "  - Generate Green's function for this depth (%skm) & distance (%skm)" % (depth, distance))
                 '''
@@ -1630,9 +1773,24 @@ def main():
                 if verbosity > 1:
                     green.plot()
                 synthetics = green.ALL
-                # filtered_synthetic_data = filter_data(synthetics, 'dict', filter_string, verbosity)
-                max_xcor, timeshift = my_mt.get_time_shift(real_data, synthetics, stacode, 120)
-                ss.append(real_data)
+                samples = len(synthetics['TSS']) + filter_timepad
+                real_data = my_event.get_chan_data(wave_db, chan_to_use, esaz, arrival_time, filter_string, filter_timepad, stacode, samples, clip_values)
+                max_xcor, timeshift = my_mt.get_time_shift(real_data, synthetics, stacode, samples)
+                shifted_real_data = {}
+                for chan in real_data:
+                    shifted_real_data[chan] = []
+                    if timeshift < 0:
+                        prepend_zeros = []
+                        for i in range(abs(timeshift)):
+                            prepend_zeros.append(0)
+                        end = samples - filter_timepad
+                        real_data[chan].insert(0, prepend_zeros)
+                        shifted_real_data[chan] = real_data[chan][0:end]
+                    else:
+                        start = timeshift
+                        end = samples + start - filter_timepad
+                        shifted_real_data[chan] = real_data[chan][start:end]
+                ss.append(shifted_real_data)
                 gg.append(synthetics)
                 ev2sta.append((stacode, esaz, distance, timeshift))
                 good_cross_corr_stations[grp] += 1
@@ -1661,13 +1819,15 @@ def main():
     '''
     nl = len(gg[0]['TSS'])
 
-    if verbosity > 1:
+    if verbosity > 0:
         print 'Stachan traces:'
-        pprint(ss)
+        # pprint(ss)
+        print len(ss[0]['Z'])
         print 'Event to station details:'
         pprint(ev2sta)
         print 'Greens Functions:'
-        pprint(gg)
+        # pprint(gg)
+        print len(gg[0]['XSS'])
 
     # !!! NOTE: Instantiate MomentTensor. RLN (2011-11-21)
     my_mt = MomentTensor(distance_weighting, isoflag, trim_value, verbosity)
@@ -1679,7 +1839,7 @@ def main():
              HACK!
              RLN (2011-12-07)
     '''
-    nl = 120
+    nl = 512
 
     if len(ss) != 0:
         logmt(1, 'Data matrix S created --> %s stations used' % len(ss))
@@ -1689,25 +1849,7 @@ def main():
               If timeshift < 50, include station in
               solution. Else reject.
               RLN (2011-12-02)
-    '''
-    # print ss
-    # pprint(gg)
-    cleaned_ss = []
-    cleaned_gg = []
-    cleaned_ev2sta = []
-    for i in range(len(ss)):
-        print "\n\n**** %s ***" % ev2sta[i][0]
-        if abs(ev2sta[i][3]) > 50:
-            print "**** Timeshift: %s. Ignoring! ***" % ev2sta[i][3]
-        else:
-            cleaned_ss.append(ss[i])
-            cleaned_gg.append(gg[i])
-            cleaned_ev2sta.append(ev2sta[i])
 
-    # print cleaned_ss
-    # print cleaned_gg
-    # print cleaned_ev2sta
-    '''
     !!! NOTE: INVERSION ROUTINE
               Dreger normalizes AtA (B?) and AIV (AIV) matrix. 
               We don't need to - just create default dictionary
@@ -1718,8 +1860,9 @@ def main():
     B = defaultdict(dict) 
 
     # AIV, B = my_mt.matrix_AIV_B(ss, gg, ev2sta_azimuths, timeshift, nl)
-    AIV, B = my_mt.matrix_AIV_B(cleaned_ss, cleaned_gg, cleaned_ev2sta, nl)
-
+    # AIV, B = my_mt.matrix_AIV_B(ss, gg, ev2sta, nl)
+    AIV, B = my_mt.matrix_AIV_B_SCIPY(ss, gg, ev2sta, nl)
+    exit()
     # !!! NOTE: DETERMINE SOLUTION VECTOR. RLN (2011-08-24)
     M = my_mt.determine_solution_vector(AIV, B)
 
@@ -1732,8 +1875,8 @@ def main():
     # !!! NOTE: DECOMPOSE MOMENT TENSOR INTO VARIOUS REPRESENTATIONS. RLN (2011-11-03)
     m0, Mw, strike, dip, rake, pcdc, pcclvd, pciso = my_mt.decompose_moment_tensor(M)
     # E, VR, VAR, svar, sdpower = my_mt.fitcheck(gg, ss, W, M, m0, timeshift, ev2sta_azimuths, nl)
-    # E, VR, VAR, svar, sdpower = my_mt.fitcheck(cleaned_gg, cleaned_ss, W, M, m0, cleaned_ev2sta, nl)
-    E, VR, VAR, svar, sdpower = my_mt.fitcheck(cleaned_gg, cleaned_ss, M, m0, cleaned_ev2sta, nl)
+    # E, VR, VAR, svar, sdpower = my_mt.fitcheck(gg, ss, W, M, m0, ev2sta, nl)
+    E, VR, VAR, svar, sdpower = my_mt.fitcheck(gg, ss, M, m0, ev2sta, nl)
 
     qlt = my_mt.quality_check(VR)
 
@@ -1749,7 +1892,7 @@ def main():
     '''
     my_event.update_moment_tbl(strike, dip, rake)
 
-    focalmech_img = my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, M, False, False, False)
+    focalmech_img = my_event.create_focal_mechanism(obspy_beachball, M, False, False, False)
     # focalmech_img = my_event.create_focal_mechanism(obspy_beachball, mt_images_dir, False, strike, dip, rake)
 
     # !!! NOTE: Use a list of tuples as order is important. RLN (2011-11-28)
@@ -1765,13 +1908,13 @@ def main():
                           ('VAR', '%.3f' % VAR)
                           ]
     # !!! FIX: CREATE DATA vs. SYNTHETICS PLOTS - DONE. RLN (2011-11-03)
-    mod_gg = my_event.calculate_synthetics_to_plot(cleaned_gg, cleaned_ev2sta, M, nl)
+    mod_gg = my_event.calculate_synthetics_to_plot(gg, ev2sta, M, nl)
     # pprint(mod_gg)
 
-    synthetics_img = my_event.create_data_synthetics_plot(cleaned_ss, cleaned_ev2sta, mod_gg, nl, mt_images_dir)
+    synthetics_img = my_event.create_data_synthetics_plot(ss, ev2sta, mod_gg, nl)
 
     # !!! NOTE: CREATE THE COMPOSITE (FINAL) IMAGE AND UPDATE DB. RLN (2011-11-28)
-    my_event.create_composite_plot(ttfont, image_annotations, mt_images_dir, synthetics_img, focalmech_img)
+    my_event.create_composite_plot(ttfont, image_annotations, synthetics_img, focalmech_img)
 
     print "MOMENT TENSOR:"
     print M
