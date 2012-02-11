@@ -1,6 +1,18 @@
 # parameter file for dbmoment
 
 
+# Name of the library to use
+# for Green'sFunction class
+gf_lib fkrprog
+
+# Name of the library to use
+# for Inversion class
+inv_lib inversion
+
+# Name of the library to use
+# for Event class
+data_lib get_data
+
 # channel to use in MT-inversion, default is LH. If higher sample rate channels are chosen, 
 # the data is downsampled to 1 Hz.
 chan_to_use LH.*
@@ -34,17 +46,17 @@ isoflag 1
 use_inc 0
 
 # Event database
-event_db /Users/rt/rtsystems/mt/db/mt
+event_db db/mt
 #event_db demo/de
 
 # Waveform database, defaults to event_db
-wave_db  
+#wave_db  
 
 # Response database, defaults to event_db
-resp_db demo/resp  
+#resp_db demo/resp  
 
 # Green's functions database
-green_db /Users/rt/rtsystems/greens/db/green
+#green_db /Users/rt/rtsystems/greens/db/green
 
 # magnitude range vs filters
 mag_filters &Tbl{
@@ -57,7 +69,7 @@ mag_filters &Tbl{
 }
 
 # moment tensor images directory
-mt_images_dir    /Users/rnewman/rtsystems/dbwfserver/mtimages
+mt_images_dir    mtimages
 
 # Font path
 ttfont    /Library/Fonts/Verdana.ttf

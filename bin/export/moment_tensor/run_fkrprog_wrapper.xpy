@@ -1,11 +1,26 @@
+import os
+import re
+import sys
 import getopt
-import moment_tensor.fkrprog as fkr
+from collections import defaultdict
+
+# ANTELOPE
 try:
     import antelope.stock as stock
+    import antelope.datascope as datascope
 except Exception,e:
-    print  "Import Error: Cannot import Antelope's stock lib."
-    exit()
+    sys.exit("Antelope Import Error: [%s] => [%s]" % (Exception,e))
 
+# Needed for fkrprog.py
+from scipy.integrate import cumtrapz
+from numpy.fft  import ifft
+import matplotlib.pyplot as plt
+from math import exp, log, sqrt, acos, asin, cos, sin
+from cmath import log as clog
+from cmath import sqrt as csqrt
+from cmath import exp as cexp
+
+import moment_tensor.fkrprog as fkr
 
 """
 Get all information from command line 

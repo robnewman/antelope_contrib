@@ -1,21 +1,8 @@
-import os
-import sys
-import re
-import getopt
-#from scipy.signal import decimate
-from scipy.integrate import cumtrapz
-from numpy.fft  import ifft
-from collections import defaultdict
-import matplotlib.pyplot as plt
-from math import exp, log, sqrt, acos, asin, cos, sin
-from cmath import log as clog
-from cmath import sqrt as csqrt
-from cmath import exp as cexp
-import antelope.stock as stock
-import antelope.datascope as datascope
+from __main__ import *      # Get all the libraries from parent
 
 
 class GreenFunctions():
+#{{{
     """ 
       FREQUENCY WAVENUMBER-INTEGRATION PROGRAM.
 
@@ -685,7 +672,7 @@ class GreenFunctions():
                     print '\tsegtype=','c','dir=',dbpath,'dfile=',dfile,'foff=',start
 
                 try:
-                    db.addv('sta',sta,'chan',chan_loc,'time',1.00,'endtime',endtime,'nsamp',nsamp,'samprate',samprate,'calib',1,'datatype','as','segtype','c','dir',dbpath,'dfile',dfile,'foff',start)
+                    db.addv('sta',sta,'chan',chan_loc,'time',1.00,'endtime',endtime,'nsamp',nsamp,'samprate',samprate,'calib',1,'datatype','as','segtype','V','dir',dbpath,'dfile',dfile,'foff',start)
                 except Exception,e:
                     raise SystemExit('\n\nERROR: Cannot add new line [%s] %s %s\n'% (element,Exception,e))
 
@@ -3270,6 +3257,7 @@ GREEN.1\n\
                 #self.ELEMENTS['ZDD']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
                 self.ELEMENTS['ZDD']['data'] = [0 for x in TEMPDATA ]
                 self.ELEMENTS['ZDD']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['ZDD']['data'] = [ x * 10000000 for x in self.ELEMENTS['ZDD']['data'] ] # convert from cm/s to nm/s
                 print "\tZDD: %s" % len(self.ELEMENTS['ZDD']['data'])
                 #self.ELEMENTS['ZDD']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
                 #self.ELEMENTS['ZDD']['data'].extend( [x * -1 for x in self.TEMPDATA ])
@@ -3281,6 +3269,7 @@ GREEN.1\n\
                 #self.ELEMENTS['XDD']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
                 self.ELEMENTS['XDD']['data'] = [0 for x in TEMPDATA ]
                 self.ELEMENTS['XDD']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['XDD']['data'] = [ x * 10000000 for x in self.ELEMENTS['XDD']['data'] ] # convert from cm/s to nm/s
                 print "\tXDD: %s" % len(self.ELEMENTS['XDD']['data'])
                 #self.ELEMENTS['XDD']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
                 #self.ELEMENTS['XDD']['data'].extend( [x for x in self.TEMPDATA ])
@@ -3292,6 +3281,7 @@ GREEN.1\n\
                 #self.ELEMENTS['ZDS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
                 self.ELEMENTS['ZDS']['data'] = [0 for x in TEMPDATA ]
                 self.ELEMENTS['ZDS']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['ZDS']['data'] = [ x * 10000000 for x in self.ELEMENTS['ZDS']['data'] ] # convert from cm/s to nm/s
                 print "\tZDS: %s" % len(self.ELEMENTS['ZDS']['data'])
                 #self.ELEMENTS['ZDS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
                 #self.ELEMENTS['ZDS']['data'].extend( [x for x in self.TEMPDATA ])
@@ -3303,6 +3293,7 @@ GREEN.1\n\
                 #self.ELEMENTS['XDS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
                 self.ELEMENTS['XDS']['data'] = [0 for x in TEMPDATA ]
                 self.ELEMENTS['XDS']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['XDS']['data'] = [ x * 10000000 for x in self.ELEMENTS['XDS']['data'] ] # convert from cm/s to nm/s
                 print "\tXDS: %s" % len(self.ELEMENTS['XDS']['data'])
                 #self.ELEMENTS['XDS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
                 #self.ELEMENTS['XDS']['data'].extend( [x * -1 for x in self.TEMPDATA ])
@@ -3314,6 +3305,7 @@ GREEN.1\n\
                 #self.ELEMENTS['TDS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
                 self.ELEMENTS['TDS']['data'] = [0 for x in TEMPDATA ]
                 self.ELEMENTS['TDS']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['TDS']['data'] = [ x * 10000000 for x in self.ELEMENTS['TDS']['data'] ] # convert from cm/s to nm/s
                 print "\tTDS: %s" % len(self.ELEMENTS['TDS']['data'])
                 #self.ELEMENTS['TDS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
                 #self.ELEMENTS['TDS']['data'].extend( [x for x in self.TEMPDATA ])
@@ -3325,6 +3317,7 @@ GREEN.1\n\
                 #self.ELEMENTS['ZSS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
                 self.ELEMENTS['ZSS']['data'] = [0 for x in TEMPDATA ]
                 self.ELEMENTS['ZSS']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['ZSS']['data'] = [ x * 10000000 for x in self.ELEMENTS['ZSS']['data'] ] # convert from cm/s to nm/s
                 print "\tZSS: %s" % len(self.ELEMENTS['ZSS']['data'])
                 #self.ELEMENTS['ZSS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
                 #self.ELEMENTS['ZSS']['data'].extend( [x * -1 for x in self.TEMPDATA ])
@@ -3336,6 +3329,7 @@ GREEN.1\n\
                 #self.ELEMENTS['XSS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
                 self.ELEMENTS['XSS']['data'] = [0 for x in TEMPDATA ]
                 self.ELEMENTS['XSS']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['XSS']['data'] = [ x * 10000000 for x in self.ELEMENTS['XSS']['data'] ] # convert from cm/s to nm/s
                 print "\tXSS: %s" % len(self.ELEMENTS['XSS']['data'])
                 #self.ELEMENTS['XSS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
                 #self.ELEMENTS['XSS']['data'].extend( [x for x in self.TEMPDATA ])
@@ -3347,6 +3341,7 @@ GREEN.1\n\
                 #self.ELEMENTS['TSS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
                 self.ELEMENTS['TSS']['data'] = [0 for x in TEMPDATA ]
                 self.ELEMENTS['TSS']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['TSS']['data'] = [ x * 10000000 for x in self.ELEMENTS['TSS']['data'] ] # convert from cm/s to nm/s
                 print "\tTSS: %s" % len(self.ELEMENTS['TSS']['data'])
                 #self.ELEMENTS['TSS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
                 #self.ELEMENTS['TSS']['data'].extend( [x * -1 for x in self.TEMPDATA ])
@@ -3358,6 +3353,7 @@ GREEN.1\n\
                 #self.ELEMENTS['REX']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
                 self.ELEMENTS['REX']['data'] = [0 for x in TEMPDATA ]
                 self.ELEMENTS['REX']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['REX']['data'] = [ x * 10000000 for x in self.ELEMENTS['REX']['data'] ] # convert from cm/s to nm/s
                 print "\tREX: %s" % len(self.ELEMENTS['REX']['data'])
                 #self.ELEMENTS['REX']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
                 #self.ELEMENTS['REX']['data'].extend( [x for x in self.TEMPDATA ])
@@ -3369,6 +3365,7 @@ GREEN.1\n\
                 #self.ELEMENTS['ZEX']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
                 self.ELEMENTS['ZEX']['data'] = [0 for x in TEMPDATA ]
                 self.ELEMENTS['ZEX']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['ZEX']['data'] = [ x * 10000000 for x in self.ELEMENTS['ZEX']['data'] ] # convert from cm/s to nm/s
                 print "\tZEX: %s" % len(self.ELEMENTS['ZEX']['data'])
                 #self.ELEMENTS['ZEX']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
                 #self.ELEMENTS['ZEX']['data'].extend( [x for x in self.TEMPDATA ])
@@ -3632,6 +3629,7 @@ GREEN.1\n\
                 raise SystemExit('Wrong name of element. (%s)\n'% i)
 #}}}
 
+#}}}
 
 """
 If we call this script directly, then output help.
