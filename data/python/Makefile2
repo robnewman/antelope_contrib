@@ -12,4 +12,4 @@ include $(ANTELOPEMAKELOCAL)
 
 SUBDIR= /local
 
-DIRS= Prepare interpreter template stock datascope orb Pkt
+DIRS= Prepare interpreter template stock datascope orb Pkt utilities
