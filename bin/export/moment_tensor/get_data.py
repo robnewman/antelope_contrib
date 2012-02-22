@@ -1,4 +1,4 @@
-from __main__ import *      # Get all the libraries from parent
+from __main__ import *      # _et all the libraries from parent
 
 class Event():
     # {{{
@@ -6,99 +6,190 @@ class Event():
     from the database and creating the plots.
     """
 
-    def __init__(self, orid, event_db, verbosity=0):
+    def __init__(self, chan_to_use, clip_values, verbose=False, debug=False):
 #{{{
         """Initialize"""
-        self.orid = orid
-        self.event_db = event_db
-        self.verbosity = verbosity
+        self.verbose = verbose
+        self.debug = debug
+        self.clip_values = clip_values
+        self.chan_to_use = chan_to_use
+
+        if self.debug: self.verbose = True
 #}}}
 
-    def extract_data(self, mag_filters):
-#{{{
+    def _log(self,message):
+    #{{{
+        """Global function to handle log output. Prints messages with a timestamp.  """
+
+        curtime = stock.epoch2str( time(), '%m/%d/%Y %H:%M:%S')
+        
+        print '%s dbmoment: \tEvent() => %s' % (curtime,message)
+    #}}}
+
+    def subset_event(self, orid, event_db, event_table, filters,select='',reject=''):
+    #{{{
         """Open event database and get 
         event data for given origin-id
         Returns event parameters or 
         exit when an error occurs
         """
-        if self.verbosity > 0:
-            logmt(1, 'Get canned view from database')
-        if not os.path.isfile(self.event_db):
-            logmt(3, 'Database (%s) does not exist' % self.event_db)
+
+        if self.debug: self._log('Get canned view from database')
+
+        self.orid = orid
+        self.event_db = event_db
+
+        if not os.path.isfile(event_db):
+            sys.exit('Database (%s) does not exist' % event_db)
+
+        # Open the database
         try:
-            evdb = datascope.dbopen(self.event_db, 'r')
+            evdb = datascope.dbopen(event_db, 'r')
         except Exception, e:
-            logmt(3, 'Could not open database (%s). Exception: %s' % (self.event_db, e))
+            sys.exit('Could not open database (%s). Exception: %s' % (event_db, e))
+
+        if event_table:
+            # For events from event table
+            if self.debug: self._log('open event table and join with origin ')
+            try:
+                evdb.lookup(table='event')
+                evdb.join('origin')
+            except Exception, e:
+                sys.exit('Could not open(event)/join(origin) for (%s). Exception: %s' % (event_db, e))
+
+            if self.debug: self._log('subset(event==%s' % orid)
+            try:
+                evdb.subset('evid == %s' % orid)
+            except Exception, e:
+                sys.exit('Could not subset(evid == %s). Exception: %s' % (orid, e))
+
+            if evdb.nrecs() == 0:
+                sys.exit('evid (%s) does not exist after join' % orid)
+
         else:
-            evdb.lookup(table='origin')
-            if self.verbosity > 0:
-                logmt(1, 'Processing origin #: %s' % self.orid)
-            evdb.subset('orid == %s' % self.orid)
+            # For events from origin table
+            if self.debug: self._log('open origin')
+            try:
+                if self.debug: self._log('open origin table')
+                evdb.lookup(table='origin')
+            except Exception, e:
+                sys.exit('Could not open(origin) for (%s). Exception: %s' % (event_db, e))
+
+            if self.debug: self._log('subset(orid==%s' % orid)
+            try:
+                evdb.subset('orid == %s' % orid)
+            except Exception, e:
+                sys.exit('Could not subset(orid == %s). Exception: %s' % (orid, e))
+
             if evdb.nrecs() == 0:
-                logmt(3, 'Orid (%s) does not exist in origin table' % self.orid)
+                sys.exit('Orid (%s) does not exist in origin table' % orid)
+
+        # Join with netmag table
+        if self.debug: self._log('join(netmag,outer=True)')
+        try: 
             evdb.join('netmag', outer=True)
-            if evdb.nrecs() == 0:
-                logmt(3, 'Could not join netmag table for orid (%s)' % self.orid)
-            elif evdb.nrecs() > 1:
-                logmt(1, 'More than one entry (%s) in the netmag table for orid (%s)' % (evdb.nrecs(), self.orid))
-                evdb[3] = 0 # Force to first record
-                magid = evdb.getv('magid') 
-                logmt(1, 'Subset to get unique entry. Using magid (%s).' % magid)
-                evdb.subset('magid == %d' % magid)
-            evdb[3] = 0 # Should only be one record now
-            evparams = {}
-            for f in evdb.query('dbTABLE_FIELDS'):
-                try: 
-                    evparams[f] = evdb.getv(f)[0]
-                except Exception, e:
-                    logmt(3, 'Could not find field (%s) in join of origin & netmag tables for orid %s. Exception: %s' % (f, self.orid, e))
+        except Exception, e:
+            sys.exit('Could not join(netmag,outer=True). Exception: %s' % e)
+
+        if evdb.nrecs() == 0:
+            sys.exit('Could not join netmag table for orid (%s)' % orid)
+
+        if evdb.nrecs() > 1:
+            self._log('More than one entry (%s) in the netmag table for orid (%s)' % (evdb.nrecs(), orid))
+            evdb[3] = 0 # Force to first record
+            magid = evdb.getv('magid') 
+            self._log('Subset to get unique entry. Using magid (%s).' % magid)
+            evdb.subset('magid == %d' % magid)
+
+        evdb[3] = 0 # Should only be one record now
+        self.evparams = {} # Prep variable
+
+        # Get all event data into evparams variable
+        for f in evdb.query('dbTABLE_FIELDS'):
+            try: 
+                self.evparams[f] = evdb.getv(f)[0]
+                if self.verbose: self._log('%s => %s' % (f,self.evparams[f]))
+            except Exception, e:
+                sys.exit('Could not find (%s) after origin netmag join for orid %s. Exception: %s' % (f,orid,e))
+
+        #save event time into special variable
+        self.event_time = self.evparams['time']
+
+        if self.debug: self._log('join(assoc,arrival,site), sort(delta), subset(iphase=~P)')
+        try:
             evdb.join('assoc')
             evdb.join('arrival')
             evdb.join('site')
             evdb.sort('delta')
             evdb.subset('iphase=~/.*P.*|.*p.*/')
-            '''
-            !!! NOTE: This is regional moment
-                      tensor. Will fail if stations
-                      are closer than 1 deg (clipping)
-                      or further away than 10 deg
-                      (teleseismic) to the event.
-                      RLN (2011-12-13)
-            '''
-            evdb.subset('delta >= 1 && delta < 10') # REGIONAL moment tensor,
-            if evdb.nrecs() == 0:
-                logmt(3, 'No arrivals for selected origin %s' % self.orid)
-            elif self.verbosity > 0:
-                logmt(1, 'There are %d records between 1 & 10 deg that match this origin arrival and iphase' % evdb.nrecs())
-            mag_filter_list = []
-            for line in mag_filters:
-                splitline = line.split()
-                if len(splitline) == 3:
-                    lower_magnitude, timepad, filter = splitline
-                    upper_magnitude = False
-                elif len(splitline) == 4:
-                    lower_magnitude, upper_magnitude, timepad, filter = splitline
-                else:
-                    logmt(3, 'Filter format not recognized')
-                mag_filter_list.append({'lowermag':lower_magnitude, 'uppermag':upper_magnitude, 'timepad':timepad, 'filter':filter})
-            for mfl in mag_filter_list:
-                if float(evparams['magnitude']) >= float(mfl['lowermag']) and float(evparams['magnitude']) < float(mfl['uppermag']):
-                    filter_string = (mfl['filter']).replace('_', ' ')
-                    filter_timepad = int(mfl['timepad'])
-            if not filter_string and not filter_timepad:
-                logmt(1, 'Magnitude %s not within magnitude bounds defined in the parameter file:' % evparams['magnitude'])
-                print mag_filter_list
-                logmt(3, '')
-            return evdb, evparams, filter_string, filter_timepad
-#}}}
+        except Exception, e:
+            sys.exit('in join (assoc,arrival,site) sort(delta), subset(iphase=~P). Exception: %s' % (f,orid,e))
 
-    def get_stations_and_orientations(self, dbptr):
-#{{{
-        """Return a list of 
-        all stations that
-        recorded the event.
-        Split into eight 
-        sections:
+        # select only stations listed on the -s flag at command-line
+        if select:
+            if self.debug: self._log('subset(sta =~ ==%s' % select)
+            try:
+                evdb.subset('sta =~ /%s/' % select)
+            except Exception, e:
+                sys.exit('Could not subset(sta =~/%s/). Exception: %s' % (select, e))
+
+        # reject all stations listed on the -r flag at command-line
+        if reject:
+            if self.debug: self._log('subset(sta !~ ==%s' % reject)
+            try:
+                evdb.subset('sta !~ /%s/' % reject)
+            except Exception, e:
+                sys.exit('Could not subset(sta !~/%s/). Exception: %s' % (reject, e))
+
+        '''
+        !!! NOTE: This is regional moment
+                    tensor. Will fail if stations
+                    are closer than 1 deg (clipping)
+                    or further away than 10 deg
+                    (teleseismic) to the event.
+                    RLN (2011-12-13)
+        '''
+        if self.debug: self._log('subset(delta>=1 && delta < 10)')
+        try:
+            evdb.subset('delta >= 1 && delta < 10') # REGIONAL moment tensor,
+        except Exception, e:
+            sys.exit('subset(delta>=1 && delta < 10). Exception: %s' % (f,orid,e))
+
+
+        if evdb.nrecs() == 0:
+            sys.exit('No arrivals for selected origin %s' % orid)
+
+        if self.verbose: self._log('%d records that match this origin arrival and iphase' % evdb.nrecs())
+
+        # Get magnitude filter options from pf values
+        if self.debug: self._log('Parse magnitude filters')
+        mag_filter_list = []
+
+        for line in filters:
+            if self.debug: self._log('Raw filter line [%s]' % line)
+            splitline = line.split()
+            # No upper limit for the last element
+            if len(splitline) == 2:
+                lower_magnitude, filter = splitline
+                upper_magnitude = 99
+            elif len(splitline) == 3:
+                lower_magnitude, upper_magnitude, filter = splitline
+            else:
+                sys.exit('Filter format in pf file not recognized [%s]' % filters)
+
+            mag_filter_list.append({'lowermag':lower_magnitude, 'uppermag':upper_magnitude, 'filter':filter})
+
+            for mfl in mag_filter_list:
+                if float(self.evparams['magnitude']) >= float(mfl['lowermag']) and float(self.evparams['magnitude']) < float(mfl['uppermag']):
+                    # Parse the filter string
+                    if self.debug: self._log('Parsed filter line [%s]' % mfl['filter'])
+                    self.filter_string = (mfl['filter']).replace('_', ' ')
+
+        if not self.filter_string:
+            sys.exit('Magnitude %s not within magnitude bounds defined in the parameter file:' % self.evparams['magnitude'])
+
+        """Build a list of all stations that
+        recorded the event. Split into eight sections:
 
                  0
              NNW | NNE
@@ -107,100 +198,136 @@ class Event():
            WSW / | \ ESE
              SSW | SSE  
                 180
+
         """
-        sta_list = {'NNE':[], 'ENE':[], 'ESE':[], 'SSE':[], 'SSW':[], 'WSW':[], 'WNW':[], 'NNW':[]}
-        for i in range(dbptr.nrecs()):
-            dbptr[3] = i
-            sta, esaz, depth, at, ev_lat, ev_lon, site_lat, site_lon = dbptr.getv('sta', 'esaz', 'depth', 'arrival.time', 'lat', 'lon', 'site.lat', 'site.lon')
-            distance_deg = dbptr.ex_eval('distance(%s, %s, %s, %s)' % (ev_lat, ev_lon, site_lat, site_lon))
-            distance_km = dbptr.ex_eval('deg2km(%s)' % (distance_deg))
+
+        self.sta_list = {'NNE':[], 'ENE':[], 'ESE':[], 'SSE':[], 'SSW':[], 'WSW':[], 'WNW':[], 'NNW':[]}
+        for i in range(evdb.nrecs()):
+            evdb[3] = i
+            sta, esaz, depth, at, ev_lat, ev_lon, site_lat, site_lon = evdb.getv('sta', 'esaz', 'depth', 'arrival.time', 'lat', 'lon', 'site.lat', 'site.lon')
+            distance_deg = evdb.ex_eval('distance(%s, %s, %s, %s)' % (ev_lat, ev_lon, site_lat, site_lon))
+            distance_km = evdb.ex_eval('deg2km(%s)' % (distance_deg))
             if esaz >= 0 and esaz < 45:
-                sta_list['NNE'].append((sta, esaz, depth, distance_km, at))
+                self.sta_list['NNE'].append((sta, esaz, depth, distance_km, at))
+                if self.debug: self._log('Add station NNE [%s]' % sta)
             elif esaz >= 45 and esaz < 90:
-                sta_list['ENE'].append((sta, esaz, depth, distance_km, at))
+                self.sta_list['ENE'].append((sta, esaz, depth, distance_km, at))
+                if self.debug: self._log('Add station ENE [%s]' % sta)
             elif esaz >= 90 and esaz < 135:
-                sta_list['ESE'].append((sta, esaz, depth, distance_km, at))
+                self.sta_list['ESE'].append((sta, esaz, depth, distance_km, at))
+                if self.debug: self._log('Add station ESE [%s]' % sta)
             elif esaz >= 135 and esaz < 180:
-                sta_list['SSE'].append((sta, esaz, depth, distance_km, at))
+                self.sta_list['SSE'].append((sta, esaz, depth, distance_km, at))
+                if self.debug: self._log('Add station SSE [%s]' % sta)
             elif esaz >= 180 and esaz < 225:
-                sta_list['SSW'].append((sta, esaz, depth, distance_km, at))
+                self.sta_list['SSW'].append((sta, esaz, depth, distance_km, at))
+                if self.debug: self._log('Add station SSW [%s]' % sta)
             elif esaz >= 225 and esaz < 270:
-                sta_list['WSW'].append((sta, esaz, depth, distance_km, at))
+                self.sta_list['WSW'].append((sta, esaz, depth, distance_km, at))
+                if self.debug: self._log('Add station WSW [%s]' % sta)
             elif esaz >= 270 and esaz < 315:
-                sta_list['WNW'].append((sta, esaz, depth, distance_km, at))
+                self.sta_list['WNW'].append((sta, esaz, depth, distance_km, at))
+                if self.debug: self._log('Add station WNW [%s]' % sta)
             elif esaz >= 315 and esaz <= 360:
-                sta_list['NNW'].append((sta, esaz, depth, distance_km, at))
-        return sta_list
-#}}}
+                self.sta_list['NNW'].append((sta, esaz, depth, distance_km, at))
+                if self.debug: self._log('Add station NNW [%s]' % sta)
 
-    def get_chan_data(self, wave_db, chan_to_use, esaz, at, filter_string, filter_timepad, stacode, size, clip_values):
+        evdb.close()
+
+        if len(self.sta_list): 
+            return True
+        else: 
+            return False
+    #}}}
+
+    def get_chan_data(self, wave_db,  esaz, at,  stacode, size):
 #{{{
-        """Opens waveform database and returns
-        trace objects based on sta_chan. Applies
-        calibration, splice, filter, decimation
-        and rotation of channels
-        !!! NOTE: To avoid filter transient problems
-                  we need to ensure we get a large enough
-                  record section prior to the P-arrival time,
-                  on the order of minutes (filter_timepad in secs). 
-                  Once we filter, then subset the trace object 
-                  to the window around the arrival time.
-                  RLN (2012-02-02)
-        """
-        clip_max = float(eval(clip_values['max']))
-        clip_min = float(eval(clip_values['min']))
+        """Opens waveform database and returns trace objects based on sta_chan. Applies
+        calibration, splice, filter, decimation and rotation of channels
+        !!! NOTE: 
+        To avoid filter transient problems we need to ensure we get a large enough
+        record section prior to the P-arrival time, on the order of minutes (size in secs). 
+        Once we filter, then subset the trace object to the window around the arrival time.
+        RLN (2012-02-02)
 
-        if self.verbosity > 0:
-            logmt(1, '  - Get channel data (trace objects) for station (%s)' % stacode)
-        '''
-        !!! NOTE: Start time and endtime need to be calculated using ptime 
-        Right now we are just getting size/2 either side of first arrival
-        Instead use arrival.time - should be the same thing. RLN (2011-11-29)
-        '''
+        """
+        clip_max = float(eval(self.clip_values['max']))
+        clip_min = float(eval(self.clip_values['min']))
+
+        if self.verbose: self._log('Get channel data (trace objects) for station (%s)' % stacode)
+
+        #'''
+        #!!! NOTE: Start time and endtime need to be calculated using ptime 
+        #Right now we are just getting size/2 either side of first arrival
+        #Instead use arrival.time - should be the same thing. RLN (2011-11-29)
+        #'''
+
         stachan_trace = {} # Holder dict for data
 
-        '''
-        !!! NOTE: Need to get a fresh view of 
-                  the wfdisc as subsetted for P 
-                  arrivals which are only done 
-                  on the BH.* channels.
-                  RLN (2011-11-29)
-        '''
+        #'''
+        #!!! NOTE: Need to get a fresh view of 
+        #          the wfdisc as subsetted for P 
+        #          arrivals which are only done 
+        #          on the BH.* channels.
+        #          RLN (2011-11-29)
+        #'''
+
+        # opend database
         try:
             wvdb = datascope.dbopen(wave_db, 'r')
         except Exception, e:
-            logmt(3, 'Could not open waveform database %s. Exception: %s' % (wave_db, e))
-            return False
-        else:
+            sys.exit('Could not open waveform database %s. Exception: %s' % (wave_db, e))
+
+        # subset for wfdisc and station
+        try: 
             wvdb.lookup(table='wfdisc')
             wvdb.subset('sta =~ /%s/' % stacode)
-            wvdb[3] = 0
-            '''
-            !!!! NOTE: Want maximium x3 the size 
-                       to account for timeshifts
-                       and add filter_timepad before
-                       RLN (2012-02-02)
-            st              p arr.time            et
-            | <---------------->*<----><----><---->|
-                filter_timepad
-            '''
-            st = at - filter_timepad
-            et = at + (size * 3) 
-            resample = 0
-            vang = 0
-            if self.verbosity > 0:
-                logmt(1, '    - Retrieve %s data with time range (%s, %s)' % (stacode, st, et))
-            wvdb.subset('sta=~/^%s$/ && chan=~/%s/' % (stacode, chan_to_use))
+        except Exception, e:
+            sys.exit('Could not subset wfdisc for %s [%s]' % (stacode, e))
+
+        wvdb[3] = 0
+
+        #'''
+        #!!!! NOTE: Want maximium x3 the size 
+        #            to account for timeshifts
+        #            and add size before
+        #            RLN (2012-02-02)
+        #st              p arr.time            et
+        #| <---------------->*<----><----><---->|
+        #    size
+        #'''
+
+        """ 
+
+        ***** OVERRIDE ***** 
+
+        Lets try using the event time.  
+
+        """
+        at = self.evparams['time']
+
+        st = at - size
+        et = at + size
+        resample = 0
+        vang = 0
+
+        try:
+            if self.verbose: self._log('Retrieve %s data with time range (%s, %s)' % (stacode, st, et))
+            wvdb.subset('sta=~/^%s$/ && chan=~/%s/' % (stacode, self.chan_to_use))
             trace = wvdb.load_css(st, et)
             trace.apply_calib()
             trace.splice() # Join all segments together
-            trace.filter(filter_string)
+            trace.filter(self.filter_string)
             rotchan = ('R', 'T', 'Z')
             trace.rotate(esaz, vang, rotchan)
             trace.subset('chan =~ /R|T|Z/')
-            if self.verbosity > 1:
-                logmt(1, '    - Number of traces for %s: %s' % (stacode, trace.nrecs()))
-            for j in range(trace.nrecs()):
+        except Exception, e:
+            sys.exit('Could not prepare data for %s:%s [%s]' % (stacode,self.chan_to_use, e))
+
+        if self.verbose: self._log('Number of traces for %s: %s' % (stacode, trace.nrecs()))
+
+        for j in range(trace.nrecs()):
+            try:
                 trace[3] = j
                 sta, chan, ns, sr = trace.getv('sta', 'chan', 'nsamp', 'samprate')
                 stachan = '%s_%s' % (sta, chan)
@@ -208,37 +335,48 @@ class Event():
                 ns_req = 0
                 filtered_samples = list(trace.data())
                 use_data = 0
+            except Exception, e:
+                sys.exit('Could not extract data for %s:%s [%s]' % (stacode,self.chan_to_use, e))
 
-                # {{{ Test for clipped data
-                '''
-                for i in filtered_samples:
-                    if i > clip_max:
-                        use_data = 1
-                    elif i < clip_min:
-                        use_data = -1
-                '''
-                # }}}
+            #  Test for clipped data
+            #for i in filtered_samples:
+            #    if i > clip_max:
+            #        use_data = 1
+            #    elif i < clip_min:
+            #        use_data = -1
+            # 
 
-                # if use_data == 1:
-                #     logmt(1, '    - %s: One or more samples > clip_values[max] (%s). IGNORE.' % (stachan, clip_values['max']))
-                # elif use_data == -1:
-                #     logmt(1, '    - %s: One or more samples < clip_values[min] (%s). IGNORE.' % (stachan, clip_values['min']))
-                # else:
-                #    '''
-                #    !!! NOTE: Get three times the size to 
-                #              allow for a positive time shift 
-                #              RLN (2011-12-06)
-                #    '''
-                max_size = int(size * 3) # Only works if 1Hz (1 sample per second, LH.*)
-                # max_size = int(size) # Only works if 1Hz (1 sample per second, LH.*)
-                if self.verbosity > 1 and len(filtered_samples) > max_size:
-                    logmt(1, '  - Sample size for %s: %s. Max: %s. Trimming.' % (chan, len(filtered_samples), max_size))
-                stachan_trace[chan] = filtered_samples[filter_timepad:max_size]  
-                if self.verbosity > 0:
-                    logmt(1, '    - Trace extracted for %s samples:[%s], wanted:[%s]' % (chan, len(stachan_trace[chan]), max_size))
-            trace.trdestroy()
-            wvdb.free()
-            wvdb.close()
+            # if use_data == 1:
+            #     self._log('    - %s: One or more samples > clip_values[max] (%s). IGNORE.' % (stachan, clip_values['max']))
+            # elif use_data == -1:
+            #     self._log('    - %s: One or more samples < clip_values[min] (%s). IGNORE.' % (stachan, clip_values['min']))
+            # else:
+            #    '''
+            #    !!! NOTE: Get three times the size to 
+            #              allow for a positive time shift 
+            #              RLN (2011-12-06)
+            #    '''
+
+
+            #max_size = int(size * 3) # Only works if 1Hz (1 sample per second, LH.*)
+
+            # max_size = int(size) # Only works if 1Hz (1 sample per second, LH.*)
+
+            #if self.verbose:
+            #    self._loge('Sample size for %s: %s. Max: %s. Trimming.' % (chan, len(filtered_samples), max_size))
+
+            #stachan_trace[chan] = filtered_samples[filter_timepad:max_size]  
+
+            stachan_trace[chan] = filtered_samples[size:-1]  
+            #if self.verbose:
+            #    self._log('    - Trace extracted for %s samples:[%s], wanted:[%s]' % (chan, len(stachan_trace[chan]), max_size))
+
+        trace.trdestroy()
+        wvdb.free()
+        wvdb.close()
+
+        if self.verbose: self._log('Got data for [%s]: %s elements' % (stacode, len(stachan_trace)))
+
         return stachan_trace
 #}}}
 
@@ -247,20 +385,20 @@ class Event():
         """Write out results to 
         database moment table
         """
-        if self.verbosity > 0:
-            logmt(1, 'Write out moment tensor for orid %s to database table %s.moment' % (self.orid, self.event_db))
-            logmt(1, ' - MT for orid %s strike => %s' % (self.orid, strike))
-            logmt(1, ' - MT for orid %s dip => %s' % (self.orid, dip))
-            logmt(1, ' - MT for orid %s rake => %s' % (self.orid, rake))
+        if self.verbose:
+            self._log('Write out moment tensor for orid %s to database table %s.moment' % (self.orid, self.event_db))
+            self._log(' - MT for orid %s strike => %s' % (self.orid, strike))
+            self._log(' - MT for orid %s dip => %s' % (self.orid, dip))
+            self._log(' - MT for orid %s rake => %s' % (self.orid, rake))
         moment_dbptr = datascope.dbopen(self.event_db, 'r+')
         try:
             moment_dbptr.lookup(table='moment')
         except Exception, e:
-            logmt(3, 'update_moment_tbl error: Error in lookup: %s' % e)
+            sys.exit('update_moment_tbl error: Error in lookup: %s' % e)
         else:
             orid_subset = datascope.dbsubset(moment_dbptr, 'orid == %s' % self.orid)
             if orid_subset.query('dbRECORD_COUNT') == 0:
-                logmt(1, 'Adding new moment tensor to moment table with orid (%s)' % self.orid)
+                self._log('Adding new moment tensor to moment table with orid (%s)' % self.orid)
                 try:
                     moment_dbptr.addv(
                         'orid', int(self.orid),
@@ -272,11 +410,11 @@ class Event():
                         'rake2', math.degrees(rake[1])
                     )
                 except Exception, e:
-                    logmt(3, 'Adding record to moment table unknown error: %s' % e)
+                    sys.exit('Adding record to moment table unknown error: %s' % e)
                 else:
-                    logmt(1, 'Successfully added record with orid (%s) to moment table' % self.orid)
+                    self._log('Successfully added record with orid (%s) to moment table' % self.orid)
             else:
-                logmt(1, 'Updating moment tensor to moment table with orid (%s). Deleting current record and rewriting.' % self.orid)
+                self._log('Updating moment tensor to moment table with orid (%s). Deleting current record and rewriting.' % self.orid)
                 for i in range(moment_dbptr.query('dbRECORD_COUNT')):
                     moment_dbptr[3] = i
                     try:
@@ -290,9 +428,9 @@ class Event():
                             'rake2', math.degrees(rake[1])
                         )
                     except Exception, e:
-                        logmt(3, 'Update record in moment table unknown error: %s' % e)
+                        sys.exit('Update record in moment table unknown error: %s' % e)
                     else:
-                        logmt(1, 'Successfully updated record with orid (%s) in moment table' % self.orid)
+                        self._log('Successfully updated record with orid (%s) in moment table' % self.orid)
             orid_subset.free()
             moment_dbptr.free()
             moment_dbptr.close()
@@ -304,16 +442,16 @@ class Event():
         """Write out focal mechanism
         to images directory
         """
-        if self.verbosity > 0:
-            logmt(1, 'Writing file to images dir (%s)' % mt_images_dir)
+        if self.verbose:
+            self._log('Writing file to images dir (%s)' % mt_images_dir)
 
         if not os.path.exists(mt_images_dir):
-            if self.verbosity > 0:
-                logmt(1, 'Images dir (%s) does not exist. Try to create...' % mt_images_dir)
+            if self.verbose:
+                self._log('Images dir (%s) does not exist. Try to create...' % mt_images_dir)
             try:
                 os.mkdir(mt_images_dir, 0775)
             except Exception, e:
-                logmt(3, 'Moment tensor images dir (%s) does not exist and cannot be created! Exception: %s' % (mt_images_dir, e))
+                sys.exit('Moment tensor images dir (%s) does not exist and cannot be created! Exception: %s' % (mt_images_dir, e))
 
         '''
         !!! NOTE: Focal mechanism can be 
@@ -334,8 +472,8 @@ class Event():
                                 matrix_M[1, 2]
                               ]
 
-        if self.verbosity > 0:
-            logmt(1, 'Try to plot focal mechanism: %s' % focal_mechanism)
+        if self.verbose:
+            self._log('Try to plot focal mechanism: %s' % focal_mechanism)
 
         beachball_vals = {}
         '''
@@ -357,21 +495,21 @@ class Event():
             'nofill': False, 
             'fig': None
         }
-        if self.verbosity > 1:
-            logmt(1, 'Beachball(): defaults %s' % beachball_defaults)
+        if self.verbose:
+            self._log('Beachball(): defaults %s' % beachball_defaults)
 
         # Test for defaults in the pf
         for k, v in beachball_defaults.iteritems():
             if not obspy_beachball[k]:
-                if self.verbosity > 1:
-                    logmt(1, 'write_results(): Beachball(): Setting default for %s' % k)
+                if self.verbose:
+                    self._log('write_results(): Beachball(): Setting default for %s' % k)
                 beachball_vals[k] = beachball_defaults[k]
             else:
-                if self.verbosity > 1:
-                    logmt(1, 'write_results(): Beachball(): Using pf defined value for %s' % k)
+                if self.verbose:
+                    self._log('write_results(): Beachball(): Using pf defined value for %s' % k)
                 beachball_vals[k] = obspy_beachball[k]
-            if self.verbosity > 1:
-                logmt(1, 'write_results(): Beachball(): Arg: %s, Val: %s' % (k, beachball_vals[k]))
+            if self.verbose:
+                self._log('write_results(): Beachball(): Arg: %s, Val: %s' % (k, beachball_vals[k]))
 
         my_outfile = '%s_focal_mechanism.%s' % (self.orid, beachball_vals['format'])
         my_outpath = '%s/%s' % (mt_images_dir, my_outfile)
@@ -392,11 +530,11 @@ class Event():
                 fig = beachball_vals['fig']
             )
         except Exception,e:
-            logmt(3, 'Error creating Beachball() %s: %s' % (Exception, e))
+            sys.exit('Error creating Beachball() %s: %s' % (Exception, e))
             return False
         else:
-            if self.verbosity > 0:
-                logmt(1, 'Successfully created focal mechanism image (%s)' % my_outpath)
+            if self.verbose:
+                self._log('Successfully created focal mechanism image (%s)' % my_outpath)
             return my_outpath
 #}}}
 
@@ -418,9 +556,9 @@ class Event():
         myz = matrix_M[1, 2]
         mzz = matrix_M[2, 2]
 
-        if self.verbosity > 0:
-            logmt(1, 'Calculating synthetics to plot (rotated) for orid: %s' % self.orid)
-            logmt(1, 'Size of synthetics: %s, Override size: %s' % (len(gg), size))
+        if self.verbose:
+            self._log('Calculating synthetics to plot (rotated) for orid: %s' % self.orid)
+            self._log('Size of synthetics: %s, Override size: %s' % (len(gg), size))
 
         syn_plot_dict = defaultdict(lambda: defaultdict(defaultdict))
         rotated_comps = ['T', 'R', 'Z']
@@ -428,11 +566,11 @@ class Event():
         for i, sta_tup in enumerate(ev2sta):
             sta = sta_tup[0]
             az = sta_tup[1]
-            if self.verbosity > 0:
-                logmt(1, ' - Determine plot synthetics for station (%s)' % sta)
+            if self.verbose:
+                self._log(' - Determine plot synthetics for station (%s)' % sta)
             for rc in rotated_comps:
-                if self.verbosity > 0:
-                    logmt(1, '  - Work on rotated channel (%s)' % rc)
+                if self.verbose:
+                    self._log('  - Work on rotated channel (%s)' % rc)
                 for j in range(size):
                     '''
                     !!! FIX: In Dreger's code there is a timeshift
@@ -478,8 +616,8 @@ class Event():
         for all the data
         """
         normalizer = max([abs(x) for x in data_as_list])
-        if self.verbosity > 1:
-            logmt(1, "  - Normalization factor: %s" % normalizer)
+        if self.verbose:
+            self._log("  - Normalization factor: %s" % normalizer)
         return normalizer
 #}}}
 
@@ -496,8 +634,8 @@ class Event():
         There are as many TRZ 
         plots as stations
         """
-        if self.verbosity > 0:
-            logmt(1, 'Create plots of data vs. synthetics')
+        if self.verbose:
+            self._log('Create plots of data vs. synthetics')
 
         # Init figure
         my_plot = plt.figure(figsize=(9, len(ev2sta)+0.5), dpi=100)
@@ -508,8 +646,8 @@ class Event():
         # The order is important!
         rotated_components = ('T', 'R', 'Z')
 
-        if self.verbosity > 1:
-            logmt(1, "Synthetics (Green's functions) used in calculations:")
+        if self.verbose:
+            self._log("Synthetics (Green's functions) used in calculations:")
             pprint(mod_gg)
 
         rows = len(ev2sta)
@@ -522,13 +660,13 @@ class Event():
 
         for i, tup in enumerate(ev2sta):
             s = tup[0]
-            if self.verbosity > 0:
-                logmt(1, 'Creating plots for station (%s)' % s)
+            if self.verbose:
+                self._log('Creating plots for station (%s)' % s)
             for j, rc in enumerate(rotated_components):
                 axis_num += 1
-                if self.verbosity > 0:
-                    logmt(1, ' - Processing (%s)' % rc)
-                    logmt(1, '  - ss[%s][%s], length:%s, timeshift: %s' % (i, rc, len(ss[i][rc]), ev2sta[i][3]))
+                if self.verbose:
+                    self._log(' - Processing (%s)' % rc)
+                    self._log('  - ss[%s][%s], length:%s, timeshift: %s' % (i, rc, len(ss[i][rc]), ev2sta[i][3]))
                 synthetic_vals = mod_gg[s][rc].values()
                 if ev2sta[i][3] < 0:
                     real_start = 0
@@ -544,18 +682,18 @@ class Event():
                 try:
                     data_scale_factor = self.normalize_coefficient(ss[i][rc][real_start:real_end])
                 except ValueError, e:
-                    logmt(1, '  *** create_data_synthetics_plot(): Error: %s' % e)
+                    self._log('  *** create_data_synthetics_plot(): Error: %s' % e)
                 else:
                     new_data_list = [(v/data_scale_factor) for v in ss[i][rc][real_start:real_end]]
 
                 try:
                     syn_scale_factor = self.normalize_coefficient(synthetic_list)
                 except ValueError, e:
-                    logmt(1, '  *** create_data_synthetics_plot(): Error: %s' % e)
+                    self._log('  *** create_data_synthetics_plot(): Error: %s' % e)
                 else:
                     new_synthetic_list = [(v/syn_scale_factor) for v in synthetic_list]
                 '''
-                if self.verbosity > 1:
+                if self.verbose:
                     print "\n\n  - NEW DATA LIST:"
                     pprint(new_data_list)
                     print "\n\n  - NEW SYNTHETICS LIST:"
@@ -568,10 +706,10 @@ class Event():
                     ax.set_ylabel(s, rotation='horizontal')
         syn_plot_outfile = '%s/%s_synthetics_fit.png' % (mt_images_dir, self.orid)
         my_plot.savefig(syn_plot_outfile)
-        if os.path.isfile(syn_plot_outfile) and self.verbosity > 0:
-            logmt(1, 'Successfully created data vs. synthetics plot (%s)' % syn_plot_outfile)
+        if os.path.isfile(syn_plot_outfile) and self.verbose:
+            self._log('Successfully created data vs. synthetics plot (%s)' % syn_plot_outfile)
         elif not os.path.isfile(syn_plot_outfile):
-            logmt(3, 'Error creating data vs. synthetics plot (%s)' % syn_plot_outfile)
+            sys.exit('Error creating data vs. synthetics plot (%s)' % syn_plot_outfile)
         return syn_plot_outfile
 #}}}
 
@@ -585,25 +723,26 @@ class Event():
 
         All PIL work
         """ 
-        if self.verbosity > 0:
-            logmt(1, 'Merging the image annotations, synthetics & focal mechanism plots together')
+        if self.verbose:
+            self._log('Merging the image annotations, synthetics & focal mechanism plots together')
 
         # Create composite image
-        size = (1400, 900)
+        #size = (1400, 900)
         white = (255, 255, 255, 255)
         try:
             myfont = ImageFont.truetype(ttfont, 20)
         except IOError as e:
-            logmt(3, 'Error importing font: %s' % e)
+            sys.exit('Error importing font: %s' % e)
 
         final_file = '%s.png' % self.orid
         path_to_file = '%s/%s' % (mt_images_dir, final_file)
         syn_img = Image.open(synthetics_img, 'r')
         fm_img = Image.open(focalmech_img, 'r')
-        fm_position = (size[0] - (fm_img.size)[0] - 50, size[1] - (fm_img.size)[1] - 50)
 
+        size = (1400, syn_img.size[1])
         composite = Image.new('RGBA', size, white)
         composite.paste(syn_img, (10, 10))
+        fm_position = (size[0] - (fm_img.size)[0] - 50, syn_img.size[1] - (fm_img.size)[1] - 50)
         composite.paste(fm_img, fm_position)
 
         draw = ImageDraw.Draw(composite)
@@ -618,38 +757,38 @@ class Event():
         try:
             composite.save(path_to_file, 'PNG')
         except IOError as e:
-            logmt(3, 'Cannot save file (%s). Error: %s' % (final_file, e))
+            sys.exit('Cannot save file (%s). Error: %s' % (final_file, e))
         else:
             # Update the database table
             try:
                 mtimages_dbptr = datascope.dbopen(self.event_db, 'r+')
                 mtimages_dbptr.lookup(table='moment_tensor_images')
             except Exception, e:
-                logmt(3, "Cannot open table 'moment_tensor_images'. Do you have the schema extension correctly installed? Error: %s" % e)
+                sys.exit("Cannot open table 'moment_tensor_images'. Do you have the schema extension correctly installed? Error: %s" % e)
 
             try:
                 mtimages_dbptr.subset('orid == %s' % self.orid)
                 records = mtimages_dbptr.query('dbRECORD_COUNT')
-                logmt(1, 'Subset moment_tensor_images table for orid == %s => [%s]' % (self.orid,records))
+                self._log('Subset moment_tensor_images table for orid == %s => [%s]' % (self.orid,records))
             except Exception,e:
-                logmt(1, 'Subset moment_tensor_images table for orid == %s :  %s=>[%s]' % (self.orid,Exception,e))
+                self._log('Subset moment_tensor_images table for orid == %s :  %s=>[%s]' % (self.orid,Exception,e))
                 records = 0
 
             if not records:
-                logmt(1, 'Adding new focal mechanism to moment_tensor_images table with orid (%s)[%s,%s,%s,%s]' % (self.orid,'test',int(self.orid),mt_images_dir,final_file))
+                self._log('Adding new focal mechanism to moment_tensor_images table with orid (%s)[%s,%s,%s,%s]' % (self.orid,'test',int(self.orid),mt_images_dir,final_file))
                 try:
                     mtimages_dbptr.addv(
                         'sta', 'test',
                         'orid', int(self.orid),
                         'dir', mt_images_dir,
                         'dfile', final_file )
-                    logmt(1, 'Successfully added record with orid (%s) to moment_tensor_images table' % self.orid)
+                    self._log('Successfully added record with orid (%s) to moment_tensor_images table' % self.orid)
 
                 except Exception, e:
-                    logmt(3, 'Adding record to moment_tensor_images table unknown error: %s=>[%s]' % (Exception,e))
+                    sys.exit('Adding record to moment_tensor_images table unknown error: %s=>[%s]' % (Exception,e))
 
             else:
-                logmt(1, 'Updating focal mechanism to moment_tensor_images table with orid (%s). Deleting current record and rewriting.' % self.orid)
+                self._log('Updating focal mechanism to moment_tensor_images table with orid (%s). Deleting current record and rewriting.' % self.orid)
                 for i in range(records):
                     mtimages_dbptr[3] = i
                     try:
@@ -658,13 +797,37 @@ class Event():
                             'orid', int(self.orid),
                             'dir', mt_images_dir,
                             'dfile', final_file)
-                        logmt(1, 'Successfully updated record with orid (%s) to moment_tensor_images table' % self.orid)
+                        self._log('Successfully updated record with orid (%s) to moment_tensor_images table' % self.orid)
                     except Exception, e:
-                        logmt(3, 'Update record in moment_tensor_images table unknown error: %s' % e)
+                        sys.exit('Update record in moment_tensor_images table unknown error: %s' % e)
 
             mtimages_dbptr.close()
 
         return True
+#}}}
+
+    def __getitem__(self,i):
+#{{{
+        try:
+            return self.i
+        except:
+            sys.exit('Event() => Wrong name of called element. [%s]\n'% i)
+#}}}
+
+    def __call__(self,i):
+#{{{
+        try:
+            return self.i
+        except:
+            sys.exit('Event() => Wrong name of called element. [%s]\n'% i)
+#}}}
+
+    def __getattr__(self,i):
+#{{{
+        try:
+            return self.i
+        except:
+            sys.exit('Event() => Wrong name of called element. [%s]\n'% i)
 #}}}
 
     # }}}

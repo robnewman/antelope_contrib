@@ -47,7 +47,6 @@ use_inc 0
 
 # Event database
 event_db db/mt
-#event_db demo/de
 
 # Waveform database, defaults to event_db
 #wave_db  
@@ -55,17 +54,14 @@ event_db db/mt
 # Response database, defaults to event_db
 #resp_db demo/resp  
 
-# Green's functions database
-#green_db /Users/rt/rtsystems/greens/db/green
-
 # magnitude range vs filters
 mag_filters &Tbl{
-#   lowermag    highermag    timepad    filter
-    2.0    4.0    120    BW_0.02_5_0.10_5
-    4.0    5.0    120    BW_0.02_5_0.05_5
-    5.0    6.0    120    BW_0.01_5_0.05_5
-    6.0    7.0    120    BW_0.01_5_0.07_5
-    7.0           120    BW_0.01_5_0.07_5
+#   lowermag    highermag    filter
+    2.0    4.0    BW_0.01_5_0.02_5
+    4.0    5.0    BW_0.01_5_0.02_5
+    5.0    6.0    BW_0.01_5_0.02_5
+    6.0    7.0    BW_0.01_5_0.02_5
+    7.0           BW_0.01_5_0.02_5
 }
 
 # moment tensor images directory

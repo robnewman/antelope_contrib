@@ -54,20 +54,21 @@ Build object for GFs.
 if verbose: print 'Load lib: GreenFunctions(%s)' % pf_file
 GF =  fkr.GreenFunctions(pf_file,verbose)
 
-"""
-Generate GFs for depth of 8km and distance of 10km.
-"""
-if verbose: print 'generate(depth=%s,distance=%s)' % (8,10)
-GF.build(depth=8,distance=10,sps=1,type='v',filter='BW 0.01 5 0.05 5')
+#"""
+#Generate GFs for depth of 8km and distance of 10km.
+#"""
+#if verbose: print 'generate(depth=%s,distance=%s)' % (8,10)
+#GF.build(depth=8,distance=10,sps=1,type='v',filter='BW 0.01 5 0.05 5')
 
-"""
-Plot the GFs
-"""
-if verbose: print 'plot()'
-GF.plot()
+#"""
+#Plot the GFs
+#"""
+#if verbose: print 'plot()'
+#GF.plot()
 
 if verbose: print 'generate(depth=%s,distance=%s)' % (8,10)
-GF.build(depth=30,distance=200,sps=1,type='v',filter='BW 0.01 5 0.05 5')
+#GF.build(depth=30,distance=200,sps=1,type='v',filter='BW 0.01 5 0.05 5')
+GF.build(depth=5,distance=190,sps=1,type='v',filter='BW 0.01 5 0.05 5')
 
 """
 Plot the GFs
