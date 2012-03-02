@@ -1,11 +1,26 @@
+import os
+import re
+import sys
 import getopt
-import moment_tensor.fkrprog as fkr
+from collections import defaultdict
+
+# ANTELOPE
 try:
     import antelope.stock as stock
+    import antelope.datascope as datascope
 except Exception,e:
-    print  "Import Error: Cannot import Antelope's stock lib."
-    exit()
+    sys.exit("Antelope Import Error: [%s] => [%s]" % (Exception,e))
 
+# Needed for fkrprog.py
+from scipy.integrate import cumtrapz
+from numpy.fft  import ifft
+import matplotlib.pyplot as plt
+from math import exp, log, sqrt, acos, asin, cos, sin
+from cmath import log as clog
+from cmath import sqrt as csqrt
+from cmath import exp as cexp
+
+import moment_tensor.fkrprog as fkr
 
 """
 Get all information from command line 
@@ -39,23 +54,21 @@ Build object for GFs.
 if verbose: print 'Load lib: GreenFunctions(%s)' % pf_file
 GF =  fkr.GreenFunctions(pf_file,verbose)
 
-"""
-Generate GFs for depth of 8km and distance of 10km.
-"""
+#"""
+#Generate GFs for depth of 8km and distance of 10km.
+#"""
+#if verbose: print 'generate(depth=%s,distance=%s)' % (8,10)
+#GF.build(depth=8,distance=10,sps=1,type='v',filter='BW 0.01 5 0.05 5')
+
+#"""
+#Plot the GFs
+#"""
+#if verbose: print 'plot()'
+#GF.plot()
+
 if verbose: print 'generate(depth=%s,distance=%s)' % (8,10)
-GF.build(depth=8,distance=10)
-
-"""
-Plot the GFs
-"""
-if verbose: print 'plot()'
-GF.plot()
-
-"""
-Generate GFs for depth of 25 and distance of 20km.
-"""
-if verbose: print 'generate(depth=%s,distance=%s)' % (25,20)
-GF.build(depth=25,distance=20)
+#GF.build(depth=30,distance=200,sps=1,type='v',filter='BW 0.01 5 0.05 5')
+GF.build(depth=5,distance=190,sps=1,type='v',filter='BW 0.01 5 0.05 5')
 
 """
 Plot the GFs

@@ -1,21 +1,8 @@
-import os
-import sys
-import re
-import getopt
-#from scipy.signal import decimate
-from scipy.integrate import cumtrapz
-from numpy.fft  import ifft
-from collections import defaultdict
-import matplotlib.pyplot as plt
-from math import exp, log, sqrt, acos, asin, cos, sin
-from cmath import log as clog
-from cmath import sqrt as csqrt
-from cmath import exp as cexp
-import antelope.stock as stock
-import antelope.datascope as datascope
+from __main__ import *      # Get all the libraries from parent
 
 
 class GreenFunctions():
+#{{{
     """ 
       FREQUENCY WAVENUMBER-INTEGRATION PROGRAM.
 
@@ -45,8 +32,6 @@ class GreenFunctions():
     """
     def __init__(self,model,verbose=False):
 #{{{
-        print '\n\n\t**** GreenFunctions(): decimation function NOT WORKING *****\n'
-
         self.verbose = verbose
         self.pf = model
 
@@ -58,7 +43,7 @@ class GreenFunctions():
         self.ELEMENTS = defaultdict(dict)
 
 
-        if self.verbose: print "GreenFunctions(): init(%s)" % model
+        if self.verbose: self._log("  init(%s)" % model)
 
         """ Read configuration from parameter file self.pf """
         self._read_pf()
@@ -72,9 +57,21 @@ class GreenFunctions():
         db.close()
 
         if self.verbose: 
-            print "GreenFunctions(): Using database [%s]" % os.path.normpath(self.gf_db_path + '/' + self.gf_db + '.wfdisc')
+            self._log("  Using database [%s]" % os.path.normpath(self.gf_db_path + '/' + self.gf_db + '.wfdisc'))
 
 #}}}
+
+
+    def _log(self,message):
+    #{{{
+        """Global function to handle log output. Prints messages with a timestamp.  """
+
+        curtime = stock.epoch2str( time(), '%m/%d/%Y %H:%M:%S')
+            
+        print '%s dbmoment: \tGreenFunction() => %s' % (curtime,message)
+    #}}}
+
+
 
     def _open_db(self):
 #{{{
@@ -99,7 +96,7 @@ class GreenFunctions():
         if not os.path.exists(self.gf_db_path):
             raise SystemExit('\n\nERROR: GreenFunctions(): Cannot find direcotry (%s)\n\n' % self.gf_db_path)
 
-        if self.verbose: print "GreenFunctions(): Open database: %s %s\n" % (self.gf_db_path,self.gf_db)
+        if self.verbose: self._log("  Open database: %s/%s\n" % (self.gf_db_path,self.gf_db))
 
         """ Open database and keep pointer in db object"""
         try: 
@@ -127,9 +124,13 @@ class GreenFunctions():
         self.DEPTH = depth
         self.DISTANCE = distance
         self.IVEL = type
+        if self.verbose: self._log("  build(%s,%s,%s,%s,%s)" % (depth,distance,sps,type,filter))
 
+        if self.verbose: self._log("  Get from database.")
         if not self._get_from_db(depth,distance,sps,type,filter): 
+            if self.verbose: self._log("  Not in database. Generate new.")
             self._generate(depth,distance)
+            if self.verbose: self._log("  Get from database.")
             self._get_from_db(depth,distance,sps,type,filter)
 
 #}}}
@@ -236,16 +237,16 @@ class GreenFunctions():
 
         if self.verbose:
             for I in range(len(self.D)):
-                print "%s: %s\t%s\t%s\t%s\t%s\t%s" % (self.LMAX,self.D[I],self.A[I],self.B[I],self.RHO[I],self.QA[I],self.QB[I])
+                self._log("%s: %s\t%s\t%s\t%s\t%s\t%s" % (self.LMAX,self.D[I],self.A[I],self.B[I],self.RHO[I],self.QA[I],self.QB[I]))
 
         
-        if self.verbose: print "LMAX => %s" % self.LMAX
+        if self.verbose: self._log("LMAX => %s" % self.LMAX)
 
         self.MMAX = len(self.D) - 1
-        if self.verbose: print "MMAX => %s" % self.MMAX
+        if self.verbose: self._log("MMAX => %s" % self.MMAX)
 
-        if self.verbose: print "DEPTH => %s" % self.DEPTH
-        if self.verbose: print "RANGE => %s" % self.DISTANCE
+        if self.verbose: self._log("DEPTH => %s" % self.DEPTH)
+        if self.verbose: self._log("RANGE => %s" % self.DISTANCE)
 
         self._setup_vars()
 
@@ -257,6 +258,21 @@ class GreenFunctions():
 
     def _generate(self,depth,distance,type='v'):
 #{{{
+
+        if self.verbose: self._log("generate(%s,%s,%s)" %(depth,distance,type))
+        try:
+            os.remove('./.greens_funcs')
+            os.remove('./GREEN.1')
+            os.remove('./junk')
+        except:
+            pass
+
+        #
+        # Build model
+        # output new model to ./greens_funcs 
+        #
+#{{{
+
         self.IVEL = type
         self.DEPTH = depth
         self.DISTANCE = distance
@@ -264,7 +280,8 @@ class GreenFunctions():
         self.DF = 1 / (self.N * (1/self.DT))
         self.FU = (self.NYQ - 1) * self.DF
         self.TLEN = self.N * (1/self.DT)
-        self.ALPHA = -log(self.DECAY) / self.TLEN
+        #self.ALPHA = -log(self.DECAY) / self.TLEN
+        if self.verbose: self._log("Build new model.")
 
         """
         Build new layers on earth model.
@@ -284,6 +301,7 @@ class GreenFunctions():
         self.QA  = defaultdict(int)
         self.QB  = defaultdict(int)
 
+        if self.verbose: self._log("Setup vars.")
         d = 0
         delta = 0
         for y in range(len(tempD)):
@@ -363,21 +381,21 @@ class GreenFunctions():
                 d += tempD[y]
 
         """
-        Print new layers and other params.
+        self._log(new layers and other params.)
         """
 
-        if self.verbose:
-            for I in range(len(self.D)):
-                print "%s: %s\t%s\t%s\t%s\t%s\t%s" % (self.LMAX,self.D[I],self.A[I],self.B[I],self.RHO[I],self.QA[I],self.QB[I])
+        #if self.verbose:
+        #    for I in range(len(self.D)):
+        #        self._log("%s: %s\t%s\t%s\t%s\t%s\t%s" % (self.LMAX,self.D[I],self.A[I],self.B[I],self.RHO[I],self.QA[I],self.QB[I]))
 
         
-        if self.verbose: print "LMAX => %s" % self.LMAX
+        if self.verbose: self._log("LMAX => %s" % self.LMAX)
 
         self.MMAX = len(self.D) - 1
-        if self.verbose: print "MMAX => %s" % self.MMAX
+        if self.verbose: self._log("MMAX => %s" % self.MMAX)
 
-        if self.verbose: print "DEPTH => %s" % self.DEPTH
-        if self.verbose: print "RANGE => %s" % self.DISTANCE
+        if self.verbose: self._log("DEPTH => %s" % self.DEPTH)
+        if self.verbose: self._log("RANGE => %s" % self.DISTANCE)
 
 
         fortran_gg = defaultdict(lambda: defaultdict(dict))
@@ -406,11 +424,20 @@ class GreenFunctions():
             f.close()
         except Exception,e:
             raise SystemExit('\n\nERROR: Cannot open temp file .greens_funcs %s %s\n'% (Exception,e))
+#}}}
 
-        print model
-        if self.verbose: print 'Running: fortran_fkrprog < ./greens_func'
+        self._log("\n%s" % model)
+        if self.verbose: self._log('Running: fortran_fkrprog < ./greens_func')
         p = os.popen('fortran_fkrprog < ./.greens_funcs',"r")
+        while 1:
+            line = p.readline()
+            self._log(line)
+            if not line: break
 
+        p.close()
+
+        if self.verbose: self._log('Running: wvint9')
+        p = os.popen('wvint9',"r")
         while 1:
             line = p.readline()
             line = line.strip('\n')
@@ -419,38 +446,25 @@ class GreenFunctions():
             if not line: break
 
             if re.match("GG",line):
-                m = re.match("GG\[(\d+)\]\[(\d+)\]\[(\d+)\]=(.+)",line)
+                m = re.match("GG\[(\d+)\]\[(\d+)\]=(.+)",line)
                 if not m: continue
-                fortran_gg[m.group(2)][m.group(3)][m.group(1)]= eval(m.group(4))
-                #print "fortran_gg[%s][%s][%s] = %s" % (m.group(2),m.group(3),m.group(1),fortran_gg[m.group(2)][m.group(3)][m.group(1)])
-            elif re.match(".*OMEGA",line):
-                m = re.match(".*\((.+)\)",line)
-                if not m: continue
-                self.ALLOMEGA.append(m.group(1))
-                #print "OMEGA: %s" % m.group(1)
-
+                l = int(m.group(1))-1
+                n = int(m.group(2))-1
+                self.DATA[l][n]= eval(m.group(3))
+                self._log("DATA[%s][%s] = %s" % (l,n,m.group(3)))
             else: 
-                if self.verbose: print "ERROR ** no match ** : %s" % line
+                if self.verbose: self._log("ERROR ** no match ** : %s" % line)
 
-        for A in fortran_gg.keys():
-            self.DATA[A] = {}
-            for J in fortran_gg[A].keys():
-                index = [ int(x) for x in fortran_gg[A][J].keys() ]
-                for L in sorted(index):
-                    s_l = str(L)
-                    # A will only be 1.... one set
-                    # J will go from 1-10.... each element
-                    #L will go from 1 to max freq.
-                    #print "\t%s => %s" % (L,fortran_gg[A][J][s_l])
-                    if self.verbose: print "GG[%s][%s][%s] => %s" % (A,J,L,fortran_gg[A][J][s_l])
-                    self.DATA[int(s_l)-1][int(J)-1] = fortran_gg[A][J][s_l]
+        p.close()
 
         try:
             os.remove('./.greens_funcs')
+            os.remove('./GREEN.1')
+            os.remove('./junk')
         except:
             pass
 
-        self._wvint9()
+        self._reformat()
 
 #}}}
 
@@ -507,11 +521,11 @@ class GreenFunctions():
                     raise SystemExit('\n\nERROR: GreenFunctions(): Problems while extracting from database %s: %s\n\n' % (Exception,e))
 
                 if self.verbose:
-                    print 'GreenFunctions(): getv()=> ',db_sta,db_chan,db_nsamp,db_time,db_endtime,db_samprate
+                    self._log('GreenFunctions(): getv()=> (%s,%s,%s,%s,%s,%s)'%(db_sta,db_chan,db_nsamp,db_time,db_endtime,db_samprate))
 
                 """ Get steps needed to get to new samplerate. """
                 decimate_files = self._decimate_file(db_samprate,sps)
-                if self.verbose: print 'GreenFunctions(): decimate factor [%s] file [%s]' % ( db_samprate/sps,decimate_files)
+                if self.verbose: self._log('GreenFunctions(): decimate factor [%s] file [%s]' % ( db_samprate/sps,decimate_files))
 
                 """ Extract the elemnt name from the channel text. """
                 try:
@@ -529,9 +543,9 @@ class GreenFunctions():
 
                 # With TRACEOBJECTS
                 try:
-                    if self.verbose: print 'GreenFunctions(): trloadchan(%s,%s,%s,%s)' % (db_time,db_endtime,db_sta,db_chan)
+                    if self.verbose: self._log('GreenFunctions(): trloadchan(%s,%s,%s,%s)' % (db_time,db_endtime,db_sta,db_chan))
                     tr = datascope.trloadchan(db,db_time,db_endtime,db_sta,db_chan)
-                    if self.verbose: print 'GreenFunctions(): tr.slice()'
+                    if self.verbose: self._log('GreenFunctions(): tr.slice()')
                     tr.splice()
                 except Exception,e:
                     raise SystemExit('\n\nERROR: GreenFunctions(): trace object %s: %s\n\n' % (Exception,e))
@@ -539,7 +553,7 @@ class GreenFunctions():
                 try:
                     # integrate data
                     if type == 'D' or type == 'd':
-                        if self.verbose: print 'GreenFunctions(): integrate for velocity()'
+                        if self.verbose: self._log('GreenFunctions(): integrate for velocity()')
                         tr.filter('INT')
                 except Exception,e:
                     raise SystemExit('\n\nERROR: GreenFunctions(): integrate %s: %s\n\n' % (Exception,e))
@@ -547,19 +561,36 @@ class GreenFunctions():
                 try:
                     # filter data
                     if filter:
-                        if self.verbose: print 'GreenFunctions(): filter(%s)' % filter
+                        if self.verbose: self._log('GreenFunctions(): filter(%s)' % filter)
                         tr.filter(filter)
                 except Exception,e:
                     raise SystemExit('\n\nERROR: GreenFunctions(): filter %s: %s\n\n' % (Exception,e))
+
+
+                #
+                # TEST DECIMATION
+                #
+                #tr[3] = 0
+                #x =  tr.data()
+                #plt.plot(x[1000:1200])
+
 
                 try:
                     # decimate data
                     for f in decimate_files:
                         full_path = os.environ['ANTELOPE'] + '/data/responses/' + f
-                        if self.verbose: print 'GreenFunctions(): filter(DECIMATE %s)' % full_path
+                        if self.verbose: self._log('GreenFunctions(): filter(DECIMATE %s)' % full_path)
                         tr.filter('DECIMATE %s' % full_path)
                 except Exception,e:
                     raise SystemExit('\n\nERROR: GreenFunctions(): decimate %s: %s\n\n' % (Exception,e))
+
+                #tr[3] = 0
+                #y =  tr.data()
+                #plt.plot(y[500:700])
+                #plt.legend(['original','decimated'])
+
+                #plt.suptitle("Green Functions: ")
+                #plt.show()
 
                 try:
                     tr[3] = 0
@@ -572,14 +603,13 @@ class GreenFunctions():
                 except:
                     pass
 
-                self.ELEMENTS[comp]['data'] = self.ELEMENTS[comp]['data'][int(len(self.ELEMENTS[comp]['data'])/2):-1]
-
+                self.ELEMENTS[comp]['data'] = self.ELEMENTS[comp]['data'][int(len(self.ELEMENTS[comp]['data'])/2):-1] 
 
                 if not self.ELEMENTS[comp]['data']:
                     raise SystemExit('\n\nERROR: GreenFunctions(): Cannot build component [%s]: %s_%s\n\n' % (m.group(1),db_sta,db_chan))
 
         else:
-            print "\n\nERROR: GreenFunctions(): ERROR: No records for subset [sta =~ /%s/ && chan =~ /%s/].\n\n" % (distance,depth)
+            self._log("\n\nERROR: GreenFunctions(): ERROR: No records for subset [sta =~ /%s/ && chan =~ /%s/].\n\n" % (distance,depth))
             return False
 
         try:
@@ -639,6 +669,8 @@ class GreenFunctions():
         dbpath = os.path.relpath(path, self.gf_db_path)
 
         for element in sorted(self.ELEMENTS.keys()):
+
+            #self._log('%s' % self.ELEMENTS[element])
             if self.ELEMENTS[element]['data']:
                 sta = '%s' % self.DISTANCE
                 chan_loc = '%s_%s' % (self.DEPTH,element)
@@ -654,13 +686,13 @@ class GreenFunctions():
                     raise SystemExit('\n\nERROR: Cannot add to file [%s] => %s\n'% (Exception,e))
 
                 if self.verbose:
-                    print 'Add new record to wfdisc table:'
-                    print '\tsta=',sta,'chan=',chan_loc,'time=',1.00,'endtime=',endtime
-                    print '\tnsamp=',nsamp,'samprate=',samprate,'calib=',1,'datatype=','as'
-                    print '\tsegtype=','c','dir=',dbpath,'dfile=',dfile,'foff=',start
+                    self._log('Add new record to wfdisc table: (%s,%s,%s,%s,%s,%s)' % (sta,chan_loc,nsamp,samprate,endtime,start))
+                    #self._log('\tsta=',sta,'chan=',chan_loc,'time=',1.00,'endtime=',endtime)
+                    #self._log('\tnsamp=',nsamp,'samprate=',samprate,'calib=',1,'datatype=','as')
+                    #self._log('\tsegtype=','c','dir=',dbpath,'dfile=',dfile,'foff=',start)
 
                 try:
-                    db.addv('sta',sta,'chan',chan_loc,'time',1.00,'endtime',endtime,'nsamp',nsamp,'samprate',samprate,'calib',1,'datatype','as','segtype','c','dir',dbpath,'dfile',dfile,'foff',start)
+                    db.addv('sta',sta,'chan',chan_loc,'time',1.00,'endtime',endtime,'nsamp',nsamp,'samprate',samprate,'calib',1,'datatype','as','segtype','V','dir',dbpath,'dfile',dfile,'foff',start)
                 except Exception,e:
                     raise SystemExit('\n\nERROR: Cannot add new line [%s] %s %s\n'% (element,Exception,e))
 
@@ -725,7 +757,7 @@ class GreenFunctions():
         #        try:
         #            self.ELEMENTS[comp]['data'] = db.sample(db_time,db_endtime,db_sta,db_chan,False,filter)
         #        except Exception,e:
-        #            print '\n %s = db.sample(%s,%s,%s,%s) => %s: %s\n' % (m.group(1),db_time,db_endtime,db_sta,db_chan,Exception,e) 
+        #            self._log('\n %s = db.sample(%s,%s,%s,%s) => %s: %s\n' % (m.group(1),db_time,db_endtime,db_sta,db_chan,Exception,e) )
         #            raise SystemExit('\n\nERROR: GreenFunctions(): Problems while extracting trace object %s: %s\n\n' % (Exception,e))
 
 
@@ -733,7 +765,7 @@ class GreenFunctions():
         #            raise SystemExit('\n\nERROR: GreenFunctions(): Cannot build component [%s]: %s_%s\n\n' % (m.group(1),db_sta,db_chan))
 
         #else:
-        #    print "\n\nERROR: GreenFunctions(): ERROR: No records for subset [sta =~ /%s/ && chan =~ /%s/].\n\n" % (distance,depth)
+        #    self._log("\n\nERROR: GreenFunctions(): ERROR: No records for subset [sta =~ /%s/ && chan =~ /%s/].\n\n" % (distance,depth))
         #    return False
 
         #return True
@@ -803,13 +835,13 @@ class GreenFunctions():
         return ".F.\n\
     0   64\n\
 GREEN.1\n\
-    6.0      %2.2f      1  512 1024   %0.2f     %2d    1\n\
+    6.0      %05.2f      1  512 1024    %03.1f      %2d    1\n\
     1    1    1    1    1    1    1    1    1    1    0\n\
 %s\
     %d\n\
   0.4000000E+03  1.500000E+00         0\n\
-    1   10000.0     30.0      2.9       2.5\n\
-  %4f        0.0      10.0\n"
+    1  10000.0     30.0      2.9       2.5\n\
+  %03.1f        0.0      10.0\n"
     #}}}
 
     def _read_pf(self):
@@ -823,7 +855,7 @@ GREEN.1\n\
         #
         # Read data from file
         #
-        if self.verbose: print "Read PF file: %s.pf" % self.pf
+        if self.verbose: self._log("Read PF file: %s.pf" % self.pf)
 
         try:
             self.gf_db = stock.pfget_string(self.pf,'database')
@@ -840,13 +872,13 @@ GREEN.1\n\
         except Exception,e: 
             raise SystemExit('\n\nWrong Format of PF file[%s]. %s %s\n'% (self.pf,Exception,e))
 
-        if self.verbose: print "%s: DECAY=%s N1=%s N2=%s N=%s DT=%s " % (self.pf,self.DECAY,self.N1,self.N2,self.N,self.DT)
+        if self.verbose: self._log("%s: DECAY=%s N1=%s N2=%s N=%s DT=%s " % (self.pf,self.DECAY,self.N1,self.N2,self.N,self.DT))
 
 
         # ISRC, JBDRY 
         self.ISRC = [ 1 for x in range(10) ]
         self.JBDRY = 0
-        if self.verbose: print "%s: ISRC=%s JBDRY=%s" % (self.pf,self.ISRC,self.JBDRY)
+        if self.verbose: self._log("%s: ISRC=%s JBDRY=%s" % (self.pf,self.ISRC,self.JBDRY))
 
 
         # Init vars for model layers
@@ -863,7 +895,7 @@ GREEN.1\n\
             for x in range(len(temp)):
                 t = temp[x].split()
                 if not t: continue
-                if self.verbose: print "%s: RAW MODEL LAYER: %s" % (self.pf,t)
+                if self.verbose: self._log("%s: RAW MODEL LAYER: %s" % (self.pf,t))
                 self.D[x]   = float(t[0])
                 self.A[x]   = float(t[1])
                 self.B[x]   = float(t[2])
@@ -877,7 +909,7 @@ GREEN.1\n\
 
         if self.verbose:
             for I in range(len(self.D)):
-                print "%s: %s\t%s\t%s\t%s\t%s\t%s" % (self.pf,self.D[I],self.A[I],self.B[I],self.RHO[I],self.QA[I],self.QB[I])
+                self._log("%s: %s\t%s\t%s\t%s\t%s\t%s" % (self.pf,self.D[I],self.A[I],self.B[I],self.RHO[I],self.QA[I],self.QB[I]))
 
 
         #  NFC...
@@ -889,7 +921,7 @@ GREEN.1\n\
         self.C1   = stock.pfget_double(self.pf,'c1')
         self.C2   = stock.pfget_double(self.pf,'c2')
         self.CMIN = stock.pfget_double(self.pf,'cmin')
-        if self.verbose: print "%s: CMAX=%s C1=%s C2=%s CMIN=%s" % (self.pf,self.CMAX,self.C1,self.C2,self.CMIN)
+        if self.verbose: self._log("%s: CMAX=%s C1=%s C2=%s CMIN=%s" % (self.pf,self.CMAX,self.C1,self.C2,self.CMIN))
 
         # need to fix this while running
         self.T0    = defaultdict(int) 
@@ -910,7 +942,7 @@ GREEN.1\n\
     #{{{
 
         # Fix values for C1, C2, CMAX and CMIN
-        if self.verbose: print "CMAX=%s" % self.CMAX
+        if self.verbose: self._log("CMAX=%s" % self.CMAX)
         try: self.CMAX = 1/self.CMAX
         except Exception,e: raise SystemExit('\n\nCMAX. %s(%s) \n'% (Exception,e))
         try: self.C1 = 1/self.C1
@@ -920,7 +952,7 @@ GREEN.1\n\
         try: self.CMIN = 1/self.CMIN
         except Exception,e: raise SystemExit('\n\nCMIN. %s(%s) \n'% (Exception,e))
 
-        if self.verbose: print "CMAX=%s CMIN=%s C1=%s C2=%s" % (self.CMAX,self.CMIN,self.C1,self.C2)
+        if self.verbose: self._log("CMAX=%s CMIN=%s C1=%s C2=%s" % (self.CMAX,self.CMIN,self.C1,self.C2))
 
         # FACT(I)
         self.FACT = [0.0 for x in range(self.IB)]
@@ -928,18 +960,18 @@ GREEN.1\n\
             for I in range(self.IB):
                 self.FACT[I] = 1.0
 
-        if self.verbose: print "FACT=%s" % self.FACT
+        if self.verbose: self._log("FACT=%s" % self.FACT)
 
         #
         # CHECK IF DEPTH DOES CORRESPOND TO DEPTH INTERFACE
         #
         self.DPH = 0.0
-        if self.verbose: print "Adding layers on top of source[%s]" % self.LMAX
+        if self.verbose: self._log("Adding layers on top of source[%s]" % self.LMAX)
 
-        if self.verbose: print "\tLMAX= %s" % self.LMAX
+        if self.verbose: self._log("\tLMAX= %s" % self.LMAX)
         for I in range(self.LMAX):
             self.DPH += self.D[I]
-            if self.verbose: print "\tDPH= %s" % self.DPH
+            if self.verbose: self._log("\tDPH= %s" % self.DPH)
 
         if abs(self.DPH-self.DEPTH) <= 0.1: self.DEPTH = self.DPH
 
@@ -950,19 +982,19 @@ GREEN.1\n\
         # CALCULATE ALPHA FROM DECAY
         #
         self.TLEN = self.N * self.DT
-        if self.verbose: print 'TLEN = %s' % self.TLEN
+        if self.verbose: self._log('TLEN = %s' % self.TLEN)
 
         try: self.DECAY = 1 / self.DECAY
         except Exception,e: raise SystemExit('\n\nDECAY. %s(%s) \n'% (Exception,e))
 
-        if self.verbose: print 'DECAY = %s' % self.DECAY
+        if self.verbose: self._log('DECAY = %s' % self.DECAY)
 
         try:
             self.ALPHA = -log(self.DECAY)
             self.ALPHA = self.ALPHA / self.TLEN
         except Exception,e: raise SystemExit('\n\nALPHA. %s(%s) \n'% (Exception,e))
 
-        if self.verbose: print 'ALPHA = %s' % self.ALPHA
+        if self.verbose: self._log('ALPHA = %s' % self.ALPHA)
 
         #
         # CHECK BOUCHON'S CRITERIA
@@ -975,26 +1007,26 @@ GREEN.1\n\
             self.VBMAX = max([x for x in self.B.values()])
         except Exception,e: raise SystemExit('\n\nRMAX VMIN VMAX VBMIN VBMAX. %s(%s) \n'% (Exception,e))
 
-        #if self.verbose: print 'A= %s' % self.A
-        #if self.verbose: print 'B= %s' % self.B
-        #if self.verbose: print 'RANGE= %s' % self.DISTANCE
-        if self.verbose: print 'RMAX = %s' % self.RMAX
-        if self.verbose: print 'VAMAX = %s' % self.VAMAX
-        if self.verbose: print 'VBMAX = %s' % self.VBMAX
-        if self.verbose: print 'VAMIN = %s' % self.VAMIN
-        if self.verbose: print 'VBMIN = %s' % self.VBMIN
+        #if self.verbose: self._log('A= %s' % self.A)
+        #if self.verbose: self._log('B= %s' % self.B)
+        #if self.verbose: self._log('RANGE= %s' % self.DISTANCE)
+        if self.verbose: self._log('RMAX = %s' % self.RMAX)
+        if self.verbose: self._log('VAMAX = %s' % self.VAMAX)
+        if self.verbose: self._log('VBMAX = %s' % self.VBMAX)
+        if self.verbose: self._log('VAMIN = %s' % self.VAMIN)
+        if self.verbose: self._log('VBMIN = %s' % self.VBMIN)
 
 
-        if self.verbose: print 'RANGE= %s' % self.DISTANCE
+        if self.verbose: self._log('RANGE= %s' % self.DISTANCE)
         self.YMAX = 2.0 * self.RMAX
-        if self.verbose: print 'RMAX= %s' % self.RMAX
-        if self.verbose: print 'YMAX = %s' % self.YMAX
+        if self.verbose: self._log('RMAX= %s' % self.RMAX)
+        if self.verbose: self._log('YMAX = %s' % self.YMAX)
 
         if self.XLENG < self.YMAX: self.XLENG = self.YMAX
-        if self.verbose: print 'XLENG = %s' % self.XLENG
+        if self.verbose: self._log('XLENG = %s' % self.XLENG)
 
         self.RMAX = self.RMAX + sqrt( self.VAMAX * self.VAMAX * self.TLEN * self.TLEN - self.DEPTH * self.DEPTH )
-        if self.verbose: print 'RMAX = %s' % self.RMAX
+        if self.verbose: self._log('RMAX = %s' % self.RMAX)
 
         if self.XLENG < self.RMAX:
                 self.XLENG=self.RMAX
@@ -1003,80 +1035,80 @@ GREEN.1\n\
                 if self.XLL != self.XLENG: 
                     self.XLENG = self.XLL + 100.0
         if self.verbose: 
-            print 'MM = %s' % self.MM
-            print 'XLL = %s' % self.XLL
-            print 'XLENG = %s' % self.XLENG
+            self._log('MM = %s' % self.MM)
+            self._log('XLL = %s' % self.XLL)
+            self._log('XLENG = %s' % self.XLENG)
 
         try: self.DF = 1 / (self.N * self.DT)
         except Exception,e: raise SystemExit('\n\nDF. %s(%s) \n'% (Exception,e))
 
-        if self.verbose: print 'DF = %s' % self.DF
+        if self.verbose: self._log('DF = %s' % self.DF)
 
         try: self.NYQ = self.N / 2 + 1
         except Exception,e: raise SystemExit('\n\nNYQ. %s(%s) \n'% (Exception,e))
 
-        if self.verbose: print 'NYQ = %s' % self.NYQ
+        if self.verbose: self._log('NYQ = %s' % self.NYQ)
 
         self.FL =0.0
 
-        if self.verbose: print 'FL = %s' % self.FL
+        if self.verbose: self._log('FL = %s' % self.FL)
 
         try: self.FU = (self.NYQ - 1) * self.DF
         except Exception,e: raise SystemExit('\n\nFU. %s(%s) \n'% (Exception,e))
 
-        if self.verbose: print 'FU = %s' % self.FU
+        if self.verbose: self._log('FU = %s' % self.FU)
 
 
         if self.IFREQ > self.N1: self.N1 = self.IFREQ + 1
 
 
-        if self.verbose: print 'N1 = %s' % self.N1
-        if self.verbose: print 'N2 = %s' % self.N2
-        if self.verbose: print 'DF = %s' % self.DF
+        if self.verbose: self._log('N1 = %s' % self.N1)
+        if self.verbose: self._log('N2 = %s' % self.N2)
+        if self.verbose: self._log('DF = %s' % self.DF)
 
         return
         #for x in range(self.N2):
         for x in range(self.N1,self.N2+1):
-            if self.verbose: print 'I=%s' % x
+            if self.verbose: self._log('I=%s' % x)
 
             #self.I = x
             self.FREQ = (x-1) * self.DF
             if self.FREQ < self.DF: self.FREQ = 0.01 * self.DF
-            if self.verbose: print 'FREQ => %s' % self.FREQ
+            if self.verbose: self._log('FREQ => %s' % self.FREQ)
             self.OMEGA = 2.0 * acos(-1.0) * self.FREQ
-            if self.verbose: print 'OMEGA => %s' % self.OMEGA
+            if self.verbose: self._log('OMEGA => %s' % self.OMEGA)
 
-            #print 'X = %s' % x
-            #print 'DF = %s' % self.DF
-            #print 'FREQ => %s' % self.FREQ
-            #print 'OMEGA => %s' % self.OMEGA
+            #self._log('X = %s' % x)
+            #self._log('DF = %s' % self.DF)
+            #self._log('FREQ => %s' % self.FREQ)
+            #self._log('OMEGA => %s' % self.OMEGA)
 
             self.WVCM = self.OMEGA * self.CMAX
             self.WVC1 = self.OMEGA * self.C1
             self.WVC2 = self.OMEGA * self.C2
             self.WVCN = self.OMEGA * self.CMIN
 
-            if self.verbose: print 'WVCM => %s' % self.WVCM
-            if self.verbose: print 'WVC1 => %s' % self.WVC1
-            if self.verbose: print 'WVC2 => %s' % self.WVC2
-            if self.verbose: print 'WVCN => %s' % self.WVCN
+            if self.verbose: self._log('WVCM => %s' % self.WVCM)
+            if self.verbose: self._log('WVC1 => %s' % self.WVC1)
+            if self.verbose: self._log('WVC2 => %s' % self.WVC2)
+            if self.verbose: self._log('WVCN => %s' % self.WVCN)
 
             #self._excit()
             self.ALLOMEGA[x-1] = [self.OMEGA,self.NK]
-            if self.verbose: print "\t\t\t\t%s  F =  %12.4E NBLOCK =  %5s IBLOCK= %3s" % (x,self.FREQ,self.NBLOCK,self.IBLOCK)
-            #print "\t\t\t\t%s  DATA :  %s" % (x,self.DATA[x])
+            if self.verbose: self._log("\t\t\t\t%s  F =  %12.4E NBLOCK =  %5s IBLOCK= %3s" % (x,self.FREQ,self.NBLOCK,self.IBLOCK))
+            #self._log("\t\t\t\t%s  DATA :  %s" % (x,self.DATA[x]))
             if self.verbose:
-                if self.verbose: print "\tDIST =>    1"
+                if self.verbose: self._log("\tDIST =>    1")
             for z in range(10):
-                #print "\t\t%-10s%-16.9E%-4s%-16.9E" % self.GG[y][z]
+                #self._log("\t\t%-10s%-16.9E%-4s%-16.9E" % self.GG[y][z])
                 self.DATA[x-1][z] = self.GG[1][z]
-                if self.verbose: print "\t\t%16.9E\t%16.9E" % (self.GG[1][z].real,self.GG[1][z].imag)
+                if self.verbose: self._log("\t\t%16.9E\t%16.9E" % (self.GG[1][z].real,self.GG[1][z].imag))
 
 
         self.XX = -999.0
         self.T0X = 0.0
 
-        #print "%s %s" % (self.XX,self.T0X)
+        #self._log("%s %s" % (self.XX,self.T0X))
 
 
     #}}}
@@ -1209,10 +1241,10 @@ GREEN.1\n\
         self.ISYST = 0
         for I in range(8):
             if self.ISRC[I] == 1: self.ID = 1
-        if self.verbose: print 'ISRC => %s' % self.ISRC
+        if self.verbose: self._log('ISRC => %s' % self.ISRC)
 
         if self.ID == 1: self.ISYST = 1
-        if self.verbose: print 'ISYST => %s' % self.ISYST
+        if self.verbose: self._log('ISYST => %s' % self.ISYST)
         self.ID = 0
         if self.ISRC[8] == 1: self.ID=1
         if self.ISRC[9] == 1: self.ID=1
@@ -1220,18 +1252,18 @@ GREEN.1\n\
         if self.ID == 1 and self.ISYST == 0: self.ISYST = 2
         if self.ID == 1 and self.ISYST == 1: self.ISYST = 3
 
-        if self.verbose: print 'ISYST => %s' % self.ISYST
+        if self.verbose: self._log('ISYST => %s' % self.ISYST)
 
         self.DK = 2.0 * acos(-1.0) / self.XLENG
-        if self.verbose: print 'DK => %s' % self.DK
+        if self.verbose: self._log('DK => %s' % self.DK)
 
         self.WVBM = self.OMEGA/self.VBMIN
         self.WVMM = (5.0/self.DEPTH)+self.XFAC*self.WVBM
         self.NK   = self.WVMM/self.DK
         self.NK   = int(self.NK+2)
-        if self.verbose: print 'WVBM => %s' % self.WVBM
-        if self.verbose: print 'WVMM => %s' % self.WVMM
-        if self.verbose: print 'NK => %s' % self.NK
+        if self.verbose: self._log('WVBM => %s' % self.WVBM)
+        if self.verbose: self._log('WVMM => %s' % self.WVMM)
+        if self.verbose: self._log('NK => %s' % self.NK)
 
         self.V = 6.0 / self.DEPTH
 
@@ -1240,29 +1272,29 @@ GREEN.1\n\
         self.WVNO3[1] = self.WVNO2[1] * self.WVNO[1]
         self.AKL      = ( self.NK - 3 ) * self.DK + 0.218 * self.DK
 
-        if self.verbose: print 'WVNO[1] => %s' % self.WVNO[1]
-        if self.verbose: print 'WVNO2[1] => %s' % self.WVNO2[1]
-        if self.verbose: print 'WVNO3[1] => %s' % self.WVNO3[1]
-        if self.verbose: print 'AKL => %s' % self.AKL
+        if self.verbose: self._log('WVNO[1] => %s' % self.WVNO[1])
+        if self.verbose: self._log('WVNO2[1] => %s' % self.WVNO2[1])
+        if self.verbose: self._log('WVNO3[1] => %s' % self.WVNO3[1])
+        if self.verbose: self._log('AKL => %s' % self.AKL)
 
 
         if self.AKL > self.V: self.IASYMP = False
-        if self.verbose: print 'IASYMP => %s' % self.IASYMP
+        if self.verbose: self._log('IASYMP => %s' % self.IASYMP)
 
         self.V = 2.5 / self.DEPTH
-        if self.verbose: print 'V => %s' % self.V
+        if self.verbose: self._log('V => %s' % self.V)
         self.WVNO[0]  = complex( self.V , 0 )
         self.WVNO2[0] = self.WVNO[0] * self.WVNO[0]
-        if self.verbose: print 'WVNO[1] => %s' % self.WVNO[0]
-        if self.verbose: print 'WVNO2[1] => %s' % self.WVNO2[0]
+        if self.verbose: self._log('WVNO[1] => %s' % self.WVNO[0])
+        if self.verbose: self._log('WVNO2[1] => %s' % self.WVNO2[0])
 
         if self.CMAX > 0.0: self.MM = int(self.WVCN / self.DK) + 2
         if self.NK > self.MM: self.NK = self.MM
-        if self.verbose: print 'MM => %s' % self.MM
-        if self.verbose: print 'NK => %s' % self.NK
-        if self.verbose: print 'OMEGA => %s' % self.OMEGA
-        if self.verbose: print 'OMEGA:%s NK:%s' % (self.OMEGA,self.NK)
-        if self.verbose: print '\t\t\tOMEGA:%s NK:%s' % (self.OMEGA,self.NK)
+        if self.verbose: self._log('MM => %s' % self.MM)
+        if self.verbose: self._log('NK => %s' % self.NK)
+        if self.verbose: self._log('OMEGA => %s' % self.OMEGA)
+        if self.verbose: self._log('OMEGA:%s NK:%s' % (self.OMEGA,self.NK))
+        if self.verbose: self._log('\t\t\tOMEGA:%s NK:%s' % (self.OMEGA,self.NK))
 
         #
         # DETERMINE INDEX FOR INTEGRATION  I.E., WHEN KR IS GT. 3.0
@@ -1272,14 +1304,14 @@ GREEN.1\n\
         for J in range(1,50000):
             self.WVV = ( J - 1 ) * self.DK + 0.218 * self.DK
             self.AKR = self.WVV * self.DISTANCE
-            if self.verbose: print ''
-            if self.verbose: print 'J => %s' % J
-            if self.verbose: print 'RANGE => %s' % self.DISTANCE
-            if self.verbose: print 'WVV => %s' % self.WVV
-            if self.verbose: print 'AKR => %s' % self.AKR
+            if self.verbose: self._log('')
+            if self.verbose: self._log('J => %s' % J)
+            if self.verbose: self._log('RANGE => %s' % self.DISTANCE)
+            if self.verbose: self._log('WVV => %s' % self.WVV)
+            if self.verbose: self._log('AKR => %s' % self.AKR)
             if self.AKR <= 3.0: self.ICNT[1] = J + 2
             if self.AKR > 3.0: break
-        if self.verbose: print 'ICNT => %s' % self.ICNT
+        if self.verbose: self._log('ICNT => %s' % self.ICNT)
 
         self.OM     = complex(self.OMEGA, -1 * self.ALPHA)
         self.FOURPI = 12.5663706 * self.OM * self.OM
@@ -1287,11 +1319,11 @@ GREEN.1\n\
         self.OM1    = 6.283185307
         self.OML    = 0.06283185307
 
-        if self.verbose: print 'OM => %s' % self.OM
-        if self.verbose: print 'FOURPI => %s' % self.FOURPI
-        if self.verbose: print 'PI => %s' % self.PI
-        if self.verbose: print 'OM1 => %s' % self.OM1
-        if self.verbose: print 'OML => %s' % self.OML
+        if self.verbose: self._log('OM => %s' % self.OM)
+        if self.verbose: self._log('FOURPI => %s' % self.FOURPI)
+        if self.verbose: self._log('PI => %s' % self.PI)
+        if self.verbose: self._log('OM1 => %s' % self.OM1)
+        if self.verbose: self._log('OML => %s' % self.OML)
 #}}}
 
         #
@@ -1299,80 +1331,80 @@ GREEN.1\n\
         #
 
         self.AT =complex() 
-        #print 'OM => %s' % self.OM
-        #print 'abs(OM) => %s' % abs(self.OM)
-        #print 'OML => %s' % self.OML
-        #print 'OM => %s' % self.OM
-        #print 'OM1 => %s' % self.OM1
+        #self._log('OM => %s' % self.OM)
+        #self._log('abs(OM) => %s' % abs(self.OM))
+        #self._log('OML => %s' % self.OML)
+        #self._log('OM => %s' % self.OM)
+        #self._log('OM1 => %s' % self.OM1)
         if (abs(self.OM) > self.OML ): self.AT=log(self.OM.real/self.OM1.real)/self.PI.real
-        if self.verbose: print 'AT => %s' % self.AT
+        if self.verbose: self._log('AT => %s' % self.AT)
         if (abs(self.OM) < self.OML ):
             self.FA = sqrt(self.OML**2 + self.ALPHA**2)/self.OML
             self.FAC = float( self.FA )
             self.AT = clog(complex( self.OML, -self.ALPHA)/(self.OM1*self.FAC)) / self.PI
 
-        if self.verbose: print 'AT => %s' % self.AT
-        if self.verbose: print 'FA => %s' % self.FA
-        if self.verbose: print 'FAC => %s' % self.FAC
+        if self.verbose: self._log('AT => %s' % self.AT)
+        if self.verbose: self._log('FA => %s' % self.FA)
+        if self.verbose: self._log('FAC => %s' % self.FAC)
 
         for I in range(self.MMAX+1):
             self.ATNA[I] = complex(1)
             self.ATNB[I] = complex(1)
-            if self.verbose: print 'ATNA[I] => %s' % self.ATNA[I]
-            if self.verbose: print 'ATNB[I] => %s' % self.ATNB[I]
+            if self.verbose: self._log('ATNA[I] => %s' % self.ATNA[I])
+            if self.verbose: self._log('ATNB[I] => %s' % self.ATNB[I])
             if self.QA[I] > 0.0:
                 self.PAL = complex(self.QA[I],0) * self.AT
                 self.BA = float(0.5 * self.QA[I])
                 self.QAL = complex(0, self.BA)
                 self.ATNA[I] = complex(1) + self.PAL + self.QAL
-                if self.verbose: print 'PAL => %s' % self.PAL 
-                if self.verbose: print 'BA => %s' % self.BA 
-                if self.verbose: print 'QAL => %s' % self.QAL 
-                if self.verbose: print 'ATNA[I] => %s' % self.ATNA[I]
+                if self.verbose: self._log('PAL => %s' % self.PAL )
+                if self.verbose: self._log('BA => %s' % self.BA )
+                if self.verbose: self._log('QAL => %s' % self.QAL )
+                if self.verbose: self._log('ATNA[I] => %s' % self.ATNA[I])
 
             if self.QB[I] > 0.0:
                 self.PAL = complex(self.QB[I],0) * self.AT
                 self.BA = float(0.5 * self.QB[I])
                 self.QAL = complex(0, self.BA)
                 self.ATNB[I] = complex(1) + self.PAL + self.QAL
-                if self.verbose: print 'PAL => %s' % self.PAL 
-                if self.verbose: print 'BA => %s' % self.BA 
-                if self.verbose: print 'QAL => %s' % self.QAL 
-                if self.verbose: print 'ATNB[I] => %s' % self.ATNB[I]
+                if self.verbose: self._log('PAL => %s' % self.PAL )
+                if self.verbose: self._log('BA => %s' % self.BA )
+                if self.verbose: self._log('QAL => %s' % self.QAL )
+                if self.verbose: self._log('ATNB[I] => %s' % self.ATNB[I])
 
-            if self.verbose: print 'A[I] => %s' % self.A[I]
-            if self.verbose: print 'ATNA[I] => %s' % self.ATNA[I]
+            if self.verbose: self._log('A[I] => %s' % self.A[I])
+            if self.verbose: self._log('ATNA[I] => %s' % self.ATNA[I])
             self.XKA[I] = self.OM / (self.A[I] * self.ATNA[I] )
             self.XKB[I] = self.OM / (self.B[I] * self.ATNB[I] )
-            if self.verbose: print 'XKA[I] => %s' % self.XKA[I]
-            if self.verbose: print 'XKB[I] => %s' % self.XKB[I]
+            if self.verbose: self._log('XKA[I] => %s' % self.XKA[I])
+            if self.verbose: self._log('XKB[I] => %s' % self.XKB[I])
 
-        if self.verbose: print 'PAL => %s' % self.PAL
-        if self.verbose: print 'BA => %s' % self.BA
-        if self.verbose: print 'QAL => %s' % self.QAL
-        if self.verbose: print 'ATNA => %s' % self.ATNA
-        if self.verbose: print 'ATNB => %s' % self.ATNB
-        if self.verbose: print 'XKA => %s' % self.XKA
-        if self.verbose: print 'XKB => %s' % self.XKB
+        if self.verbose: self._log('PAL => %s' % self.PAL)
+        if self.verbose: self._log('BA => %s' % self.BA)
+        if self.verbose: self._log('QAL => %s' % self.QAL)
+        if self.verbose: self._log('ATNA => %s' % self.ATNA)
+        if self.verbose: self._log('ATNB => %s' % self.ATNB)
+        if self.verbose: self._log('XKA => %s' % self.XKA)
+        if self.verbose: self._log('XKB => %s' % self.XKB)
 
 
-        if self.verbose: print 'LMAX => %s' % self.LMAX
-        if self.verbose: print 'RHO => %s' % self.RHO
-        if self.verbose: print 'RHO[0] => %s' % self.RHO[0]
-        if self.verbose: print 'RHO[3] => %s' % self.RHO[3]
-        if self.verbose: print 'RHO[LMAX] => %s' % self.RHO[self.LMAX]
-        if self.verbose: print 'complex(RHO[LMAX]) => %s' % complex(self.RHO[self.LMAX])
+        if self.verbose: self._log('LMAX => %s' % self.LMAX)
+        if self.verbose: self._log('RHO => %s' % self.RHO)
+        if self.verbose: self._log('RHO[0] => %s' % self.RHO[0])
+        if self.verbose: self._log('RHO[3] => %s' % self.RHO[3])
+        if self.verbose: self._log('RHO[LMAX] => %s' % self.RHO[self.LMAX])
+        if self.verbose: self._log('complex(RHO[LMAX]) => %s' % complex(self.RHO[self.LMAX]))
         self.FRHO = complex( self.RHO[self.LMAX] ) * self.FOURPI
         self.XKA2 = self.XKA[self.LMAX] * self.XKA[self.LMAX]
         self.XKB2 = self.XKB[self.LMAX] * self.XKB[self.LMAX]
         self.XKK = self.ATNB[self.LMAX] * self.ATNB[self.LMAX]
         self.FACXX = 1.0 / ( 12.5663706 * self.B[self.LMAX] ** 2 )
 
-        if self.verbose: print 'FRHO => %s' % self.FRHO
-        if self.verbose: print 'XKA2 => %s' % self.XKA2
-        if self.verbose: print 'XKB2 => %s' % self.XKB2
-        if self.verbose: print 'XKK => %s' % self.XKK
-        if self.verbose: print 'FACXX => %s' % self.FACXX
+        if self.verbose: self._log('FRHO => %s' % self.FRHO)
+        if self.verbose: self._log('XKA2 => %s' % self.XKA2)
+        if self.verbose: self._log('XKB2 => %s' % self.XKB2)
+        if self.verbose: self._log('XKK => %s' % self.XKK)
+        if self.verbose: self._log('FACXX => %s' % self.FACXX)
 
         if self.NK < self.IB:
             self.IBLOCK = self.NK
@@ -1384,10 +1416,10 @@ GREEN.1\n\
             self.LEFT = self.NK - self.NBLOCK * self.IB
             if self.LEFT: self.NBLOCK += 1
 
-        if self.verbose: print 'IBLOCK => %s' % self.IBLOCK
-        if self.verbose: print 'NBLOCK => %s' % self.NBLOCK
-        if self.verbose: print 'LEFT => %s' % self.LEFT
-        if self.verbose: print '\n\n'
+        if self.verbose: self._log('IBLOCK => %s' % self.IBLOCK)
+        if self.verbose: self._log('NBLOCK => %s' % self.NBLOCK)
+        if self.verbose: self._log('LEFT => %s' % self.LEFT)
+        if self.verbose: self._log('\n\n')
 
         self.NBLK = 1
         self.LR = 0
@@ -1398,39 +1430,39 @@ GREEN.1\n\
         self.NN1 = 2
 
         # 500 loop.
-        if self.verbose: print "Loop 500: while: %s <= %s" % (self.NBLK,self.NBLOCK)
+        if self.verbose: self._log("Loop 500: while: %s <= %s" % (self.NBLK,self.NBLOCK))
         while self.NBLK <= self.NBLOCK:
-            if self.verbose: print "\tLoop 500: while: self.NBLK[%s] ?< self.NBOCLK[%s]" % (self.NBLK,self.NBLOCK)
+            if self.verbose: self._log("\tLoop 500: while: self.NBLK[%s] ?< self.NBOCLK[%s]" % (self.NBLK,self.NBLOCK))
         #{{{ A
 
-            if self.verbose: print "Loop 500 section AR => self.ISYST:%s" % self.ISYST
+            if self.verbose: self._log("Loop 500 section AR => self.ISYST:%s" % self.ISYST)
             #{{{ AR
 
             if self.NBLK == self.NBLOCK and self.LEFT != 0: self.IBLOCK = self.LEFT
             if self.NBLK > 1: self.NN1 = 0
-            if self.verbose: print "\tLoop 500: NBKL = %s" % self.NBLK
-            if self.verbose: print "\tLoop 500: IBLOCK = %s" % self.IBLOCK
-            if self.verbose: print "\tLoop 500: N1 = %s" % self.NN1
+            if self.verbose: self._log("\tLoop 500: NBKL = %s" % self.NBLK)
+            if self.verbose: self._log("\tLoop 500: IBLOCK = %s" % self.IBLOCK)
+            if self.verbose: self._log("\tLoop 500: N1 = %s" % self.NN1)
 
-            if self.verbose: print "\tLoop 500: self.NN1:[%s] self.IBLOCK[%s]" % (self.NN1,self.IBLOCK)
-            #print "\tLoop 500: self.NN1 = %s" % self.NN1
-            #print "\tLoop 500: self.IBLOCK = %s" % self.IBLOCK
+            if self.verbose: self._log("\tLoop 500: self.NN1:[%s] self.IBLOCK[%s]" % (self.NN1,self.IBLOCK))
+            #self._log("\tLoop 500: self.NN1 = %s" % self.NN1)
+            #self._log("\tLoop 500: self.IBLOCK = %s" % self.IBLOCK)
             for J in range(self.NN1,self.IBLOCK):
             #{{{ D
-                #print "\tLoop 500: J = %s" % J
+                #self._log("\tLoop 500: J = %s" % J)
                 self.LR += 1
                 self.WV = (self.LR - 1) * self.DK + 0.218 * self.DK
                 self.WVNO[J] = complex(self.WV)
                 self.WVNO2[J] = self.WVNO[J]**2
                 self.WVNO3[J] = self.WVNO2[J] * self.WVNO[J]
-                if self.verbose: print "\tLoop 500: J = %s" % J
-                if self.verbose: print "\tLoop 500: LR = %s" % self.LR
-                if self.verbose: print "\tLoop 500: WVNO[J] = %s" % self.WVNO[J]
-                if self.verbose: print "\tLoop 500: WVNO2[J] = %s" % self.WVNO2[J]
-                if self.verbose: print "\tLoop 500: WVNO3[J] = %s" % self.WVNO3[J]
-                if self.verbose: print "\tLoop 500: WVNO2 = %s" % self.WVNO2
+                if self.verbose: self._log("\tLoop 500: J = %s" % J)
+                if self.verbose: self._log("\tLoop 500: LR = %s" % self.LR)
+                if self.verbose: self._log("\tLoop 500: WVNO[J] = %s" % self.WVNO[J])
+                if self.verbose: self._log("\tLoop 500: WVNO2[J] = %s" % self.WVNO2[J])
+                if self.verbose: self._log("\tLoop 500: WVNO3[J] = %s" % self.WVNO3[J])
+                if self.verbose: self._log("\tLoop 500: WVNO2 = %s" % self.WVNO2)
                 #if J == 4: exit()
-                #print "\tLoop 500: WVNO2[J] = %s" % self.WVNO2[J]
+                #self._log("\tLoop 500: WVNO2[J] = %s" % self.WVNO2[J])
             #}}} D
 
                 self.R1 =    defaultdict(complex)
@@ -1448,8 +1480,8 @@ GREEN.1\n\
                 self.X6 =    defaultdict(complex)
                 self.X7 =    defaultdict(complex)
 
-            #print "self.WVNO2:%s" % self.WVNO2
-            if self.verbose: print "self.WVNO2:%s" % self.WVNO2
+            #self._log("self.WVNO2:%s" % self.WVNO2)
+            if self.verbose: self._log("self.WVNO2:%s" % self.WVNO2)
             for I in range(self.MMAX+1):
                 for J in range(self.IBLOCK):
                 #{{{ F
@@ -1466,22 +1498,22 @@ GREEN.1\n\
                     self.GAMM3[I][J] =  self.GAMM1[I][J] * self.GAMM2[I][J]
                     self.GAMX1[I][J] =  self.GAM[I][J] * self.GAMM1[I][J]
                     self.GAMX2[I][J] =  self.GAM2[I][J] * self.GAMM2[I][J]
-                    if self.verbose: print ""
-                    if self.verbose: print "Loop 500: RA[%s][%s]=> %s" % (I,J,self.RA[I][J])
-                    if self.verbose: print "Loop 500: RB[%s][%s]=> %s" % (I,J,self.RB[I][J])
-                    if self.verbose: print "Loop 500: GAM[%s][%s]=> %s" % (I,J,self.GAM[I][J])
-                    if self.verbose: print "Loop 500: GAM2[%s][%s]=> %s" % (I,J,self.GAM2[I][J])
-                    if self.verbose: print "Loop 500: GAM3[%s][%s]=> %s" % (I,J,self.GAM3[I][J])
-                    if self.verbose: print "Loop 500: GAM4[%s][%s]=> %s" % (I,J,self.GAM4[I][J])
-                    if self.verbose: print "Loop 500: GAMM1[%s][%s]=> %s" % (I,J,self.GAMM1[I][J])
-                    if self.verbose: print "Loop 500: GAMM2[%s][%s]=> %s" % (I,J,self.GAMM2[I][J])
-                    if self.verbose: print "Loop 500: GAMM3[%s][%s]=> %s" % (I,J,self.GAMM3[I][J])
-                    if self.verbose: print "Loop 500: GAMX1[%s][%s]=> %s" % (I,J,self.GAMX1[I][J])
-                    if self.verbose: print "Loop 500: GAMX2[%s][%s]=> %s" % (I,J,self.GAMX2[I][J])
-                    if self.verbose: print ""
+                    if self.verbose: self._log("")
+                    if self.verbose: self._log("Loop 500: RA[%s][%s]=> %s" % (I,J,self.RA[I][J]))
+                    if self.verbose: self._log("Loop 500: RB[%s][%s]=> %s" % (I,J,self.RB[I][J]))
+                    if self.verbose: self._log("Loop 500: GAM[%s][%s]=> %s" % (I,J,self.GAM[I][J]))
+                    if self.verbose: self._log("Loop 500: GAM2[%s][%s]=> %s" % (I,J,self.GAM2[I][J]))
+                    if self.verbose: self._log("Loop 500: GAM3[%s][%s]=> %s" % (I,J,self.GAM3[I][J]))
+                    if self.verbose: self._log("Loop 500: GAM4[%s][%s]=> %s" % (I,J,self.GAM4[I][J]))
+                    if self.verbose: self._log("Loop 500: GAMM1[%s][%s]=> %s" % (I,J,self.GAMM1[I][J]))
+                    if self.verbose: self._log("Loop 500: GAMM2[%s][%s]=> %s" % (I,J,self.GAMM2[I][J]))
+                    if self.verbose: self._log("Loop 500: GAMM3[%s][%s]=> %s" % (I,J,self.GAMM3[I][J]))
+                    if self.verbose: self._log("Loop 500: GAMX1[%s][%s]=> %s" % (I,J,self.GAMX1[I][J]))
+                    if self.verbose: self._log("Loop 500: GAMX2[%s][%s]=> %s" % (I,J,self.GAMX2[I][J]))
+                    if self.verbose: self._log("")
                 #}}} F
 
-            #if self.verbose: print "self.WVNO2:%s" % self.WVNO2
+            #if self.verbose: self._log("self.WVNO2:%s" % self.WVNO2)
             #exit()
 
             self.EX = 0.0
@@ -1495,7 +1527,7 @@ GREEN.1\n\
 
             #}}} AR
 
-            if self.verbose: print "Loop 500 section BR => self.ISYST:%s" % self.ISYST
+            if self.verbose: self._log("Loop 500 section BR => self.ISYST:%s" % self.ISYST)
             if self.ISYST != 2:
             #{{{ BR
                 # Computation for P-SV system starts
@@ -1505,50 +1537,50 @@ GREEN.1\n\
                     self.S21[J] =  complex(2) * self.XKB2 / self.FRHO
                     self.S32[J] = self.WVNO[J] * 4.0 * self.XKA2 / self.FRHO
                     self.TT = (2.0 * self.B[self.LMAX] / self.A[self.LMAX]) ** 2 - 3.
-                    #print "\t\t\t B(LMAX)=>%s" % self.B[self.LMAX]
-                    #print "\t\t\t A(LMAX)=>%s" % self.A[self.LMAX]
-                    #print "\t\t\t TT=>%s" % self.TT
+                    #self._log("\t\t\t B(LMAX)=>%s" % self.B[self.LMAX])
+                    #self._log("\t\t\t A(LMAX)=>%s" % self.A[self.LMAX])
+                    #self._log("\t\t\t TT=>%s" % self.TT)
                     self.S34[J] = complex(2) * self.WVNO[J] * complex(self.TT) / self.FOURPI 
-                    #print "\t\t\t WVNO[J]=>%s" % self.WVNO[J]
-                    #print "\t\t\t TT=>%s" % self.TT
-                    #print "\t\t\t complex(self.TT)=>%s" % complex(self.TT)
-                    #print "\t\t\t FOURPI=>%s" % self.FOURPI
-                    if self.verbose: print ""
-                    if self.verbose: print "Loop 500: S14=> %s" % self.S14
-                    if self.verbose: print "Loop 500: S21=> %s" % self.S21
-                    if self.verbose: print "Loop 500: S32=> %s" % self.S32
-                    if self.verbose: print "Loop 500: S34=> %s" % self.S34
-                    if self.verbose: print ""
+                    #self._log("\t\t\t WVNO[J]=>%s" % self.WVNO[J])
+                    #self._log("\t\t\t TT=>%s" % self.TT)
+                    #self._log("\t\t\t complex(self.TT)=>%s" % complex(self.TT))
+                    #self._log("\t\t\t FOURPI=>%s" % self.FOURPI)
+                    if self.verbose: self._log("")
+                    if self.verbose: self._log("Loop 500: S14=> %s" % self.S14)
+                    if self.verbose: self._log("Loop 500: S21=> %s" % self.S21)
+                    if self.verbose: self._log("Loop 500: S32=> %s" % self.S32)
+                    if self.verbose: self._log("Loop 500: S34=> %s" % self.S34)
+                    if self.verbose: self._log("")
                 #}}} H
 
                 #     SET UP HALFSPACE BOUNDARY CONDITIONS
                 #     JBDRY=-1 RIGID;  0= ELASTIC;  +1= FREE SURFACE
                 #{{{ I 
                 M = self.MMAX
-                if self.verbose: print "M:[%s] " % M
-                if self.verbose: print "RHO:%s" % self.RHO
+                if self.verbose: self._log("M:[%s] " % M)
+                if self.verbose: self._log("RHO:%s" % self.RHO)
                 if self.JBDRY == 0:
                     for J in range(self.IBLOCK):
-                        if self.verbose: print "M:%s J:%s" % (M,J)
-                        #if self.verbose: print " self.GAM2[M][J] :%s" % self.GAM2[M][J]
-                        #if self.verbose: print " self.RA[M][J] :%s" % self.RA[M][J]
-                        #if self.verbose: print " self.RB[M][J] :%s" % self.RB[M][J]
-                        #if self.verbose: print " self.WVNO2[J] :%s" % self.WVNO2[J]
-                        #if self.verbose: print " self.GAMM2[M][J] :%s" % self.GAMM2[M][J]
+                        if self.verbose: self._log("M:%s J:%s" % (M,J))
+                        #if self.verbose: self._log(" self.GAM2[M][J] :%s" % self.GAM2[M][J])
+                        #if self.verbose: self._log(" self.RA[M][J] :%s" % self.RA[M][J])
+                        #if self.verbose: self._log(" self.RB[M][J] :%s" % self.RB[M][J])
+                        #if self.verbose: self._log(" self.WVNO2[J] :%s" % self.WVNO2[J])
+                        #if self.verbose: self._log(" self.GAMM2[M][J] :%s" % self.GAMM2[M][J])
                         self.RH = self.RHO[M]**2
-                        if self.verbose: print " self.RH :%s" % self.RH
+                        if self.verbose: self._log(" self.RH :%s" % self.RH)
                         self.R1[J] = self.RH * (-self.GAM2[M][J] * self.RA[M][J] * self.RB[M][J] + self.WVNO2[J] * self.GAMM2[M][J])
                         self.R2[J] = -1 * complex(self.RHO[M]) * self.WVNO2[J] * self.RA[M][J]
                         self.R3[J] = -1 * self.GAM[M][J] * self.RA[M][J] * self.RB[M][J] + self.WVNO2[J] * self.GAMM1[M][J]
                         self.R3[J] = complex(self.RHO[M]) * self.R3[J]
                         self.R4[J] = complex(self.RHO[M]) * self.WVNO2[J] * self.RB[M][J]
                         self.R5[J] = self.WVNO2[J] * ( self.WVNO2[J] - self.RA[M][J] * self.RB[M][J])
-                        if self.verbose: print "Loop 500: R1[J]=> %s" % self.R1[J]
-                        if self.verbose: print "Loop 500: R2[J]=> %s" % self.R2[J]
-                        if self.verbose: print "Loop 500: R3[J]=> %s" % self.R3[J]
-                        if self.verbose: print "Loop 500: R4[J]=> %s" % self.R4[J]
-                        if self.verbose: print "Loop 500: R5[J]=> %s" % self.R5[J]
-                        if self.verbose: print "\n"
+                        if self.verbose: self._log("Loop 500: R1[J]=> %s" % self.R1[J])
+                        if self.verbose: self._log("Loop 500: R2[J]=> %s" % self.R2[J])
+                        if self.verbose: self._log("Loop 500: R3[J]=> %s" % self.R3[J])
+                        if self.verbose: self._log("Loop 500: R4[J]=> %s" % self.R4[J])
+                        if self.verbose: self._log("Loop 500: R5[J]=> %s" % self.R5[J])
+                        if self.verbose: self._log("\n")
                 elif self.JBDRY > 0:
                     for J in range(self.IBLOCK):
                         self.R1[J] = complex(1)
@@ -1564,44 +1596,44 @@ GREEN.1\n\
                         self.R4[J] = complex() 
                         self.R5[J] = complex(1)
 
-                if self.verbose: print "Loop 500: RH=> %s" % self.RH
-                if self.verbose: print "Loop 500: R1=> %s" % self.R1
-                if self.verbose: print "Loop 500: R2=> %s" % self.R2
-                if self.verbose: print "Loop 500: R3=> %s" % self.R3
-                if self.verbose: print "Loop 500: R4=> %s" % self.R4
-                if self.verbose: print "Loop 500: R5=> %s" % self.R5
-                if self.verbose: print ""
+                if self.verbose: self._log("Loop 500: RH=> %s" % self.RH)
+                if self.verbose: self._log("Loop 500: R1=> %s" % self.R1)
+                if self.verbose: self._log("Loop 500: R2=> %s" % self.R2)
+                if self.verbose: self._log("Loop 500: R3=> %s" % self.R3)
+                if self.verbose: self._log("Loop 500: R4=> %s" % self.R4)
+                if self.verbose: self._log("Loop 500: R5=> %s" % self.R5)
+                if self.verbose: self._log("")
                 #}}} I 
 
                 # MATRIX-MULTIPLICATION - LAYERWISE ++++> FROM BOTTOM UPWARD TO LMAX
                 #{{{ J 
-                if self.verbose: print "Loop 500: LMAX = >%s" % self.LMAX
-                if self.verbose: print "Loop 500: MMAX = >%s" % self.MMAX
+                if self.verbose: self._log("Loop 500: LMAX = >%s" % self.LMAX)
+                if self.verbose: self._log("Loop 500: MMAX = >%s" % self.MMAX)
                 #for I in range(self.LMAX, self.MMAX):
                 for I in range(self.LMAX, self.MMAX):
                     # MATRIX MULTIPLICATION FROM BOTTOM LAYER UPWARD
                     M = self.MMAX -1 + self.LMAX - I
                     self.DPTH = self.D[M]
-                    if self.verbose: print "Loop 500: I=> %s" % I
-                    if self.verbose: print "Loop 500: M=> %s" % M
-                    if self.verbose: print "Loop 500: DPTH=> %s" % self.DPTH
-                    if self.verbose: print "Loop 500: D=> %s" % self.D
-                    if self.verbose: print "Loop 500: IBLOCK=> %s" % self.IBLOCK
-                    if self.verbose: print "" 
+                    if self.verbose: self._log("Loop 500: I=> %s" % I)
+                    if self.verbose: self._log("Loop 500: M=> %s" % M)
+                    if self.verbose: self._log("Loop 500: DPTH=> %s" % self.DPTH)
+                    if self.verbose: self._log("Loop 500: D=> %s" % self.D)
+                    if self.verbose: self._log("Loop 500: IBLOCK=> %s" % self.IBLOCK)
+                    if self.verbose: self._log("" )
 
-                    if self.verbose: print "IBLOCK=%s" % self.IBLOCK
-                    #print "self.WVNO2 = %s " % self.WVNO2
+                    if self.verbose: self._log("IBLOCK=%s" % self.IBLOCK)
+                    #self._log("self.WVNO2 = %s " % self.WVNO2)
                     for J in range(self.IBLOCK):
-                        if self.verbose: print "J=%s" % J
-                        #print "self.WVNO2=%s" % self.WVNO2[J]
+                        if self.verbose: self._log("J=%s" % J)
+                        #self._log("self.WVNO2=%s" % self.WVNO2[J])
                         #{{{ K
                         self.P = self.RA[M][J] * complex(self.DPTH)
                         self.Q = self.RB[M][J] * complex(self.DPTH)
-                        #if self.verbose: print "Loop 500:   RA[%s][%s]=> %s" % (M,J,self.RA[M][J])
-                        #if self.verbose: print "Loop 500:   RB[%s][%s]=> %s" % (M,J,self.RB[M][J])
-                        #if self.verbose: print "Loop 500:   complex(DEPTH)=> %s" % complex(self.DEPTH)
-                        if self.verbose: print "Loop 500:   P=> %s" % self.P
-                        if self.verbose: print "Loop 500:   Q=> %s" % self.Q
+                        #if self.verbose: self._log("Loop 500:   RA[%s][%s]=> %s" % (M,J,self.RA[M][J]))
+                        #if self.verbose: self._log("Loop 500:   RB[%s][%s]=> %s" % (M,J,self.RB[M][J]))
+                        #if self.verbose: self._log("Loop 500:   complex(DEPTH)=> %s" % complex(self.DEPTH))
+                        if self.verbose: self._log("Loop 500:   P=> %s" % self.P)
+                        if self.verbose: self._log("Loop 500:   Q=> %s" % self.Q)
 
                         self.A0 = 0.0
                         self.PR = self.P.real
@@ -1609,11 +1641,11 @@ GREEN.1\n\
                         self.QR = self.Q.real
                         self.QI = self.Q.imag
 
-                        if self.verbose: print "Loop 500:   A0=> %s" % self.A0
-                        if self.verbose: print "Loop 500:   PR=> %s" % self.PR
-                        if self.verbose: print "Loop 500:   PI=> %s" % self.PI
-                        if self.verbose: print "Loop 500:   QR=> %s" % self.QR
-                        if self.verbose: print "Loop 500:   QI=> %s" % self.QI
+                        if self.verbose: self._log("Loop 500:   A0=> %s" % self.A0)
+                        if self.verbose: self._log("Loop 500:   PR=> %s" % self.PR)
+                        if self.verbose: self._log("Loop 500:   PI=> %s" % self.PI)
+                        if self.verbose: self._log("Loop 500:   QR=> %s" % self.QR)
+                        if self.verbose: self._log("Loop 500:   QI=> %s" % self.QI)
 
                         self.EPP = complex(cos(self.PI),sin(self.PI)) / 2.0
                         self.EPM = self.EPP.conjugate()
@@ -1622,15 +1654,15 @@ GREEN.1\n\
                         self.EXB = self.QR
                         self.FAC = 0.0
 
-                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
-                        if self.verbose: print "Loop 500:   EPP=> %s" % self.EPP
-                        if self.verbose: print "Loop 500:   EPM=> %s" % self.EPM
-                        if self.verbose: print "Loop 500:   EQP=> %s" % self.EQP
-                        if self.verbose: print "Loop 500:   EQM=> %s" % self.EQM
-                        if self.verbose: print "Loop 500:   EXB=> %s" % self.EXB
+                        if self.verbose: self._log("Loop 500:   FAC=> %s" % self.FAC)
+                        if self.verbose: self._log("Loop 500:   EPP=> %s" % self.EPP)
+                        if self.verbose: self._log("Loop 500:   EPM=> %s" % self.EPM)
+                        if self.verbose: self._log("Loop 500:   EQP=> %s" % self.EQP)
+                        if self.verbose: self._log("Loop 500:   EQM=> %s" % self.EQM)
+                        if self.verbose: self._log("Loop 500:   EXB=> %s" % self.EXB)
 
                         if self.PR < 15.0: self.FAC = exp(-(2.0) * self.PR).real
-                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
+                        if self.verbose: self._log("Loop 500:   FAC=> %s" % self.FAC)
 
 
                         self.COSP = self.EPP + self.FAC * self.EPM
@@ -1639,26 +1671,26 @@ GREEN.1\n\
                         self.X = self.RA[M][J] * self.SINP
                         self.FAC = 0.0
 
-                        if self.verbose: print "Loop 500:   COSP=> %s" % self.COSP
-                        if self.verbose: print "Loop 500:   SINP=> %s" % self.SINP
-                        if self.verbose: print "Loop 500:   W=> %s" % self.W
-                        if self.verbose: print "Loop 500:   X=> %s" % self.X
+                        if self.verbose: self._log("Loop 500:   COSP=> %s" % self.COSP)
+                        if self.verbose: self._log("Loop 500:   SINP=> %s" % self.SINP)
+                        if self.verbose: self._log("Loop 500:   W=> %s" % self.W)
+                        if self.verbose: self._log("Loop 500:   X=> %s" % self.X)
 
                         if self.QR < 15.0: self.FAC = exp( -(2.0) * self.QR).real
-                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
+                        if self.verbose: self._log("Loop 500:   FAC=> %s" % self.FAC)
 
-                        if self.verbose: print ""
+                        if self.verbose: self._log("")
 
                         self.COSQL[M][J] = self.EQP + self.FAC * self.EQM
                         self.SINQ = self.EQP - self.FAC * self.EQM
                         self.YL[M][J] = self.SINQ / self.RB[M][J]
-                        if self.verbose: print "Loop 500:   M=> %s" % M
-                        if self.verbose: print "Loop 500:   J=> %s" % J
-                        if self.verbose: print "Loop 500:   COSQL[M][J]=> %s" % self.COSQL[M][J]
-                        if self.verbose: print "Loop 500:   SINQ=> %s" % self.SINQ
-                        if self.verbose: print "Loop 500:   YL[M][J]=> %s" % self.YL[M][J]
-                        if self.verbose: print ""
-                        #print "Loop 500:   self.YL[%s][%s]=> %s" % (M,J,self.YL[M][J])
+                        if self.verbose: self._log("Loop 500:   M=> %s" % M)
+                        if self.verbose: self._log("Loop 500:   J=> %s" % J)
+                        if self.verbose: self._log("Loop 500:   COSQL[M][J]=> %s" % self.COSQL[M][J])
+                        if self.verbose: self._log("Loop 500:   SINQ=> %s" % self.SINQ)
+                        if self.verbose: self._log("Loop 500:   YL[M][J]=> %s" % self.YL[M][J])
+                        if self.verbose: self._log("")
+                        #self._log("Loop 500:   self.YL[%s][%s]=> %s" % (M,J,self.YL[M][J]))
                         self.ZL[M][J] = self.RB[M][J] * self.SINQ
                         self.EXA = self.PR + self.QR
                         self.CPCQ = self.COSP * self.COSQL[M][J]
@@ -1670,82 +1702,82 @@ GREEN.1\n\
                         self.XZ = self.X * self.ZL[M][J]
                         self.WY = self.W * self.YL[M][J]
                         self.WZ = self.W * self.ZL[M][J]
-                        if self.verbose: print "Loop 500:   ZL[M][J]=> %s" % self.ZL[M][J]
-                        if self.verbose: print "Loop 500:   EXA=> %s" % self.EXA
-                        if self.verbose: print "Loop 500:   CPCQ=> %s" % self.CPCQ
-                        if self.verbose: print "Loop 500:   CPY=> %s" % self.CPY
-                        if self.verbose: print "Loop 500:   CPZ=> %s" % self.CPZ
-                        if self.verbose: print "Loop 500:   CQW=> %s" % self.CQW
-                        if self.verbose: print "Loop 500:   CQX=> %s" % self.CQX
-                        if self.verbose: print "Loop 500:   XY=> %s" % self.XY
-                        if self.verbose: print "Loop 500:   XZ=> %s" % self.XZ
-                        if self.verbose: print "Loop 500:   WY=> %s" % self.WY
-                        if self.verbose: print "Loop 500:   WZ=> %s" % self.WZ
-                        if self.verbose: print ""
+                        if self.verbose: self._log("Loop 500:   ZL[M][J]=> %s" % self.ZL[M][J])
+                        if self.verbose: self._log("Loop 500:   EXA=> %s" % self.EXA)
+                        if self.verbose: self._log("Loop 500:   CPCQ=> %s" % self.CPCQ)
+                        if self.verbose: self._log("Loop 500:   CPY=> %s" % self.CPY)
+                        if self.verbose: self._log("Loop 500:   CPZ=> %s" % self.CPZ)
+                        if self.verbose: self._log("Loop 500:   CQW=> %s" % self.CQW)
+                        if self.verbose: self._log("Loop 500:   CQX=> %s" % self.CQX)
+                        if self.verbose: self._log("Loop 500:   XY=> %s" % self.XY)
+                        if self.verbose: self._log("Loop 500:   XZ=> %s" % self.XZ)
+                        if self.verbose: self._log("Loop 500:   WY=> %s" % self.WY)
+                        if self.verbose: self._log("Loop 500:   WZ=> %s" % self.WZ)
+                        if self.verbose: self._log("")
                         self.FAC = 0.0
                         self.QMP = self.QR - self.PR
-                        if self.verbose: print "Loop 500:   QMP=> %s" % self.QMP
+                        if self.verbose: self._log("Loop 500:   QMP=> %s" % self.QMP)
 
                         if self.QMP > -40.0: self.FAC = exp(self.QMP)
-                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
+                        if self.verbose: self._log("Loop 500:   FAC=> %s" % self.FAC)
 
                         self.COSQ = self.COSQL[M][J] * self.FAC
-                        if self.verbose: print "Loop 500:   COSQ=> %s" % self.COSQ
+                        if self.verbose: self._log("Loop 500:   COSQ=> %s" % self.COSQ)
                         self.Y = self.FAC * self.YL[M][J]
                         self.Z = self.FAC * self.ZL[M][J]
-                        if self.verbose: print "Loop 500:   Y=> %s" % self.Y
-                        if self.verbose: print "Loop 500:   Z=> %s" % self.Z
+                        if self.verbose: self._log("Loop 500:   Y=> %s" % self.Y)
+                        if self.verbose: self._log("Loop 500:   Z=> %s" % self.Z)
                         self.FAC = 0.0
 
                         if self.EXA < 60.0: self.A0 = exp(-self.EXA).real
-                        if self.verbose: print "Loop 500:   A0=> %s" % self.A0
+                        if self.verbose: self._log("Loop 500:   A0=> %s" % self.A0)
 
                         self.RHO2  = self.RHO[M] * self.RHO[M]
-                        if self.verbose: print "Loop 500:   RHO2=> %s" % self.RHO2
-                        if self.verbose: print "Loop 500:   WVNO2=%s" % self.WVNO2[J]
-                        if self.verbose: print "Loop 500:   WVNO2=%s" % self.WVNO2
-                        if self.verbose: print "Loop 500:   J=%s" % J
+                        if self.verbose: self._log("Loop 500:   RHO2=> %s" % self.RHO2)
+                        if self.verbose: self._log("Loop 500:   WVNO2=%s" % self.WVNO2[J])
+                        if self.verbose: self._log("Loop 500:   WVNO2=%s" % self.WVNO2)
+                        if self.verbose: self._log("Loop 500:   J=%s" % J)
                         self.A0C  = 2.0 * (self.A0 - self.CPCQ)
-                        if self.verbose: print "Loop 500:   A0C=> %s" % self.A0C
+                        if self.verbose: self._log("Loop 500:   A0C=> %s" % self.A0C)
                         self.XZ2  = self.XZ / self.WVNO2[J]
-                        if self.verbose: print "Loop 500:   XZ2=> %s" % self.XZ2
+                        if self.verbose: self._log("Loop 500:   XZ2=> %s" % self.XZ2)
                         self.WY2  = self.WY * self.WVNO2[J]
-                        if self.verbose: print "Loop 500:   WY2=> %s" % self.WY2
+                        if self.verbose: self._log("Loop 500:   WY2=> %s" % self.WY2)
                         self.TEMP = self.A0C * self.WVNO2[J] + self.XZ + self.WY2 * self.WVNO2[J]
-                        if self.verbose: print "Loop 500:   TEMP=> %s" % self.TEMP
+                        if self.verbose: self._log("Loop 500:   TEMP=> %s" % self.TEMP)
 
                         self.CA15 = -self.TEMP / self.RHO2
-                        if self.verbose: print "Loop 500:   CA15=> %s" % self.CA15
+                        if self.verbose: self._log("Loop 500:   CA15=> %s" % self.CA15)
 
                         self.TEMP = 0.5 * self.A0C * ( self.GAM[M][J] + self.GAMM1[M][J] ) + self.GAM[M][J] * self.XZ2 + self.GAMM1[M][J] * self.WY2
-                        if self.verbose: print "Loop 500:   TEMP=> %s" % self.TEMP
+                        if self.verbose: self._log("Loop 500:   TEMP=> %s" % self.TEMP)
 
-                        if self.verbose: print ""
+                        if self.verbose: self._log("")
 
 
                         self.CA13= -self.TEMP / self.RHO[M]
-                        if self.verbose: print "Loop 500:   CA13=> %s" % self.CA13
-                        if self.verbose: print "Loop 500:   GAMX1[M][J]=> %s" % self.GAMX1[M][J]
-                        if self.verbose: print "Loop 500:   GAM2[M][J]=> %s" % self.GAM2[M][J]
-                        if self.verbose: print "Loop 500:   GAMM2[M][J]=> %s" % self.GAMM2[M][J]
+                        if self.verbose: self._log("Loop 500:   CA13=> %s" % self.CA13)
+                        if self.verbose: self._log("Loop 500:   GAMX1[M][J]=> %s" % self.GAMX1[M][J])
+                        if self.verbose: self._log("Loop 500:   GAM2[M][J]=> %s" % self.GAM2[M][J])
+                        if self.verbose: self._log("Loop 500:   GAMM2[M][J]=> %s" % self.GAMM2[M][J])
 
                         self.TEMP = self.A0C * self.GAMX1[M][J] + self.GAM2[M][J] * self.XZ2 + self.GAMM2[M][J] * self.WY2
-                        if self.verbose: print "Loop 500:   TEMP=> %s" % self.TEMP
+                        if self.verbose: self._log("Loop 500:   TEMP=> %s" % self.TEMP)
 
                         self.CA33 = self.A0 + self.TEMP*2
                         self.CA11 = self.CPCQ - self.TEMP
-                        if self.verbose: print "Loop 500:   CA33=> %s" % self.CA33
-                        if self.verbose: print "Loop 500:   CA11=> %s" % self.CA11
-                        #if self.verbose: print "Loop 500:   CPCQ=> %s" % self.CPCQ
+                        if self.verbose: self._log("Loop 500:   CA33=> %s" % self.CA33)
+                        if self.verbose: self._log("Loop 500:   CA11=> %s" % self.CA11)
+                        #if self.verbose: self._log("Loop 500:   CPCQ=> %s" % self.CPCQ)
 
                         self.TEMP = 0.5 * self.A0C * self.GAMX1[M][J] * ( self.GAM[M][J] + self.GAMM1[M][J]) + self.GAM3[M][J] * self.XZ2 + self.GAMM3[M][J] * self.WY2
-                        if self.verbose: print "Loop 500:   TEMP=> %s" % self.TEMP
+                        if self.verbose: self._log("Loop 500:   TEMP=> %s" % self.TEMP)
 
-                        if self.verbose: print ""
+                        if self.verbose: self._log("")
                         self.CA31 = 2.0 * self.TEMP * self.RHO[M]
                         self.TEMP = self.A0C * self.GAMX2[M][J] + self.GAM4[M][J] * self.XZ2 +self.GAMM3[M][J] * self.GAMM1[M][J] * self.WY2
-                        if self.verbose: print "Loop 500:   CA31=> %s" % self.CA31
-                        if self.verbose: print "Loop 500:   TEMP=> %s" % self.TEMP
+                        if self.verbose: self._log("Loop 500:   CA31=> %s" % self.CA31)
+                        if self.verbose: self._log("Loop 500:   TEMP=> %s" % self.TEMP)
 
                         self.CA51 = -self.RHO2 * self.TEMP / self.WVNO2[J]
                         self.CA14 = (-self.WVNO2[J] * self.CQW + self.CPZ) / self.RHO[M]
@@ -1767,26 +1799,26 @@ GREEN.1\n\
                         self.CA44 = self.CA22
                         self.CA34 = -2.0 * self.WVNO2[J] * self.CA23
                         self.CA35 = -2.0 * self.WVNO2[J] * self.CA13
-                        if self.verbose: print "Loop 500:   CA51=> %s" % self.CA51
-                        if self.verbose: print "Loop 500:   CA14=> %s" % self.CA14
-                        if self.verbose: print "Loop 500:   CA21=> %s" % self.CA21
-                        if self.verbose: print "Loop 500:   CA23=> %s" % self.CA23
-                        if self.verbose: print "Loop 500:   CA12=> %s" % self.CA12
-                        if self.verbose: print "Loop 500:   CA32=> %s" % self.CA32
-                        if self.verbose: print "Loop 500:   CA41=> %s" % self.CA41
-                        if self.verbose: print "Loop 500:   CA22=> %s" % self.CA22
-                        if self.verbose: print "Loop 500:   CA24=> %s" % self.CA24
-                        if self.verbose: print "Loop 500:   CA42=> %s" % self.CA42
-                        if self.verbose: print "Loop 500:   CA25=> %s" % self.CA25
-                        if self.verbose: print "Loop 500:   CA55=> %s" % self.CA55
-                        if self.verbose: print "Loop 500:   CA54=> %s" % self.CA54
-                        if self.verbose: print "Loop 500:   CA53=> %s" % self.CA53
-                        if self.verbose: print "Loop 500:   CA52=> %s" % self.CA52
-                        if self.verbose: print "Loop 500:   CA43=> %s" % self.CA43
-                        if self.verbose: print "Loop 500:   CA45=> %s" % self.CA45
-                        if self.verbose: print "Loop 500:   CA44=> %s" % self.CA44
-                        if self.verbose: print "Loop 500:   CA34=> %s" % self.CA34
-                        if self.verbose: print "Loop 500:   CA35=> %s" % self.CA35
+                        if self.verbose: self._log("Loop 500:   CA51=> %s" % self.CA51)
+                        if self.verbose: self._log("Loop 500:   CA14=> %s" % self.CA14)
+                        if self.verbose: self._log("Loop 500:   CA21=> %s" % self.CA21)
+                        if self.verbose: self._log("Loop 500:   CA23=> %s" % self.CA23)
+                        if self.verbose: self._log("Loop 500:   CA12=> %s" % self.CA12)
+                        if self.verbose: self._log("Loop 500:   CA32=> %s" % self.CA32)
+                        if self.verbose: self._log("Loop 500:   CA41=> %s" % self.CA41)
+                        if self.verbose: self._log("Loop 500:   CA22=> %s" % self.CA22)
+                        if self.verbose: self._log("Loop 500:   CA24=> %s" % self.CA24)
+                        if self.verbose: self._log("Loop 500:   CA42=> %s" % self.CA42)
+                        if self.verbose: self._log("Loop 500:   CA25=> %s" % self.CA25)
+                        if self.verbose: self._log("Loop 500:   CA55=> %s" % self.CA55)
+                        if self.verbose: self._log("Loop 500:   CA54=> %s" % self.CA54)
+                        if self.verbose: self._log("Loop 500:   CA53=> %s" % self.CA53)
+                        if self.verbose: self._log("Loop 500:   CA52=> %s" % self.CA52)
+                        if self.verbose: self._log("Loop 500:   CA43=> %s" % self.CA43)
+                        if self.verbose: self._log("Loop 500:   CA45=> %s" % self.CA45)
+                        if self.verbose: self._log("Loop 500:   CA44=> %s" % self.CA44)
+                        if self.verbose: self._log("Loop 500:   CA34=> %s" % self.CA34)
+                        if self.verbose: self._log("Loop 500:   CA35=> %s" % self.CA35)
 
 
 
@@ -1801,72 +1833,72 @@ GREEN.1\n\
 
 
 
-                        if self.verbose: print "Loop 500:   ER1=> %s" % self.ER1
-                        if self.verbose: print "Loop 500:   ER2=> %s" % self.ER2
-                        if self.verbose: print "Loop 500:   ER3=> %s" % self.ER3
-                        if self.verbose: print "Loop 500:   ER4=> %s" % self.ER4
-                        if self.verbose: print "Loop 500:   ER5=> %s" % self.ER5
-                        if self.verbose: print ""
+                        if self.verbose: self._log("Loop 500:   ER1=> %s" % self.ER1)
+                        if self.verbose: self._log("Loop 500:   ER2=> %s" % self.ER2)
+                        if self.verbose: self._log("Loop 500:   ER3=> %s" % self.ER3)
+                        if self.verbose: self._log("Loop 500:   ER4=> %s" % self.ER4)
+                        if self.verbose: self._log("Loop 500:   ER5=> %s" % self.ER5)
+                        if self.verbose: self._log("")
 
                         self.TESTT = 0.0
                         if abs(self.ER1.real) > self.TESTT: self.TESTT = abs(self.ER1.real)
-                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500:   TESTT=> %s" % self.TESTT)
                         if abs(self.ER2.real) > self.TESTT: self.TESTT = abs(self.ER2.real)
-                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500:   TESTT=> %s" % self.TESTT)
                         if abs(self.ER3.real) > self.TESTT: self.TESTT = abs(self.ER3.real)
-                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500:   TESTT=> %s" % self.TESTT)
                         if abs(self.ER4.real) > self.TESTT: self.TESTT = abs(self.ER4.real)
-                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500:   TESTT=> %s" % self.TESTT)
                         if abs(self.ER5.real) > self.TESTT: self.TESTT = abs(self.ER5.real)
-                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500:   TESTT=> %s" % self.TESTT)
                         if abs(self.ER1.imag) > self.TESTT: self.TESTT = abs(self.ER1.imag)
-                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500:   TESTT=> %s" % self.TESTT)
                         if abs(self.ER2.imag) > self.TESTT: self.TESTT = abs(self.ER2.imag)
-                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500:   TESTT=> %s" % self.TESTT)
                         if abs(self.ER3.imag) > self.TESTT: self.TESTT = abs(self.ER3.imag)
-                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500:   TESTT=> %s" % self.TESTT)
                         if abs(self.ER4.imag) > self.TESTT: self.TESTT = abs(self.ER4.imag)
-                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500:   TESTT=> %s" % self.TESTT)
                         if abs(self.ER5.imag) > self.TESTT: self.TESTT = abs(self.ER5.imag)
-                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500:   TESTT=> %s" % self.TESTT)
 
                         if self.TESTT < 1.0E-30: self.TESTT = 1.0
-                        if self.verbose: print "Loop 500:   TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500:   TESTT=> %s" % self.TESTT)
 
 
                         self.TEST = 0.0
 
                         self.FAC = abs(self.ER1) / self.TESTT
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
-                        if self.verbose: print "Loop 500:   TEST=> %s" % self.TEST
+                        if self.verbose: self._log("Loop 500:   FAC=> %s" % self.FAC)
+                        if self.verbose: self._log("Loop 500:   TEST=> %s" % self.TEST)
                         self.FAC = abs(self.ER2) / self.TESTT
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
-                        if self.verbose: print "Loop 500:   TEST=> %s" % self.TEST
+                        if self.verbose: self._log("Loop 500:   FAC=> %s" % self.FAC)
+                        if self.verbose: self._log("Loop 500:   TEST=> %s" % self.TEST)
                         self.FAC = abs(self.ER3) / self.TESTT
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
-                        if self.verbose: print "Loop 500:   TEST=> %s" % self.TEST
+                        if self.verbose: self._log("Loop 500:   FAC=> %s" % self.FAC)
+                        if self.verbose: self._log("Loop 500:   TEST=> %s" % self.TEST)
                         self.FAC = abs(self.ER4) / self.TESTT
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
-                        if self.verbose: print "Loop 500:   TEST=> %s" % self.TEST
+                        if self.verbose: self._log("Loop 500:   FAC=> %s" % self.FAC)
+                        if self.verbose: self._log("Loop 500:   TEST=> %s" % self.TEST)
                         self.FAC = abs(self.ER5) / self.TESTT
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
-                        if self.verbose: print "Loop 500:   TEST=> %s" % self.TEST
+                        if self.verbose: self._log("Loop 500:   FAC=> %s" % self.FAC)
+                        if self.verbose: self._log("Loop 500:   TEST=> %s" % self.TEST)
                         self.TEST = self.TEST * self.TESTT
                         if self.TEST < 1.0E-30: self.TEST = 1.0
-                        if self.verbose: print "Loop 500:   FAC=> %s" % self.FAC
-                        if self.verbose: print "Loop 500:   TEST=> %s" % self.TEST
+                        if self.verbose: self._log("Loop 500:   FAC=> %s" % self.FAC)
+                        if self.verbose: self._log("Loop 500:   TEST=> %s" % self.TEST)
 
-                        if self.verbose: print "self.TEST:%s" % self.TEST
+                        if self.verbose: self._log("self.TEST:%s" % self.TEST)
 
                         self.XNORM = 1.0 / self.TEST
-                        if self.verbose: print "Loop 500:   XNORM=> %s" % self.XNORM
+                        if self.verbose: self._log("Loop 500:   XNORM=> %s" % self.XNORM)
                         self.EXA  = -log(self.XNORM)
-                        if self.verbose: print "Loop 500:   EXA=> %s" % self.EXA
+                        if self.verbose: self._log("Loop 500:   EXA=> %s" % self.EXA)
                         self.R1[J] = self.ER1 * self.XNORM
                         self.R2[J] = self.ER2 * self.XNORM
                         self.R3[J] = self.ER3 * self.XNORM
@@ -1875,8 +1907,8 @@ GREEN.1\n\
 
                         self.EXE[J] = self.EXE[J] + self.EXA
                         self.EXEL[J] = self.EXEL[J] + self.EXB
-                        if self.verbose: print "Loop 500:   EXE[%s]=> %s" % (J,self.EXE[J])
-                        if self.verbose: print "Loop 500:   EXEL[%s]=> %s" % (J,self.EXEL[J])
+                        if self.verbose: self._log("Loop 500:   EXE[%s]=> %s" % (J,self.EXE[J]))
+                        if self.verbose: self._log("Loop 500:   EXEL[%s]=> %s" % (J,self.EXEL[J]))
                         #}}} K
                 #}}} J 
 
@@ -1894,14 +1926,14 @@ GREEN.1\n\
                         for L in range(4):
                             self.ZX[J][K][L] = complex(0.0,0.0)
                             if K == L: self.ZX[J][K][L] = complex(1.0,0.0)
-                if self.verbose: print "Loop 500: X1=> %s" % self.X1
-                if self.verbose: print "Loop 500: X2=> %s" % self.X2
-                if self.verbose: print "Loop 500: X3=> %s" % self.X3
-                if self.verbose: print "Loop 500: X4=> %s" % self.X4
-                if self.verbose: print "Loop 500: X5=> %s" % self.X5
-                if self.verbose: print "Loop 500: EXL=> %s" % self.EXL
-                if self.verbose: print "Loop 500: EXLL=> %s" % self.EXLL
-                if self.verbose: print "Loop 500: ZX=> %s" % self.ZX
+                if self.verbose: self._log("Loop 500: X1=> %s" % self.X1)
+                if self.verbose: self._log("Loop 500: X2=> %s" % self.X2)
+                if self.verbose: self._log("Loop 500: X3=> %s" % self.X3)
+                if self.verbose: self._log("Loop 500: X4=> %s" % self.X4)
+                if self.verbose: self._log("Loop 500: X5=> %s" % self.X5)
+                if self.verbose: self._log("Loop 500: EXL=> %s" % self.EXL)
+                if self.verbose: self._log("Loop 500: EXLL=> %s" % self.EXLL)
+                if self.verbose: self._log("Loop 500: ZX=> %s" % self.ZX)
                 #}}} L
 
                 # MATRIX MULTIPLICATION FROM THE SOURCE INTERFACE UPWARD TO THE SURFACE
@@ -1909,101 +1941,101 @@ GREEN.1\n\
                 for I in range(self.LMAX):
                     M = self.LMAX - I -1 
                     self.DPTH = self.D[M]
-                    if self.verbose: print "Loop 500 14: I=> %s" % I
-                    if self.verbose: print "Loop 500 14: LMAX=> %s" % self.LMAX
-                    if self.verbose: print "Loop 500 14: M=> %s" % M
-                    if self.verbose: print "Loop 500 14: DPTH=> %s" % self.DPTH
+                    if self.verbose: self._log("Loop 500 14: I=> %s" % I)
+                    if self.verbose: self._log("Loop 500 14: LMAX=> %s" % self.LMAX)
+                    if self.verbose: self._log("Loop 500 14: M=> %s" % M)
+                    if self.verbose: self._log("Loop 500 14: DPTH=> %s" % self.DPTH)
 
                     #{{{ P
                     for J in range(self.IBLOCK):
                         self.P = self.RA[M][J] * self.DPTH
                         self.Q = self.RB[M][J] * self.DPTH
 
-                        if self.verbose: print "Loop 500 15:   J=> %s" % J
-                        if self.verbose: print "Loop 500 15:   P=> %s" % self.P
-                        if self.verbose: print "Loop 500 15:   P=> %s" % self.Q
+                        if self.verbose: self._log("Loop 500 15:   J=> %s" % J)
+                        if self.verbose: self._log("Loop 500 15:   P=> %s" % self.P)
+                        if self.verbose: self._log("Loop 500 15:   P=> %s" % self.Q)
 
                         A0 = 0.0
                         self.PR = self.P.real
-                        if self.verbose: print "Loop 500 15: PR=> %s" % self.PR
+                        if self.verbose: self._log("Loop 500 15: PR=> %s" % self.PR)
                         self.PI = self.P.imag
-                        if self.verbose: print "Loop 500 15: PI=> %s" % self.PI
+                        if self.verbose: self._log("Loop 500 15: PI=> %s" % self.PI)
                         self.QR = self.Q.real
-                        if self.verbose: print "Loop 500 15: QR=> %s" % self.QR
+                        if self.verbose: self._log("Loop 500 15: QR=> %s" % self.QR)
                         self.QI = self.Q.imag
-                        if self.verbose: print "Loop 500 15: QI=> %s" % self.QI
+                        if self.verbose: self._log("Loop 500 15: QI=> %s" % self.QI)
                         self.EPP = complex(cos(self.PI),sin(self.PI)) / 2.0
-                        if self.verbose: print "Loop 500 15: EPP=> %s" % self.EPP
+                        if self.verbose: self._log("Loop 500 15: EPP=> %s" % self.EPP)
                         self.EPM = self.EPP.conjugate()
-                        if self.verbose: print "Loop 500 15: EPM=> %s" % self.EPM
+                        if self.verbose: self._log("Loop 500 15: EPM=> %s" % self.EPM)
                         self.EQP = complex(cos(self.QI),sin(self.QI)) / 2.0
-                        if self.verbose: print "Loop 500 15: EQP=> %s" % self.EQP
+                        if self.verbose: self._log("Loop 500 15: EQP=> %s" % self.EQP)
                         self.EQM = self.EQP.conjugate()
-                        if self.verbose: print "Loop 500 15: EQM=> %s" % self.EQM
+                        if self.verbose: self._log("Loop 500 15: EQM=> %s" % self.EQM)
                         self.EX = self.PR
-                        if self.verbose: print "Loop 500 15: EX=> %s" % self.EX
+                        if self.verbose: self._log("Loop 500 15: EX=> %s" % self.EX)
                         self.EXB = self.QR
-                        if self.verbose: print "Loop 500 15: EXB=> %s" % self.EXB
+                        if self.verbose: self._log("Loop 500 15: EXB=> %s" % self.EXB)
                         self.FAC = 0.0
-                        if self.verbose: print ""
+                        if self.verbose: self._log("")
 
                         if self.PR < 15.0: self.FAC = exp(-2*self.PR).real 
-                        if self.verbose: print "Loop 500 15: FAC=> %s" % self.FAC
+                        if self.verbose: self._log("Loop 500 15: FAC=> %s" % self.FAC)
 
                         self.COSP = self.EPP + self.FAC * self.EPM
-                        if self.verbose: print "Loop 500 15: COSP=> %s" % self.COSP
+                        if self.verbose: self._log("Loop 500 15: COSP=> %s" % self.COSP)
                         self.SINP = self.EPP - self.FAC * self.EPM
-                        if self.verbose: print "Loop 500 15: SINP=> %s" % self.SINP
+                        if self.verbose: self._log("Loop 500 15: SINP=> %s" % self.SINP)
                         self.W = self.SINP / self.RA[M][J]
-                        if self.verbose: print "Loop 500 15: W=> %s" % self.W
+                        if self.verbose: self._log("Loop 500 15: W=> %s" % self.W)
                         self.X = self.RA[M][J] * self.SINP
-                        if self.verbose: print "Loop 500 15: X=> %s" % self.X
+                        if self.verbose: self._log("Loop 500 15: X=> %s" % self.X)
                         self.FAC = 0.0
                         if self.QR < 15.0: self.FAC = exp(-2.0 * self.QR)
-                        if self.verbose: print "Loop 500 15: FAC=> %s" % self.FAC
+                        if self.verbose: self._log("Loop 500 15: FAC=> %s" % self.FAC)
                         self.COSQL[M][J] = self.EQP + self.FAC * self.EQM
-                        if self.verbose: print "Loop 500 15: COSQL[M][J]=> %s" % self.COSQL[M][J]
+                        if self.verbose: self._log("Loop 500 15: COSQL[M][J]=> %s" % self.COSQL[M][J])
                         self.SINQ = self.EQP - self.FAC * self.EQM
-                        if self.verbose: print "Loop 500 15: SINQ=> %s" % self.SINQ
+                        if self.verbose: self._log("Loop 500 15: SINQ=> %s" % self.SINQ)
                         self.YL[M][J] = self.SINQ / self.RB[M][J]
-                        if self.verbose: print "Loop 500 15: YL[M][J]=> %s" % self.YL[M][J]
+                        if self.verbose: self._log("Loop 500 15: YL[M][J]=> %s" % self.YL[M][J])
                         self.ZL[M][J] = self.RB[M][J] * self.SINQ
-                        if self.verbose: print "Loop 500 15: ZL[M][J]=> %s" % self.ZL[M][J]
+                        if self.verbose: self._log("Loop 500 15: ZL[M][J]=> %s" % self.ZL[M][J])
                         self.EXA = self.PR + self.QR
-                        if self.verbose: print "Loop 500 15: EXA=> %s" % self.EXA
+                        if self.verbose: self._log("Loop 500 15: EXA=> %s" % self.EXA)
                         self.CPCQ = self.COSP * self.COSQL[M][J]
-                        if self.verbose: print "Loop 500 15: CPCQ=> %s" % self.CPCQ
+                        if self.verbose: self._log("Loop 500 15: CPCQ=> %s" % self.CPCQ)
                         self.CPY = self.COSP * self.YL[M][J]
-                        if self.verbose: print "Loop 500 15: CPY=> %s" % self.CPY
+                        if self.verbose: self._log("Loop 500 15: CPY=> %s" % self.CPY)
                         self.CPZ = self.COSP * self.ZL[M][J]
-                        if self.verbose: print "Loop 500 15: CPZ=> %s" % self.CPZ
+                        if self.verbose: self._log("Loop 500 15: CPZ=> %s" % self.CPZ)
                         self.CQW = self.COSQL[M][J] * self.W
-                        if self.verbose: print "Loop 500 15: CQW=> %s" % self.CQW
+                        if self.verbose: self._log("Loop 500 15: CQW=> %s" % self.CQW)
                         self.CQX = self.COSQL[M][J] * self.X
-                        if self.verbose: print "Loop 500 15: CQX=> %s" % self.CQX
+                        if self.verbose: self._log("Loop 500 15: CQX=> %s" % self.CQX)
                         self.XY = self.X * self.YL[M][J]
-                        if self.verbose: print "Loop 500 15: XY=> %s" % self.XY
+                        if self.verbose: self._log("Loop 500 15: XY=> %s" % self.XY)
                         self.XZ = self.X * self.ZL[M][J]
-                        if self.verbose: print "Loop 500 15: XZ=> %s" % self.XZ
+                        if self.verbose: self._log("Loop 500 15: XZ=> %s" % self.XZ)
                         self.WY = self.W * self.YL[M][J]
-                        if self.verbose: print "Loop 500 15: WY=> %s" % self.WY
+                        if self.verbose: self._log("Loop 500 15: WY=> %s" % self.WY)
                         self.WZ = self.W * self.ZL[M][J]
-                        if self.verbose: print "Loop 500 15: WZ=> %s" % self.WZ
-                        if self.verbose: print ""
+                        if self.verbose: self._log("Loop 500 15: WZ=> %s" % self.WZ)
+                        if self.verbose: self._log("")
 
                         self.FAC = 0.0
                         self.QMP = self.QR - self.PR
-                        if self.verbose: print "Loop 500 15: QMP=> %s" % self.QMP
+                        if self.verbose: self._log("Loop 500 15: QMP=> %s" % self.QMP)
                         if self.QMP > -40.0: self.FAC = exp(self.QMP).real
-                        if self.verbose: print "Loop 500 15: FAC=> %s" % self.FAC
+                        if self.verbose: self._log("Loop 500 15: FAC=> %s" % self.FAC)
                         self.COSQ = self.COSQL[M][J] * self.FAC
-                        if self.verbose: print "Loop 500 15: COSQ=> %s" % self.COSQ
+                        if self.verbose: self._log("Loop 500 15: COSQ=> %s" % self.COSQ)
                         self.Y = self.FAC * self.YL[M][J]
-                        if self.verbose: print "Loop 500 15: Y=> %s" % self.Y
+                        if self.verbose: self._log("Loop 500 15: Y=> %s" % self.Y)
                         self.Z = self.FAC * self.ZL[M][J]
-                        if self.verbose: print "Loop 500 15: Z=> %s" % self.Z
+                        if self.verbose: self._log("Loop 500 15: Z=> %s" % self.Z)
 
-                        if self.verbose: print ""
+                        if self.verbose: self._log("")
 
                         self.FAC=0.0
                         if self.EXA < 60.0: self.A0 = exp(-self.EXA)
@@ -2011,37 +2043,37 @@ GREEN.1\n\
                         self.A0C  = 2.0 * (self.A0 - self.CPCQ)
                         self.XZ2  = self.XZ / self.WVNO2[J]
                         self.WY2  = self.WY * self.WVNO2[J]
-                        if self.verbose: print "Loop 500 15: A0=> %s" % self.A0
-                        if self.verbose: print "Loop 500 15: RHO2=> %s" % self.RHO2
-                        if self.verbose: print "Loop 500 15: A0C=> %s" % self.A0C
-                        if self.verbose: print "Loop 500 15: XZ2=> %s" % self.XZ2
-                        if self.verbose: print "Loop 500 15: WY2=> %s" % self.WY2
+                        if self.verbose: self._log("Loop 500 15: A0=> %s" % self.A0)
+                        if self.verbose: self._log("Loop 500 15: RHO2=> %s" % self.RHO2)
+                        if self.verbose: self._log("Loop 500 15: A0C=> %s" % self.A0C)
+                        if self.verbose: self._log("Loop 500 15: XZ2=> %s" % self.XZ2)
+                        if self.verbose: self._log("Loop 500 15: WY2=> %s" % self.WY2)
                         self.TEMP = self.A0C * self.WVNO2[J] + self.XZ + self.WY2 * self.WVNO2[J]
-                        if self.verbose: print "Loop 500 15: TEMP=> %s" % self.TEMP
+                        if self.verbose: self._log("Loop 500 15: TEMP=> %s" % self.TEMP)
                         self.CA15 = -self.TEMP / self.RHO2
-                        if self.verbose: print "Loop 500 15: CA15=> %s" % self.CA15
+                        if self.verbose: self._log("Loop 500 15: CA15=> %s" % self.CA15)
                         self.TEMP = 0.5 * self.A0C * (self.GAM[M][J] + self.GAMM1[M][J]) + self.GAM[M][J] * self.XZ2 + self.GAMM1[M][J] * self.WY2
-                        if self.verbose: print "Loop 500 15: TEMP=> %s" % self.TEMP
+                        if self.verbose: self._log("Loop 500 15: TEMP=> %s" % self.TEMP)
                         self.CA13 = -self.TEMP / self.RHO[M]
-                        if self.verbose: print "Loop 500 15: CA13=> %s" % self.CA13
+                        if self.verbose: self._log("Loop 500 15: CA13=> %s" % self.CA13)
                         self.TEMP = self.A0C * self.GAMX1[M][J] + self.GAM2[M][J] * self.XZ2 + self.GAMM2[M][J] * self.WY2
-                        if self.verbose: print "Loop 500 15: TEMP=> %s" % self.TEMP
+                        if self.verbose: self._log("Loop 500 15: TEMP=> %s" % self.TEMP)
                         self.CA33 = self.A0 + self.TEMP + self.TEMP
-                        if self.verbose: print "Loop 500: CA33=> %s" % self.CA33
+                        if self.verbose: self._log("Loop 500: CA33=> %s" % self.CA33)
                         self.CA11 = self.CPCQ - self.TEMP
-                        if self.verbose: print "Loop 500 15: CA11=> %s" % self.CA11
+                        if self.verbose: self._log("Loop 500 15: CA11=> %s" % self.CA11)
                         self.TEMP = 0.5 * self.A0C * self.GAMX1[M][J] * (self.GAM[M][J] + self.GAMM1[M][J])+ self.GAM3[M][J] * self.XZ2 + self.GAMM3[M][J] * self.WY2
-                        if self.verbose: print "Loop 500 15: TEMP=> %s" % self.TEMP
+                        if self.verbose: self._log("Loop 500 15: TEMP=> %s" % self.TEMP)
                         self.CA31 = 2.0 * self.TEMP * self.RHO[M]
-                        if self.verbose: print "Loop 500 15: CA31=> %s" % self.CA31
+                        if self.verbose: self._log("Loop 500 15: CA31=> %s" % self.CA31)
                         self.TEMP = self.A0C * self.GAMX2[M][J] + self.GAM4[M][J] * self.XZ2 + self.GAMM3[M][J] * self.GAMM1[M][J] * self.WY2
-                        #if self.verbose: print "Loop 500 15: GAMX2=> %s" % self.GAMX2[M][J]
-                        #if self.verbose: print "Loop 500 15: GAM4=> %s" % self.GAM4[M][J]
-                        #if self.verbose: print "Loop 500 15: XZ2=> %s" % self.XZ2
-                        #if self.verbose: print "Loop 500 15: GAMM3=> %s" % self.GAMM3[M][J]
-                        #if self.verbose: print "Loop 500 15: GAMM1=> %s" % self.GAMM1[M][J]
-                        #if self.verbose: print "Loop 500 15: WY2=> %s" % self.WY2
-                        if self.verbose: print "Loop 500 15: TEMP=> %s" % self.TEMP
+                        #if self.verbose: self._log("Loop 500 15: GAMX2=> %s" % self.GAMX2[M][J])
+                        #if self.verbose: self._log("Loop 500 15: GAM4=> %s" % self.GAM4[M][J])
+                        #if self.verbose: self._log("Loop 500 15: XZ2=> %s" % self.XZ2)
+                        #if self.verbose: self._log("Loop 500 15: GAMM3=> %s" % self.GAMM3[M][J])
+                        #if self.verbose: self._log("Loop 500 15: GAMM1=> %s" % self.GAMM1[M][J])
+                        #if self.verbose: self._log("Loop 500 15: WY2=> %s" % self.WY2)
+                        if self.verbose: self._log("Loop 500 15: TEMP=> %s" % self.TEMP)
                         self.CA51 = -self.RHO2 * self.TEMP / self.WVNO2[J]
                         self.CA14 = (-self.WVNO2[J] * self.CQW + self.CPZ) / self.RHO[M]
                         self.CA21 = (-self.GAMM2[M][J] * self.CQW + self.GAM2[M][J] * self.CPZ / self.WVNO2[J]) * self.RHO[M]
@@ -2063,123 +2095,123 @@ GREEN.1\n\
                         self.CA34 = -2.0 * self.WVNO2[J] * self.CA23
                         self.CA35 = -2.0 * self.WVNO2[J] * self.CA13
 
-                        if self.verbose: print "Loop 500 15: CA51=> %s" % self.CA51
-                        if self.verbose: print "Loop 500 15: CA14=> %s" % self.CA14
-                        if self.verbose: print "Loop 500 15: CA21=> %s" % self.CA21
-                        if self.verbose: print "Loop 500 15: CA23=> %s" % self.CA23
-                        if self.verbose: print "Loop 500 15: CA12=> %s" % self.CA12
-                        if self.verbose: print "Loop 500 15: CA32=> %s" % self.CA32
-                        if self.verbose: print "Loop 500 15: CA41=> %s" % self.CA41
-                        if self.verbose: print "Loop 500 15: CA22=> %s" % self.CA22
-                        if self.verbose: print "Loop 500 15: CA24=> %s" % self.CA24
-                        if self.verbose: print "Loop 500 15: CA42=> %s" % self.CA42
-                        if self.verbose: print "Loop 500 15: CA25=> %s" % self.CA25
-                        if self.verbose: print "Loop 500 15: CA55=> %s" % self.CA55
-                        if self.verbose: print "Loop 500 15: CA54=> %s" % self.CA54
-                        if self.verbose: print "Loop 500 15: CA53=> %s" % self.CA53
-                        if self.verbose: print "Loop 500 15: CA52=> %s" % self.CA52
-                        if self.verbose: print "Loop 500 15: CA43=> %s" % self.CA43
-                        if self.verbose: print "Loop 500 15: CA45=> %s" % self.CA45
-                        if self.verbose: print "Loop 500 15: CA44=> %s" % self.CA44
-                        if self.verbose: print "Loop 500 15: CA34=> %s" % self.CA34
-                        if self.verbose: print "Loop 500 15: CA35=> %s" % self.CA35
+                        if self.verbose: self._log("Loop 500 15: CA51=> %s" % self.CA51)
+                        if self.verbose: self._log("Loop 500 15: CA14=> %s" % self.CA14)
+                        if self.verbose: self._log("Loop 500 15: CA21=> %s" % self.CA21)
+                        if self.verbose: self._log("Loop 500 15: CA23=> %s" % self.CA23)
+                        if self.verbose: self._log("Loop 500 15: CA12=> %s" % self.CA12)
+                        if self.verbose: self._log("Loop 500 15: CA32=> %s" % self.CA32)
+                        if self.verbose: self._log("Loop 500 15: CA41=> %s" % self.CA41)
+                        if self.verbose: self._log("Loop 500 15: CA22=> %s" % self.CA22)
+                        if self.verbose: self._log("Loop 500 15: CA24=> %s" % self.CA24)
+                        if self.verbose: self._log("Loop 500 15: CA42=> %s" % self.CA42)
+                        if self.verbose: self._log("Loop 500 15: CA25=> %s" % self.CA25)
+                        if self.verbose: self._log("Loop 500 15: CA55=> %s" % self.CA55)
+                        if self.verbose: self._log("Loop 500 15: CA54=> %s" % self.CA54)
+                        if self.verbose: self._log("Loop 500 15: CA53=> %s" % self.CA53)
+                        if self.verbose: self._log("Loop 500 15: CA52=> %s" % self.CA52)
+                        if self.verbose: self._log("Loop 500 15: CA43=> %s" % self.CA43)
+                        if self.verbose: self._log("Loop 500 15: CA45=> %s" % self.CA45)
+                        if self.verbose: self._log("Loop 500 15: CA44=> %s" % self.CA44)
+                        if self.verbose: self._log("Loop 500 15: CA34=> %s" % self.CA34)
+                        if self.verbose: self._log("Loop 500 15: CA35=> %s" % self.CA35)
 
-                        if self.verbose: print ""
+                        if self.verbose: self._log("")
 
                         self.EXE[J] = self.EXE[J] + self.EXA
-                        if self.verbose: print "Loop 500: EXE[J]=> %s" % self.EXE[J]
+                        if self.verbose: self._log("Loop 500: EXE[J]=> %s" % self.EXE[J])
                         self.ER1 = self.R1[J] * self.CA11 + self.R2[J] * self.CA21 + self.R3[J] * self.CA31 + self.R4[J] * self.CA41 + self.R5[J] * self.CA51
                         self.ER2 = self.R1[J] * self.CA12 + self.R2[J] * self.CA22 + self.R3[J] * self.CA32 + self.R4[J] * self.CA42 + self.R5[J] * self.CA52
                         self.ER3 = self.R1[J] * self.CA13 + self.R2[J] * self.CA23 + self.R3[J] * self.CA33 + self.R4[J] * self.CA43 + self.R5[J] * self.CA53
                         self.ER4 = self.R1[J] * self.CA14 + self.R2[J] * self.CA24 + self.R3[J] * self.CA34 + self.R4[J] * self.CA44 + self.R5[J] * self.CA54
                         self.ER5 = self.R1[J] * self.CA15 + self.R2[J] * self.CA25 + self.R3[J] * self.CA35 + self.R4[J] * self.CA45 + self.R5[J] * self.CA55
-                        if self.verbose: print "Loop 500: ER1=> %s" % self.ER1
-                        if self.verbose: print "Loop 500: ER2=> %s" % self.ER2
-                        if self.verbose: print "Loop 500: ER3=> %s" % self.ER3
-                        if self.verbose: print "Loop 500: ER4=> %s" % self.ER4
-                        if self.verbose: print "Loop 500: ER5=> %s" % self.ER5
+                        if self.verbose: self._log("Loop 500: ER1=> %s" % self.ER1)
+                        if self.verbose: self._log("Loop 500: ER2=> %s" % self.ER2)
+                        if self.verbose: self._log("Loop 500: ER3=> %s" % self.ER3)
+                        if self.verbose: self._log("Loop 500: ER4=> %s" % self.ER4)
+                        if self.verbose: self._log("Loop 500: ER5=> %s" % self.ER5)
 
                         self.TESTT = 0.0
                         if abs(self.ER1.real) > self.TESTT: self.TESTT = abs(self.ER1.real)
-                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500: TESTT=> %s" % self.TESTT)
                         if abs(self.ER2.real) > self.TESTT: self.TESTT = abs(self.ER2.real)
-                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500: TESTT=> %s" % self.TESTT)
                         if abs(self.ER3.real) > self.TESTT: self.TESTT = abs(self.ER3.real)
-                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500: TESTT=> %s" % self.TESTT)
                         if abs(self.ER4.real) > self.TESTT: self.TESTT = abs(self.ER4.real)
-                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500: TESTT=> %s" % self.TESTT)
                         if abs(self.ER5.real) > self.TESTT: self.TESTT = abs(self.ER5.real)
-                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500: TESTT=> %s" % self.TESTT)
 
                         if abs(self.ER1.imag) > self.TESTT: self.TESTT = abs(self.ER1.imag)
-                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500: TESTT=> %s" % self.TESTT)
                         if abs(self.ER2.imag) > self.TESTT: self.TESTT = abs(self.ER2.imag)
-                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500: TESTT=> %s" % self.TESTT)
                         if abs(self.ER3.imag) > self.TESTT: self.TESTT = abs(self.ER3.imag)
-                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500: TESTT=> %s" % self.TESTT)
                         if abs(self.ER4.imag) > self.TESTT: self.TESTT = abs(self.ER4.imag)
-                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500: TESTT=> %s" % self.TESTT)
                         if abs(self.ER5.imag) > self.TESTT: self.TESTT = abs(self.ER5.imag)
-                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500: TESTT=> %s" % self.TESTT)
                         if self.TESTT < 1.0e-30: self.TESTT = 1.0
-                        if self.verbose: print "Loop 500: TESTT=> %s" % self.TESTT
+                        if self.verbose: self._log("Loop 500: TESTT=> %s" % self.TESTT)
 
-                        if self.verbose: print ""
+                        if self.verbose: self._log("")
 
 
                         self.TEST = 0.0
                         self.FAC = abs(self.ER1) / self.TESTT
-                        if self.verbose: print "Loop 500: FAC=> %s" % self.FAC
+                        if self.verbose: self._log("Loop 500: FAC=> %s" % self.FAC)
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.verbose: print "Loop 500: TEST=> %s" % self.TEST
+                        if self.verbose: self._log("Loop 500: TEST=> %s" % self.TEST)
                         self.FAC = abs(self.ER2) / self.TESTT
-                        if self.verbose: print "Loop 500: FAC=> %s" % self.FAC
+                        if self.verbose: self._log("Loop 500: FAC=> %s" % self.FAC)
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.verbose: print "Loop 500: TEST=> %s" % self.TEST
+                        if self.verbose: self._log("Loop 500: TEST=> %s" % self.TEST)
                         self.FAC = abs(self.ER3) / self.TESTT
-                        if self.verbose: print "Loop 500: FAC=> %s" % self.FAC
+                        if self.verbose: self._log("Loop 500: FAC=> %s" % self.FAC)
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.verbose: print "Loop 500: TEST=> %s" % self.TEST
+                        if self.verbose: self._log("Loop 500: TEST=> %s" % self.TEST)
                         self.FAC = abs(self.ER4) / self.TESTT
-                        if self.verbose: print "Loop 500: FAC=> %s" % self.FAC
+                        if self.verbose: self._log("Loop 500: FAC=> %s" % self.FAC)
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.verbose: print "Loop 500: TEST=> %s" % self.TEST
+                        if self.verbose: self._log("Loop 500: TEST=> %s" % self.TEST)
                         self.FAC = abs(self.ER5) / self.TESTT
-                        if self.verbose: print "Loop 500: FAC=> %s" % self.FAC
+                        if self.verbose: self._log("Loop 500: FAC=> %s" % self.FAC)
                         if self.TEST < self.FAC: self.TEST = self.FAC
-                        if self.verbose: print "Loop 500: TEST=> %s" % self.TEST
+                        if self.verbose: self._log("Loop 500: TEST=> %s" % self.TEST)
                         self.TEST = self.TEST * self.TESTT
-                        if self.verbose: print "Loop 500: TEST=> %s" % self.TEST
+                        if self.verbose: self._log("Loop 500: TEST=> %s" % self.TEST)
                         if self.TEST < 1.0e-30: self.TEST = 1.0
-                        if self.verbose: print "Loop 500: TEST=> %s" % self.TEST
+                        if self.verbose: self._log("Loop 500: TEST=> %s" % self.TEST)
                         self.XNORM = 1.0 / self.TEST
-                        if self.verbose: print "Loop 500: XNORM=> %s" % self.XNORM
+                        if self.verbose: self._log("Loop 500: XNORM=> %s" % self.XNORM)
                         self.EXA = -log(self.XNORM)
-                        if self.verbose: print "Loop 500: EXA=> %s" % self.EXA
+                        if self.verbose: self._log("Loop 500: EXA=> %s" % self.EXA)
 
                         self.R1[J] = self.ER1 * self.XNORM
                         self.R2[J] = self.ER2 * self.XNORM
                         self.R3[J] = self.ER3 * self.XNORM
                         self.R4[J] = self.ER4 * self.XNORM
                         self.R5[J] = self.ER5 * self.XNORM
-                        if self.verbose: print "Loop 500: R1[J]=> %s" % self.R1[J]
-                        if self.verbose: print "Loop 500: R2[J]=> %s" % self.R2[J]
-                        if self.verbose: print "Loop 500: R3[J]=> %s" % self.R3[J]
-                        if self.verbose: print "Loop 500: R4[J]=> %s" % self.R4[J]
-                        if self.verbose: print "Loop 500: R5[J]=> %s" % self.R5[J]
+                        if self.verbose: self._log("Loop 500: R1[J]=> %s" % self.R1[J])
+                        if self.verbose: self._log("Loop 500: R2[J]=> %s" % self.R2[J])
+                        if self.verbose: self._log("Loop 500: R3[J]=> %s" % self.R3[J])
+                        if self.verbose: self._log("Loop 500: R4[J]=> %s" % self.R4[J])
+                        if self.verbose: self._log("Loop 500: R5[J]=> %s" % self.R5[J])
 
 
                         self.EXE[J] = self.EXE[J] + self.EXA
                         self.EXEL[J] = self.EXEL[J] + self.EXB
 
-                        if self.verbose: print "Loop 500: EXE[J]=> %s" % self.EXE[J]
-                        if self.verbose: print "Loop 500: EXEL[J]=> %s" % self.EXEL[J]
+                        if self.verbose: self._log("Loop 500: EXE[J]=> %s" % self.EXE[J])
+                        if self.verbose: self._log("Loop 500: EXEL[J]=> %s" % self.EXEL[J])
 
                         #
                         #   self.  PROPAGATION OF 4X4 HASKEL MATRIX UPWARD ++++++++++++>
                         #
                         self.EXL[J] = self.EXL[J] + self.EX
-                        if self.verbose: print "Loop 500: EXL=> %s" % self.EXL[J]
+                        if self.verbose: self._log("Loop 500: EXL=> %s" % self.EXL[J])
                         self.AA11 = self.GAM[M][J] * self.COSP - self.GAMM1[M][J] * self.COSQ
                         self.AA12 = -self.GAMM1[M][J] * self.W + self.GAM[M][J] * self.Z / self.WVNO2[J]
                         self.AA13 = -(self.COSP - self.COSQ) / self.RHO[M]
@@ -2197,26 +2229,26 @@ GREEN.1\n\
                         self.AA43 = -self.AA21 / self.WVNO2[J]
                         self.AA44 = self.AA11
 
-                        if self.verbose: print ""
-                        if self.verbose: print "Loop 500: J=> %s" % J
-                        if self.verbose: print "Loop 500: EXL[J]=> %s" % self.EXL[J]
-                        if self.verbose: print "Loop 500: AA11=> %s" % self.AA11
-                        if self.verbose: print "Loop 500: AA12=> %s" % self.AA12
-                        if self.verbose: print "Loop 500: AA13=> %s" % self.AA13
-                        if self.verbose: print "Loop 500: AA14=> %s" % self.AA14
-                        if self.verbose: print "Loop 500: AA21=> %s" % self.AA21
-                        if self.verbose: print "Loop 500: AA22=> %s" % self.AA22
-                        if self.verbose: print "Loop 500: AA23=> %s" % self.AA23
-                        if self.verbose: print "Loop 500: AA24=> %s" % self.AA24
-                        if self.verbose: print "Loop 500: AA31=> %s" % self.AA31
-                        if self.verbose: print "Loop 500: AA32=> %s" % self.AA32
-                        if self.verbose: print "Loop 500: AA34=> %s" % self.AA34
-                        if self.verbose: print "Loop 500: AA33=> %s" % self.AA33
-                        if self.verbose: print "Loop 500: AA41=> %s" % self.AA41
-                        if self.verbose: print "Loop 500: AA42=> %s" % self.AA42
-                        if self.verbose: print "Loop 500: AA43=> %s" % self.AA43
-                        if self.verbose: print "Loop 500: AA44=> %s" % self.AA44
-                        #print "%s %s %s %s %s %s %s %s" %(self.ZX[J][0][0],self.AA11,self.ZX[J][0][1],self.AA21,self.ZX[J][0][2],self.AA31,self.ZX[J][0][3],self.AA41)
+                        if self.verbose: self._log("")
+                        if self.verbose: self._log("Loop 500: J=> %s" % J)
+                        if self.verbose: self._log("Loop 500: EXL[J]=> %s" % self.EXL[J])
+                        if self.verbose: self._log("Loop 500: AA11=> %s" % self.AA11)
+                        if self.verbose: self._log("Loop 500: AA12=> %s" % self.AA12)
+                        if self.verbose: self._log("Loop 500: AA13=> %s" % self.AA13)
+                        if self.verbose: self._log("Loop 500: AA14=> %s" % self.AA14)
+                        if self.verbose: self._log("Loop 500: AA21=> %s" % self.AA21)
+                        if self.verbose: self._log("Loop 500: AA22=> %s" % self.AA22)
+                        if self.verbose: self._log("Loop 500: AA23=> %s" % self.AA23)
+                        if self.verbose: self._log("Loop 500: AA24=> %s" % self.AA24)
+                        if self.verbose: self._log("Loop 500: AA31=> %s" % self.AA31)
+                        if self.verbose: self._log("Loop 500: AA32=> %s" % self.AA32)
+                        if self.verbose: self._log("Loop 500: AA34=> %s" % self.AA34)
+                        if self.verbose: self._log("Loop 500: AA33=> %s" % self.AA33)
+                        if self.verbose: self._log("Loop 500: AA41=> %s" % self.AA41)
+                        if self.verbose: self._log("Loop 500: AA42=> %s" % self.AA42)
+                        if self.verbose: self._log("Loop 500: AA43=> %s" % self.AA43)
+                        if self.verbose: self._log("Loop 500: AA44=> %s" % self.AA44)
+                        #self._log("%s %s %s %s %s %s %s %s" %(self.ZX[J][0][0],self.AA11,self.ZX[J][0][1],self.AA21,self.ZX[J][0][2],self.AA31,self.ZX[J][0][3],self.AA41))
                         self.D11 = self.ZX[J][0][0] * self.AA11 + self.ZX[J][0][1] * self.AA21 + self.ZX[J][0][2] * self.AA31 + self.ZX[J][0][3] * self.AA41
                         self.D21 = self.ZX[J][1][0] * self.AA11 + self.ZX[J][1][1] * self.AA21 + self.ZX[J][1][2] * self.AA31 + self.ZX[J][1][3] * self.AA41
                         self.D31 = self.ZX[J][2][0] * self.AA11 + self.ZX[J][2][1] * self.AA21 + self.ZX[J][2][2] * self.AA31 + self.ZX[J][2][3] * self.AA41
@@ -2234,24 +2266,24 @@ GREEN.1\n\
                         self.D34 = self.ZX[J][2][0] * self.AA14 + self.ZX[J][2][1] * self.AA24 + self.ZX[J][2][2] * self.AA34 + self.ZX[J][2][3] * self.AA44
                         self.D44 = self.ZX[J][3][0] * self.AA14 + self.ZX[J][3][1] * self.AA24 + self.ZX[J][3][2] * self.AA34 + self.ZX[J][3][3] * self.AA44
 
-                        if self.verbose: print ""
-                        if self.verbose: print "Loop 500: D11=> %s" % self.D11
-                        if self.verbose: print "Loop 500: D12=> %s" % self.D12
-                        if self.verbose: print "Loop 500: D13=> %s" % self.D13
-                        if self.verbose: print "Loop 500: D14=> %s" % self.D14
-                        if self.verbose: print "Loop 500: D21=> %s" % self.D21
-                        if self.verbose: print "Loop 500: D22=> %s" % self.D22
-                        if self.verbose: print "Loop 500: D23=> %s" % self.D23
-                        if self.verbose: print "Loop 500: D24=> %s" % self.D24
-                        if self.verbose: print "Loop 500: D31=> %s" % self.D31
-                        if self.verbose: print "Loop 500: D32=> %s" % self.D32
-                        if self.verbose: print "Loop 500: D33=> %s" % self.D33
-                        if self.verbose: print "Loop 500: D34=> %s" % self.D34
-                        if self.verbose: print "Loop 500: D41=> %s" % self.D41
-                        if self.verbose: print "Loop 500: D42=> %s" % self.D42
-                        if self.verbose: print "Loop 500: D43=> %s" % self.D43
-                        if self.verbose: print "Loop 500: D44=> %s" % self.D44
-                        if self.verbose: print ""
+                        if self.verbose: self._log("")
+                        if self.verbose: self._log("Loop 500: D11=> %s" % self.D11)
+                        if self.verbose: self._log("Loop 500: D12=> %s" % self.D12)
+                        if self.verbose: self._log("Loop 500: D13=> %s" % self.D13)
+                        if self.verbose: self._log("Loop 500: D14=> %s" % self.D14)
+                        if self.verbose: self._log("Loop 500: D21=> %s" % self.D21)
+                        if self.verbose: self._log("Loop 500: D22=> %s" % self.D22)
+                        if self.verbose: self._log("Loop 500: D23=> %s" % self.D23)
+                        if self.verbose: self._log("Loop 500: D24=> %s" % self.D24)
+                        if self.verbose: self._log("Loop 500: D31=> %s" % self.D31)
+                        if self.verbose: self._log("Loop 500: D32=> %s" % self.D32)
+                        if self.verbose: self._log("Loop 500: D33=> %s" % self.D33)
+                        if self.verbose: self._log("Loop 500: D34=> %s" % self.D34)
+                        if self.verbose: self._log("Loop 500: D41=> %s" % self.D41)
+                        if self.verbose: self._log("Loop 500: D42=> %s" % self.D42)
+                        if self.verbose: self._log("Loop 500: D43=> %s" % self.D43)
+                        if self.verbose: self._log("Loop 500: D44=> %s" % self.D44)
+                        if self.verbose: self._log("")
 
                         self.ZX[J][0][0] = self.D11
                         self.ZX[J][0][1] = self.D12
@@ -2275,7 +2307,7 @@ GREEN.1\n\
 
                 #for J in self.ZX:
                 #    for L in self.ZX[J]:
-                #        print ' [%s][%s] %s ' % (J,L,[self.ZX[J][L][W] for W in self.ZX[J][L]])
+                #        self._log(' [%s][%s] %s ' % (J,L,[self.ZX[J][L][W] for W in self.ZX[J][L]]))
 
 
                 #{{{ Q
@@ -2292,33 +2324,33 @@ GREEN.1\n\
                         self.Y22[K] = -self.X1[K] * self.ZX[K][0][1] + self.X3[K] * self.ZX[K][2][1] + self.X4[K] * self.ZX[K][3][1]
                         self.Y41[K] = self.WVNO2[K] * self.X3[K] * self.ZX[K][0][0] - self.X4[K] * self.ZX[K][1][0] - self.X5[K] * self.ZX[K][2][0]
                         self.Y42[K] = self.WVNO2[K] * self.X3[K] * self.ZX[K][0][1] - self.X4[K] * self.ZX[K][1][1] - self.X5[K] * self.ZX[K][2][1]
-                        #print " TEST  X1[K]=> %s" % self.X1[K]
-                        #print " TEST  ZX[K,0,0]=> %s" % self.ZX[K][0][0]
-                        #print " TEST  X3[K]=> %s" % self.X3[K]
-                        #print " TEST  ZX[K,2,0]=> %s" % self.ZX[K][2][0]
-                        #print " TEST  X4[K]=> %s" % self.X4[K]
-                        #print " TEST  ZX[K,3,0]=> %s" % self.ZX[K][3][0]
-                        #print " TEST  Y21[K]=> %s" % self.Y21[K]
+                        #self._log(" TEST  X1[K]=> %s" % self.X1[K])
+                        #self._log(" TEST  ZX[K,0,0]=> %s" % self.ZX[K][0][0])
+                        #self._log(" TEST  X3[K]=> %s" % self.X3[K])
+                        #self._log(" TEST  ZX[K,2,0]=> %s" % self.ZX[K][2][0])
+                        #self._log(" TEST  X4[K]=> %s" % self.X4[K])
+                        #self._log(" TEST  ZX[K,3,0]=> %s" % self.ZX[K][3][0])
+                        #self._log(" TEST  Y21[K]=> %s" % self.Y21[K])
 
                 #exit()
-                #print ""
-                #print "Loop 500 16 17 : Y11=> %s" % self.Y11
-                #print "Loop 500 16 17 : Y12=> %s" % self.Y12
-                #print "Loop 500 16 17 : Y31=> %s" % self.Y31
-                #print "Loop 500 16 17 : Y32=> %s" % self.Y32
-                #print "Loop 500 16 17 : Y21=> %s" % self.Y21
-                #print "Loop 500 16 17 : Y22=> %s" % self.Y22
-                #print "Loop 500 16 17 : Y41=> %s" % self.Y41
-                #print "Loop 500 16 17 : Y42=> %s" % self.Y42
+                #self._log("")
+                #self._log("Loop 500 16 17 : Y11=> %s" % self.Y11)
+                #self._log("Loop 500 16 17 : Y12=> %s" % self.Y12)
+                #self._log("Loop 500 16 17 : Y31=> %s" % self.Y31)
+                #self._log("Loop 500 16 17 : Y32=> %s" % self.Y32)
+                #self._log("Loop 500 16 17 : Y21=> %s" % self.Y21)
+                #self._log("Loop 500 16 17 : Y22=> %s" % self.Y22)
+                #self._log("Loop 500 16 17 : Y41=> %s" % self.Y41)
+                #self._log("Loop 500 16 17 : Y42=> %s" % self.Y42)
                 #sys.exit()
                 #}}} Q
 
             #}}} BR
 
-            if self.verbose: print "Loop 500 section CR => self.ISYST:%s" % self.ISYST
+            if self.verbose: self._log("Loop 500 section CR => self.ISYST:%s" % self.ISYST)
             if self.ISYST != 1:
             #{{{ CR
-                if self.verbose: print "\t ##### 300 #####"
+                if self.verbose: self._log("\t ##### 300 #####")
 
                 #
                 # SH-MOTION STARTS HERE +++++>
@@ -2326,44 +2358,44 @@ GREEN.1\n\
                 for J in range(self.IBLOCK):
                     self.S32E[J] = 2.0 * self.XKA2 * self.WVNO[J] / self.FRHO
                     self.S34E[J] = 4.0 * self.WVNO[J] * self.XKA2 / (self.FOURPI * self.XKB2)
-                    if self.verbose: print ""
-                    if self.verbose: print "Loop 500 300 18:   S32E[J]=> %s" % self.S32E[J]
-                    if self.verbose: print "Loop 500 300 18:   S34E[J]=> %s" % self.S34E[J]
+                    if self.verbose: self._log("")
+                    if self.verbose: self._log("Loop 500 300 18:   S32E[J]=> %s" % self.S32E[J])
+                    if self.verbose: self._log("Loop 500 300 18:   S34E[J]=> %s" % self.S34E[J])
 
                 if self.JBDRY == 0:
                     for J in range(self.IBLOCK):
-                        #if self.verbose: print "\nJ:%s \nMMAX:%s \nRB:%s \nRHO:%s" % (J,self.MMAX,self.RB,self.RHO)
+                        #if self.verbose: self._log("\nJ:%s \nMMAX:%s \nRB:%s \nRHO:%s" % (J,self.MMAX,self.RB,self.RHO))
                         self.R6[J] = (self.RHO[self.MMAX]) * self.RB[self.MMAX][J]
                         self.R7[J] = complex(1) / (self.B[self.MMAX] * self.ATNB[self.MMAX]) ** 2
-                        if self.verbose: print ""
-                        if self.verbose: print "Loop 500 300 19: R6[J]=> %s" % self.R6[J]
-                        if self.verbose: print "Loop 500 300 19: R7[J]=> %s" % self.R7[J]
+                        if self.verbose: self._log("")
+                        if self.verbose: self._log("Loop 500 300 19: R6[J]=> %s" % self.R6[J])
+                        if self.verbose: self._log("Loop 500 300 19: R7[J]=> %s" % self.R7[J])
 
                 elif self.JBDRY < 0:
                     for J in range(self.IBLOCK):
                         self.R6[J] = complex(1)
                         self.R7[J] = complex()
-                        if self.verbose: print ""
-                        if self.verbose: print "Loop 500 300 20: R6[J]=> %s" % self.R6[J]
-                        if self.verbose: print "Loop 500 300 20: R7[J]=> %s" % self.R7[J]
+                        if self.verbose: self._log("")
+                        if self.verbose: self._log("Loop 500 300 20: R6[J]=> %s" % self.R6[J])
+                        if self.verbose: self._log("Loop 500 300 20: R7[J]=> %s" % self.R7[J])
 
                 elif self.JBDRY > 0:
                     for J in range(self.IBLOCK):
                         self.R6[J] = complex()
                         self.R7[J] = complex(1)
-                        if self.verbose: print ""
-                        if self.verbose: print "Loop 500 300 21: R6[J]=> %s" % self.R6[J]
-                        if self.verbose: print "Loop 500 300 21: R7[J]=> %s" % self.R7[J]
+                        if self.verbose: self._log("")
+                        if self.verbose: self._log("Loop 500 300 21: R6[J]=> %s" % self.R6[J])
+                        if self.verbose: self._log("Loop 500 300 21: R7[J]=> %s" % self.R7[J])
             #}}} CR
 
 
-            if self.verbose: print "Loop 500 section DR => self.ISYST:%s" % self.ISYST
+            if self.verbose: self._log("Loop 500 section DR => self.ISYST:%s" % self.ISYST)
             if self.ISYST != 3 and self.ISYST != 1:
             #{{{ DR
                 for M in range(self.MMAX+1):
                     for J in range(self.IBLOCK):
-                        #print "Loop 500:   self.YL=> %s" % self.YL
-                        #print "Loop 500:   [%s][%s]=> %s" % (M,J)
+                        #self._log("Loop 500:   self.YL=> %s" % self.YL)
+                        #self._log("Loop 500:   [%s][%s]=> %s" % (M,J))
                         self.P = self.RA[M][J] * self.D[M]
                         self.Q = self.RB[M][J] * self.D[M]
                         self.A0 = 0.0
@@ -2389,44 +2421,44 @@ GREEN.1\n\
                         self.SINQ = self.EQP - self.FAC * self.EQM
                         self.YL[M][J] = self.SINQ / self.RB[M][J]
                         self.ZL[M][J] = self.RB[M][J] * self.SINQ
-                        #print "Loop 500 302 22:   P => %s" % self.P
-                        #print "Loop 500 302 22:   Q => %s" % self.Q
-                        #print "Loop 500 302 22:   A0 => %s" % self.A0
-                        #print "Loop 500 302 22:   PR => %s" % self.PR
-                        #print "Loop 500 302 22:   PI => %s" % self.PI
-                        #print "Loop 500 302 22:   QR => %s" % self.QR
-                        #print "Loop 500 302 22:   QI => %s" % self.QI
-                        #print "Loop 500 302 22:   EPP => %s" % self.EPP
-                        #print "Loop 500 302 22:   EPM => %s" % self.EPM
-                        #print "Loop 500 302 22:   EQP => %s" % self.EQP
-                        #print "Loop 500 302 22:   EQM => %s" % self.EQM
-                        #print "Loop 500 302 22:   EXEL[J] => %s" % self.EXEL[J]
-                        #print "Loop 500 302 22:   EXLL[J] => %s" % self.EXLL[J]
-                        #print "Loop 500 302 22:   COSP => %s" % self.COSP
-                        #print "Loop 500 302 22:   SINP => %s" % self.SINP
-                        #print "Loop 500 302 22:   COSQL[M][J] => %s" % self.COSQL[M][J]
-                        #print "Loop 500 302 22:   SINQ => %s" % self.SINQ
-                        #print "Loop 500 302 22:   YL[M][J] => %s" % self.YL[M][J]
-                        #print "Loop 500 302 22:   ZL[M][J] => %s" % self.ZL[M][J]
+                        #self._log("Loop 500 302 22:   P => %s" % self.P)
+                        #self._log("Loop 500 302 22:   Q => %s" % self.Q)
+                        #self._log("Loop 500 302 22:   A0 => %s" % self.A0)
+                        #self._log("Loop 500 302 22:   PR => %s" % self.PR)
+                        #self._log("Loop 500 302 22:   PI => %s" % self.PI)
+                        #self._log("Loop 500 302 22:   QR => %s" % self.QR)
+                        #self._log("Loop 500 302 22:   QI => %s" % self.QI)
+                        #self._log("Loop 500 302 22:   EPP => %s" % self.EPP)
+                        #self._log("Loop 500 302 22:   EPM => %s" % self.EPM)
+                        #self._log("Loop 500 302 22:   EQP => %s" % self.EQP)
+                        #self._log("Loop 500 302 22:   EQM => %s" % self.EQM)
+                        #self._log("Loop 500 302 22:   EXEL[J] => %s" % self.EXEL[J])
+                        #self._log("Loop 500 302 22:   EXLL[J] => %s" % self.EXLL[J])
+                        #self._log("Loop 500 302 22:   COSP => %s" % self.COSP)
+                        #self._log("Loop 500 302 22:   SINP => %s" % self.SINP)
+                        #self._log("Loop 500 302 22:   COSQL[M][J] => %s" % self.COSQL[M][J])
+                        #self._log("Loop 500 302 22:   SINQ => %s" % self.SINQ)
+                        #self._log("Loop 500 302 22:   YL[M][J] => %s" % self.YL[M][J])
+                        #self._log("Loop 500 302 22:   ZL[M][J] => %s" % self.ZL[M][J])
 
                         sys.exit()
 
             #}}} DR
 
-            if self.verbose: print "Loop 500 section ER => self.ISYST:%s" % self.ISYST
+            if self.verbose: self._log("Loop 500 section ER => self.ISYST:%s" % self.ISYST)
             if self.ISYST != 1:
             #{{{ ER
-                if self.verbose: print " ##### AFTER 302 ####"
-                if self.verbose: print "Loop 500:   LMAX=> %s" % self.LMAX
-                if self.verbose: print "Loop 500:   MMAX=> %s" % self.MMAX
+                if self.verbose: self._log(" ##### AFTER 302 ####")
+                if self.verbose: self._log("Loop 500:   LMAX=> %s" % self.LMAX)
+                if self.verbose: self._log("Loop 500:   MMAX=> %s" % self.MMAX)
 
                 for I in range(self.LMAX, self.MMAX):
 
-                    if self.verbose: print "Loop 500:   I => %s" % I
+                    if self.verbose: self._log("Loop 500:   I => %s" % I)
                     M = self.MMAX + self.LMAX - I -1
                     self.HH = self.RHO[M] * (self.B[M] * self.ATNB[M])**2
-                    if self.verbose: print "Loop 500:   M => %s" % M
-                    if self.verbose: print "Loop 500:   self.HH => %s" % self.HH
+                    if self.verbose: self._log("Loop 500:   M => %s" % M)
+                    if self.verbose: self._log("Loop 500:   self.HH => %s" % self.HH)
                     for J in range(self.IBLOCK):
                         self.YLI = self.YL[M][J] / self.HH
                         self.ZLI = self.ZL[M][J] * self.HH
@@ -2434,31 +2466,31 @@ GREEN.1\n\
                         self.D12 = self.R7[J]
                         self.R6[J] = self.D11 * self.COSQL[M][J] + self.D12 * self.ZLI
                         self.R7[J] = self.D11 * self.YLI + self.D12 * self.COSQL[M][J]
-                        if self.verbose: print "Loop 500:     J => %s" % J
-                        if self.verbose: print "Loop 500:     YLI=> %s" % self.YLI
-                        if self.verbose: print "Loop 500:     ZLI=> %s" % self.ZLI
-                        if self.verbose: print "Loop 500:     D11=> %s" % self.D11
-                        if self.verbose: print "Loop 500:     D12=> %s" % self.D12
-                        if self.verbose: print "Loop 500:     R6[J]=> %s" % self.R6[J]
-                        if self.verbose: print "Loop 500:     R7[J]=> %s" % self.R7[J]
+                        if self.verbose: self._log("Loop 500:     J => %s" % J)
+                        if self.verbose: self._log("Loop 500:     YLI=> %s" % self.YLI)
+                        if self.verbose: self._log("Loop 500:     ZLI=> %s" % self.ZLI)
+                        if self.verbose: self._log("Loop 500:     D11=> %s" % self.D11)
+                        if self.verbose: self._log("Loop 500:     D12=> %s" % self.D12)
+                        if self.verbose: self._log("Loop 500:     R6[J]=> %s" % self.R6[J])
+                        if self.verbose: self._log("Loop 500:     R7[J]=> %s" % self.R7[J])
 
 
-                if self.verbose: print ""
+                if self.verbose: self._log("")
                 for J in range(self.IBLOCK):
                     self.X6[J] = self.R6[J]
                     self.X7[J] = self.R7[J]
-                    if self.verbose: print "Loop 500:     J => %s" % J
-                    if self.verbose: print "Loop 500:     X6[J]=> %s" % self.X6[J]
-                    if self.verbose: print "Loop 500:     X7[J]=> %s" % self.X7[J]
+                    if self.verbose: self._log("Loop 500:     J => %s" % J)
+                    if self.verbose: self._log("Loop 500:     X6[J]=> %s" % self.X6[J])
+                    if self.verbose: self._log("Loop 500:     X7[J]=> %s" % self.X7[J])
 
-                if self.verbose: print ""
+                if self.verbose: self._log("")
                 for I in range(self.LMAX):
                 #for M in range(self.LMAX,-1,-1):
                     M = self.LMAX - I - 1
-                    if self.verbose: print "Loop 500:   I => %s" % I
-                    if self.verbose: print "Loop 500:   M => %s" % M
+                    if self.verbose: self._log("Loop 500:   I => %s" % I)
+                    if self.verbose: self._log("Loop 500:   M => %s" % M)
                     self.HH = self.RHO[M] * (self.B[M] * self.ATNB[M])**2
-                    if self.verbose: print "Loop 500:   self.HH => %s" % self.HH
+                    if self.verbose: self._log("Loop 500:   self.HH => %s" % self.HH)
                     for J in range(self.IBLOCK):
                         self.YLI = self.YL[M][J] / self.HH
                         self.ZLI = self.ZL[M][J] * self.HH
@@ -2466,32 +2498,32 @@ GREEN.1\n\
                         self.D12 = self.R7[J]
                         self.R6[J] = self.D11 * self.COSQL[M][J] + self.D12 * self.ZLI
                         self.R7[J] = self.D11 * self.YLI + self.D12 * self.COSQL[M][J]
-                        #print "Loop 500:        J=> %s" % J
-                        #print "Loop 500:        YLI=> %s" % self.YLI
-                        #print "Loop 500:        ZLI=> %s" % self.ZLI
-                        #print "Loop 500:        D11=> %s" % self.D11
-                        #print "Loop 500:        D12=> %s" % self.D12
-                        #print "Loop 500:        R6[J]=> %s" % self.R6[J]
-                        #print "Loop 500:        R7[J]=> %s" % self.R7[J]
-                #print "Loop 500:   R6=> %s" % self.R6
-                #if self.verbose: print "Loop 500:   M=> %s" % M
-                #if self.verbose: print "Loop 500:   HH=> %s" % self.HH
-                #if self.verbose: print "Loop 500:   YLI=> %s" % self.YLI
-                #if self.verbose: print "Loop 500:   ZLI=> %s" % self.ZLI
-                #if self.verbose: print "Loop 500:   D11=> %s" % self.D11
-                #if self.verbose: print "Loop 500:   D12=> %s" % self.D12
-                #if self.verbose: print "Loop 500:   R6=> %s" % self.R6
-                #if self.verbose: print "Loop 500:   R7=> %s" % self.R7
+                        #self._log("Loop 500:        J=> %s" % J
+                        #self._log("Loop 500:        YLI=> %s" % self.YLI)
+                        #self._log("Loop 500:        ZLI=> %s" % self.ZLI)
+                        #self._log("Loop 500:        D11=> %s" % self.D11)
+                        #self._log("Loop 500:        D12=> %s" % self.D12)
+                        #self._log("Loop 500:        R6[J]=> %s" % self.R6[J])
+                        #self._log("Loop 500:        R7[J]=> %s" % self.R7[J])
+                #self._log("Loop 500:   R6=> %s" % self.R6)
+                #if self.verbose: self._log("Loop 500:   M=> %s" % M)
+                #if self.verbose: self._log("Loop 500:   HH=> %s" % self.HH)
+                #if self.verbose: self._log("Loop 500:   YLI=> %s" % self.YLI)
+                #if self.verbose: self._log("Loop 500:   ZLI=> %s" % self.ZLI)
+                #if self.verbose: self._log("Loop 500:   D11=> %s" % self.D11)
+                #if self.verbose: self._log("Loop 500:   D12=> %s" % self.D12)
+                #if self.verbose: self._log("Loop 500:   R6=> %s" % self.R6)
+                #if self.verbose: self._log("Loop 500:   R7=> %s" % self.R7)
             #}}} ER
 
-            if self.verbose: print "Loop 500 section FR => self.ISYST:%s" % self.ISYST
+            if self.verbose: self._log("Loop 500 section FR => self.ISYST:%s" % self.ISYST)
 
-            if self.verbose: print ""
-            if self.verbose: print "######## AFTER 301 #######"
+            if self.verbose: self._log("")
+            if self.verbose: self._log("######## AFTER 301 #######")
             #{{{ FR
-            if self.verbose: print "Loop 500 28: IBLOCK => %s" % self.IBLOCK
+            if self.verbose: self._log("Loop 500 28: IBLOCK => %s" % self.IBLOCK)
             for J in range(self.IBLOCK):
-                if self.verbose: print "Loop 500 28: J => %s" % J
+                if self.verbose: self._log("Loop 500 28: J => %s" % J)
                 self.FACT[J] = 0.0
                 self.ELJ = self.EXE[J] - self.EXL[J]
                 if self.ELJ < 55.0: self.FACT[J] = exp(-self.ELJ).real
@@ -2499,102 +2531,102 @@ GREEN.1\n\
                 self.ELJ = self.EXLL[J] - self.EXEL[J]
                 if self.SNGL[self.ELJ] > -40.0: self.FACT0 = exp(self.ELJ).real
                 self.FACX[J] = self.FACT0 * self.FACXX
-                if self.verbose: print "Loop 500:   FACT[J]=> %s" % self.FACT[J]
-                if self.verbose: print "Loop 500:   ELJ=> %s" % self.ELJ
-                if self.verbose: print "Loop 500:   FACT0=> %s" % self.FACT0
-                if self.verbose: print "Loop 500:   FACX[J]=> %s" % self.FACX[J]
+                if self.verbose: self._log("Loop 500:   FACT[J]=> %s" % self.FACT[J])
+                if self.verbose: self._log("Loop 500:   ELJ=> %s" % self.ELJ)
+                if self.verbose: self._log("Loop 500:   FACT0=> %s" % self.FACT0)
+                if self.verbose: self._log("Loop 500:   FACX[J]=> %s" % self.FACX[J])
 
-            if self.verbose: print ""
+            if self.verbose: self._log("")
 
             if self.ISRC[0] == 1:
-                if self.verbose: print ""
-                if self.verbose: print "\t29"
+                if self.verbose: self._log("")
+                if self.verbose: self._log("\t29")
                 for J in range(self.IBLOCK):
                     self.G = self.S32[J] * self.Y21[J] + self.S34[J] * self.Y41[J]
                     self.G1[J] = -self.G * self.FACT[J] / self.R1[J]
-                    if self.verbose: print "\t29:     G = > %s" % self.G
-                    if self.verbose: print "\t29:     G1[J] = > %s" % self.G1[J]
+                    if self.verbose: self._log("\t29:     G = > %s" % self.G)
+                    if self.verbose: self._log("\t29:     G1[J] = > %s" % self.G1[J])
 
             if self.ISRC[1] == 1:
-                if self.verbose: print ""
-                if self.verbose: print "\t30"
+                if self.verbose: self._log("")
+                if self.verbose: self._log("\t30")
                 for J in range(self.IBLOCK):
                     self.G = self.S32[J] * self.Y22[J] + self.S34[J] * self.Y42[J]
                     self.G2[J] = -self.G * self.FACT[J] / self.R1[J]
-                    if self.verbose: print "\t30:     G = > %s" % self.G
-                    if self.verbose: print "\t30:     G2[J] = > %s" % self.G2[J]
+                    if self.verbose: self._log("\t30:     G = > %s" % self.G)
+                    if self.verbose: self._log("\t30:     G2[J] = > %s" % self.G2[J])
 
             if self.ISRC[2] == 1:
-                if self.verbose: print ""
-                if self.verbose: print "\t31"
+                if self.verbose: self._log("")
+                if self.verbose: self._log("\t31")
                 for J in range(self.IBLOCK):
                     self.G = self.S21[J] * self.Y11[J]
                     self.G3[J] = -self.G * self.FACT[J] / self.R1[J]
-                    if self.verbose: print "\t31:     G = > %s" % self.G
-                    if self.verbose: print "\t31:     G3[J] = > %s" % self.G3[J]
+                    if self.verbose: self._log("\t31:     G = > %s" % self.G)
+                    if self.verbose: self._log("\t31:     G3[J] = > %s" % self.G3[J])
 
             if self.ISRC[3] == 1:
-                if self.verbose: print ""
-                if self.verbose: print "\t32"
+                if self.verbose: self._log("")
+                if self.verbose: self._log("\t32")
                 for J in range(self.IBLOCK):
                     self.G = self.S21[J] * self.Y12[J]
                     self.G4[J]= -self.G * self.FACT[J] / self.R1[J]
-                    if self.verbose: print "\t32:     G = > %s" % self.G
-                    if self.verbose: print "\t32:     G4[J] = > %s" % self.G4[J]
+                    if self.verbose: self._log("\t32:     G = > %s" % self.G)
+                    if self.verbose: self._log("\t32:     G4[J] = > %s" % self.G4[J])
 
             if self.ISRC[4] == 1:
-                if self.verbose: print ""
-                if self.verbose: print "\t33"
+                if self.verbose: self._log("")
+                if self.verbose: self._log("\t33")
                 for J in range(self.IBLOCK):
                     self.G = self.S14[J] * self.Y41[J]
                     self.G5[J] = -self.G * self.FACT[J] / self.R1[J]
-                    if self.verbose: print "\t33:     G = > %s" % self.G
-                    if self.verbose: print "\t33:     G5[J] = > %s" % self.G5[J]
+                    if self.verbose: self._log("\t33:     G = > %s" % self.G)
+                    if self.verbose: self._log("\t33:     G5[J] = > %s" % self.G5[J])
 
             if self.ISRC[5] == 1:
-                if self.verbose: print ""
-                if self.verbose: print "\t34"
+                if self.verbose: self._log("")
+                if self.verbose: self._log("\t34")
                 for J in range(self.IBLOCK):
                     self.G = self.S14[J] * self.Y42[J]
                     self.G6[J] = -self.G * self.FACT[J] / self.R1[J]
-                    if self.verbose: print "\t34:     G = > %s" % self.G
-                    if self.verbose: print "\t34:     G6[J] = > %s" % self.G6[J]
+                    if self.verbose: self._log("\t34:     G = > %s" % self.G)
+                    if self.verbose: self._log("\t34:     G6[J] = > %s" % self.G6[J])
 
             if self.ISRC[6] == 1:
-                if self.verbose: print ""
-                if self.verbose: print "\t35"
+                if self.verbose: self._log("")
+                if self.verbose: self._log("\t35")
                 for J in range(self.IBLOCK):
                     self.G = self.S32E[J] * self.Y21[J] + self.S34E[J] * self.Y41[J]
                     self.G7[J] = -self.G * self.FACT[J] / self.R1[J]
-                    if self.verbose: print "\t35:     Y41[J] = > %s" % self.Y41[J]
-                    if self.verbose: print "\t35:     S34E[J] = > %s" % self.S34E[J]
-                    if self.verbose: print "\t35:     Y21[J] = > %s" % self.Y21[J]
-                    if self.verbose: print "\t35:     S32E[J] = > %s" % self.S32E[J]
-                    if self.verbose: print "\t35:     G = > %s" % self.G
-                    if self.verbose: print "\t35:     FACT[J] = > %s" % self.FACT[J]
-                    if self.verbose: print "\t35:     R1[J] = > %s" % self.R1[J]
-                    if self.verbose: print "\t35:     G7[J] = > %s" % self.G7[J]
+                    if self.verbose: self._log("\t35:     Y41[J] = > %s" % self.Y41[J])
+                    if self.verbose: self._log("\t35:     S34E[J] = > %s" % self.S34E[J])
+                    if self.verbose: self._log("\t35:     Y21[J] = > %s" % self.Y21[J])
+                    if self.verbose: self._log("\t35:     S32E[J] = > %s" % self.S32E[J])
+                    if self.verbose: self._log("\t35:     G = > %s" % self.G)
+                    if self.verbose: self._log("\t35:     FACT[J] = > %s" % self.FACT[J])
+                    if self.verbose: self._log("\t35:     R1[J] = > %s" % self.R1[J])
+                    if self.verbose: self._log("\t35:     G7[J] = > %s" % self.G7[J])
             #exit()
 
             if self.ISRC[7] == 1:
-                if self.verbose: print ""
-                if self.verbose: print "\t36"
+                if self.verbose: self._log("")
+                if self.verbose: self._log("\t36")
                 for J in range(self.IBLOCK):
                     self.G = self.S32E[J] * self.Y22[J] + self.S34E[J] * self.Y42[J]
                     self.G8[J] = -self.G * self.FACT[J] / self.R1[J]
-                    if self.verbose: print "\t36:     G = > %s" % self.G
-                    if self.verbose: print "\t36:     FACT[J] = > %s" % self.FACT[J]
-                    if self.verbose: print "\t36:     R1[J] = > %s" % self.R1[J]
-                    if self.verbose: print "\t36:     G8[J] = > %s" % self.G8[J]
+                    if self.verbose: self._log("\t36:     G = > %s" % self.G)
+                    if self.verbose: self._log("\t36:     FACT[J] = > %s" % self.FACT[J])
+                    if self.verbose: self._log("\t36:     R1[J] = > %s" % self.R1[J])
+                    if self.verbose: self._log("\t36:     G8[J] = > %s" % self.G8[J])
 
             if self.ISRC[8] == 1:
-                if self.verbose: print ""
-                if self.verbose: print "\t37"
+                if self.verbose: self._log("")
+                if self.verbose: self._log("\t37")
                 for J in range(self.IBLOCK):
                     self.G = 2.0 * self.X6[J] / self.RHO[self.LMAX]
                     self.G9[J] = self.G * self.FACX[J] / ( self.R6[J] * self.XKK )
-                    if self.verbose: print "\t37:     G = > %s" % self.G
-                    if self.verbose: print "\t37:     G9[J] = > %s" % self.G9[J]
+                    if self.verbose: self._log("\t37:     G = > %s" % self.G)
+                    if self.verbose: self._log("\t37:     G9[J] = > %s" % self.G9[J])
 
 
             if self.ISRC[9] == 1:
@@ -2607,20 +2639,20 @@ GREEN.1\n\
 
 
             self.ICN = self.ICNT[1]
-            if self.verbose: print "Loop 600 [ sub WVINT ]:   ICN=> %s" % self.ICN
+            if self.verbose: self._log("Loop 600 [ sub WVINT ]:   ICN=> %s" % self.ICN)
 
-            if self.verbose: print "Loop 600:   WVNO=> %s" % self.WVNO
-            if self.verbose: print "Loop 600:   R=> %s" % self.DISTANCE
-            if self.verbose: print "Loop 600:   NBLK=> %s" % self.NBLOCK
-            if self.verbose: print "Loop 600:   IS=> %s" % self.NBLOCK
-            if self.verbose: print "Loop 600:   IBLOCK=> %s" % self.IBLOCK
-            if self.verbose: print "Loop 600:   ICN=> %s" % self.ICNT[2]
-            if self.verbose: print "Loop 600:   ISRC=> %s" % self.ISRC
-            if self.verbose: print "Loop 600:   N11=> %s" % self.N11
-            if self.verbose: print "Loop 600:   N22=> %s" % self.N22
-            if self.verbose: print "Loop 600:   I=> %s" % I
+            if self.verbose: self._log("Loop 600:   WVNO=> %s" % self.WVNO)
+            if self.verbose: self._log("Loop 600:   R=> %s" % self.DISTANCE)
+            if self.verbose: self._log("Loop 600:   NBLK=> %s" % self.NBLOCK)
+            if self.verbose: self._log("Loop 600:   IS=> %s" % self.NBLOCK)
+            if self.verbose: self._log("Loop 600:   IBLOCK=> %s" % self.IBLOCK)
+            if self.verbose: self._log("Loop 600:   ICN=> %s" % self.ICNT[2])
+            if self.verbose: self._log("Loop 600:   ISRC=> %s" % self.ISRC)
+            if self.verbose: self._log("Loop 600:   N11=> %s" % self.N11)
+            if self.verbose: self._log("Loop 600:   N22=> %s" % self.N22)
+            if self.verbose: self._log("Loop 600:   I=> %s" % I)
 
-            if self.verbose: print ""
+            if self.verbose: self._log("")
 
             #{{{ sub WVINT
             #
@@ -2643,19 +2675,19 @@ GREEN.1\n\
             self.PI = acos(-1.0)
             self.NN1 = 1
 
-            if self.verbose: print ""
-            if self.verbose: print "++++++++++++++++++++ WVINT ++++++++++++++++++"
+            if self.verbose: self._log("")
+            if self.verbose: self._log("++++++++++++++++++++ WVINT ++++++++++++++++++")
             for J in range(self.IB):
                 self.SUME[J] = complex()
                 self.SUMC[J] = complex()
 
             #{{{ INIT
-            #print 'NBL = %s' % self.NBLK
-            if self.verbose: print "\t WVINT      NBLK => %s " % self.NBLK
+            #self._log('NBL = %s' % self.NBLK)
+            if self.verbose: self._log("\t WVINT      NBLK => %s " % self.NBLK)
             if self.NBLK == 1:
                 self.NNN1 = 3
-                if self.verbose: print "\t WVINT      NNN1 => %s " % self.NNN1
-                if self.verbose: print "\t WVINT      IASYMP => %s " % self.IASYMP
+                if self.verbose: self._log("\t WVINT      NNN1 => %s " % self.NNN1)
+                if self.verbose: self._log("\t WVINT      IASYMP => %s " % self.IASYMP)
                 #     FIND THE ASYMPTOTIC COEFFICIENTS ++++ NECESSARY ONLY WHEN IASYMP
                 #     IS .TRUE.                        +++++++++++++>
                 if self.IASYMP:
@@ -2667,9 +2699,9 @@ GREEN.1\n\
                     #       DO 300 OF SUBROUTINE WVINT
                     #----------------------------------------------------------
 
-                    if self.verbose: print ""
-                    if self.verbose: print "%%%%%%%%%%%%%%%%%% SETUP %%%%%%%%%%%%%%%%%%%%%"
-                    if self.verbose: print "\t SETUP:   R       => %s" % self.DISTANCE    
+                    if self.verbose: self._log("")
+                    if self.verbose: self._log("%%%%%%%%%%%%%%%%%% SETUP %%%%%%%%%%%%%%%%%%%%%")
+                    if self.verbose: self._log("\t SETUP:   R       => %s" % self.DISTANCE    )
                     self.DIST  = csqrt(self.DISTANCE**2 + self.DEPTH**2).real
                     self.DIST3 = self.DIST**3
                     self.DIST5 = self.DIST**5
@@ -2697,46 +2729,46 @@ GREEN.1\n\
                     self.J2K2  = 3.0 * self.R3 / self.DIST5
                     self.J2K3  = 15.0 * self.DEPTH * self.R3 / self.DIST7
 
-                    if self.verbose: print "\t SETUP:   DIST     => %s" % self.DIST  
-                    if self.verbose: print "\t SETUP:   DIST3    => %s" % self.DIST3 
-                    if self.verbose: print "\t SETUP:   DIST5    => %s" % self.DIST5 
-                    if self.verbose: print "\t SETUP:   DIST7    => %s" % self.DIST7 
-                    if self.verbose: print "\t SETUP:   RZ       => %s" % self.RZ    
-                    if self.verbose: print "\t SETUP:   Z2       => %s" % self.Z2    
-                    if self.verbose: print "\t SETUP:   R2       => %s" % self.R2    
-                    if self.verbose: print "\t SETUP:   R3       => %s" % self.R3    
-                    if self.verbose: print "\t SETUP:   Z3       => %s" % self.Z3    
-                    if self.verbose: print "\t SETUP:   RZ2      => %s" % self.RZ2   
-                    if self.verbose: print "\t SETUP:   RZ3      => %s" % self.RZ3   
-                    if self.verbose: print "\t SETUP:   ZOR      => %s" % self.ZOR   
-                    if self.verbose: print "\t SETUP:   ZOR2     => %s" % self.ZOR2  
-                    if self.verbose: print "\t SETUP:   ZOR3     => %s" % self.ZOR3  
-                    if self.verbose: print "\t SETUP:   J0K0     => %s" % self.J0K0  
-                    if self.verbose: print "\t SETUP:   J0K1     => %s" % self.J0K1  
-                    if self.verbose: print "\t SETUP:   J0K2     => %s" % self.J0K2  
-                    if self.verbose: print "\t SETUP:   J0K3     => %s" % self.J0K3  
-                    if self.verbose: print "\t SETUP:   J1K0     => %s" % self.J1K0  
-                    if self.verbose: print "\t SETUP:   J1K1     => %s" % self.J1K1  
-                    if self.verbose: print "\t SETUP:   J1K2     => %s" % self.J1K2  
-                    if self.verbose: print "\t SETUP:   J1K3     => %s" % self.J1K3  
-                    if self.verbose: print "\t SETUP:   J2K0     => %s" % self.J2K0  
-                    if self.verbose: print "\t SETUP:   J2K1     => %s" % self.J2K1  
-                    if self.verbose: print "\t SETUP:   J2K2     => %s" % self.J2K2  
-                    if self.verbose: print "\t SETUP:   J2K3     => %s" % self.J2K3  
+                    if self.verbose: self._log("\t SETUP:   DIST     => %s" % self.DIST  )
+                    if self.verbose: self._log("\t SETUP:   DIST3    => %s" % self.DIST3 )
+                    if self.verbose: self._log("\t SETUP:   DIST5    => %s" % self.DIST5 )
+                    if self.verbose: self._log("\t SETUP:   DIST7    => %s" % self.DIST7 )
+                    if self.verbose: self._log("\t SETUP:   RZ       => %s" % self.RZ    )
+                    if self.verbose: self._log("\t SETUP:   Z2       => %s" % self.Z2    )
+                    if self.verbose: self._log("\t SETUP:   R2       => %s" % self.R2    )
+                    if self.verbose: self._log("\t SETUP:   R3       => %s" % self.R3    )
+                    if self.verbose: self._log("\t SETUP:   Z3       => %s" % self.Z3    )
+                    if self.verbose: self._log("\t SETUP:   RZ2      => %s" % self.RZ2   )
+                    if self.verbose: self._log("\t SETUP:   RZ3      => %s" % self.RZ3   )
+                    if self.verbose: self._log("\t SETUP:   ZOR      => %s" % self.ZOR   )
+                    if self.verbose: self._log("\t SETUP:   ZOR2     => %s" % self.ZOR2  )
+                    if self.verbose: self._log("\t SETUP:   ZOR3     => %s" % self.ZOR3  )
+                    if self.verbose: self._log("\t SETUP:   J0K0     => %s" % self.J0K0  )
+                    if self.verbose: self._log("\t SETUP:   J0K1     => %s" % self.J0K1  )
+                    if self.verbose: self._log("\t SETUP:   J0K2     => %s" % self.J0K2  )
+                    if self.verbose: self._log("\t SETUP:   J0K3     => %s" % self.J0K3  )
+                    if self.verbose: self._log("\t SETUP:   J1K0     => %s" % self.J1K0  )
+                    if self.verbose: self._log("\t SETUP:   J1K1     => %s" % self.J1K1  )
+                    if self.verbose: self._log("\t SETUP:   J1K2     => %s" % self.J1K2  )
+                    if self.verbose: self._log("\t SETUP:   J1K3     => %s" % self.J1K3  )
+                    if self.verbose: self._log("\t SETUP:   J2K0     => %s" % self.J2K0  )
+                    if self.verbose: self._log("\t SETUP:   J2K1     => %s" % self.J2K1  )
+                    if self.verbose: self._log("\t SETUP:   J2K2     => %s" % self.J2K2  )
+                    if self.verbose: self._log("\t SETUP:   J2K3     => %s" % self.J2K3  )
 
-                    if self.verbose: print "%%%%%%%%%%%%%%%%%% SETUP %%%%%%%%%%%%%%%%%%%%%"
-                    if self.verbose: print ""
+                    if self.verbose: self._log("%%%%%%%%%%%%%%%%%% SETUP %%%%%%%%%%%%%%%%%%%%%")
+                    if self.verbose: self._log("")
 
 
                     #}}} setup(R)
 
                     if I == 0:
                     #{{{
-                        if self.verbose: print ""
+                        if self.verbose: self._log("")
                         self.W1 = self.WVNO[0].real
                         self.W2 = self.WVNO[1].real
-                        if self.verbose: print "\t WVINT:   W1       => %s" % self.W1
-                        if self.verbose: print "\t WVINT:   W2       => %s" % self.W2
+                        if self.verbose: self._log("\t WVINT:   W1       => %s" % self.W1)
+                        if self.verbose: self._log("\t WVINT:   W2       => %s" % self.W2)
                         if self.ISRC[0] == 1: self._solu300(self.G1[0],self.G1[1],self.W1,self.W2,0)
                         if self.ISRC[1] == 1: self._solu200(self.G2[0],self.G2[1],self.W1,self.W2,1)
                         if self.ISRC[2] == 1: self._solu300(self.G3[0],self.G3[1],self.W1,self.W2,2)
@@ -2748,18 +2780,18 @@ GREEN.1\n\
                         if self.ISRC[8] == 1: self._solu200(self.G9[0],self.G9[1],self.W1,self.W2,8)
                         if self.ISRC[9] == 1: self._solu200(self.G10[0],self.G10[1],self.W1,self.W2,9)
 
-                        if self.verbose: print "Done with SOLU"
+                        if self.verbose: self._log("Done with SOLU")
 
                         for J in range(10):
-                            if self.verbose: print "\t WVINT 101: J => %s" % J
-                            if self.verbose: print "\t WVINT 101: ISRC[J] => %s" % self.ISRC[J]
+                            if self.verbose: self._log("\t WVINT 101: J => %s" % J)
+                            if self.verbose: self._log("\t WVINT 101: ISRC[J] => %s" % self.ISRC[J])
                             if self.ISRC[J] != 1: 
                                 self.AA[J] = complex()
                                 self.BB[J] = complex()
                                 self.CC[J] = complex()
-                            if self.verbose: print "WVINT  101 :   AA[J]=> %s" % self.AA[J]
-                            if self.verbose: print "WVINT  101 :   BB[J]=> %s" % self.BB[J]
-                            if self.verbose: print "WVINT  101 :   CC[J]=> %s" % self.CC[J]
+                            if self.verbose: self._log("WVINT  101 :   AA[J]=> %s" % self.AA[J])
+                            if self.verbose: self._log("WVINT  101 :   BB[J]=> %s" % self.BB[J])
+                            if self.verbose: self._log("WVINT  101 :   CC[J]=> %s" % self.CC[J])
                         #exit()
                     #}}}
 
@@ -2768,43 +2800,43 @@ GREEN.1\n\
                     self.SMM[1][0] = self.AA[0] * self.J0K0 + self.BB[0] * self.J0K1 + self.CC[0] * self.J0K2
                     self.SMM[1][1] = self.AA[1] * self.J1K1 + self.BB[1] * self.J1K2 + self.CC[1] * self.J1K3
                     self.SMM[1][2] = self.AA[2] * self.J1K0 + self.BB[2] * self.J1K1 + self.CC[2] * self.J1K2 
-                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][0]
-                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][1]
-                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][2]
+                    if self.verbose: self._log("\t WVINT after 101 SMM() => %s" % self.SMM[1][0])
+                    if self.verbose: self._log("\t WVINT after 101 SMM() => %s" % self.SMM[1][1])
+                    if self.verbose: self._log("\t WVINT after 101 SMM() => %s" % self.SMM[1][2])
 
                     if self.ISRC[8] == 1 and self.ISRC[3] == 1: 
                         self.SUMD = (self.AA[3] + self.AA[8]) * self.J1K0 + (self.BB[3] + self.BB[8]) * self.J1K1 + (self.CC[3] + self.CC[8]) * self.J1K2
                     else:
                         self.SUMD=complex(0.0,0.0)
 
-                    if self.verbose: print "\t WVINT after 101 SUMD() => %s" % self.SUMD
+                    if self.verbose: self._log("\t WVINT after 101 SUMD() => %s" % self.SUMD)
                     self.SUMD= -self.SUMD / self.DISTANCE
-                    if self.verbose: print "\t WVINT after 101 SUMD() => %s" % self.SUMD
+                    if self.verbose: self._log("\t WVINT after 101 SUMD() => %s" % self.SUMD)
                     self.SMM[1][3] = self.SUMD + self.AA[3] * self.J0K1 + self.BB[3] * self.J0K2 + self.CC[3] * self.J0K3
                     self.SMM[1][4] = self.SUMD + self.AA[8] * self.J0K1 + self.BB[8] * self.J0K2 + self.CC[8] * self.J0K3
                     self.SMM[1][5] = self.AA[4] * self.J2K0 + self.BB[4] * self.J2K1 + self.CC[4] * self.J2K2
-                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][3]
-                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][4]
-                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][5]
+                    if self.verbose: self._log("\t WVINT after 101 SMM() => %s" % self.SMM[1][3])
+                    if self.verbose: self._log("\t WVINT after 101 SMM() => %s" % self.SMM[1][4])
+                    if self.verbose: self._log("\t WVINT after 101 SMM() => %s" % self.SMM[1][5])
 
                     if self.ISRC[5] == 1 and self.ISRC[9] == 1:
                         self.SUMD = (self.AA[5] + self.AA[9]) * self.J2K0 + (self.BB[5] + self.BB[9]) * self.J2K1 + (self.CC[5] + self.CC[9]) * self.J2K2
                     else:
                         self.SUMD = complex(0.0,0.0)
 
-                    if self.verbose: print "\t WVINT after 101 SUMD() => %s" % self.SUMD
+                    if self.verbose: self._log("\t WVINT after 101 SUMD() => %s" % self.SUMD)
                     self.SUMD = -2.0 * self.SUMD / self.DISTANCE
-                    if self.verbose: print "\t WVINT after 101 SUMD() => %s" % self.SUMD
+                    if self.verbose: self._log("\t WVINT after 101 SUMD() => %s" % self.SUMD)
                     self.SMM[1][6] = self.SUMD + self.AA[5] * self.J1K1 + self.BB[5] * self.J1K2 + self.CC[5] * self.J1K3
                     self.SMM[1][7] = self.SUMD + self.AA[9] * self.J1K1 + self.BB[9] * self.J1K2 + self.CC[9] * self.J1K3
                     self.SMM[1][8] = self.AA[6] * self.J0K0 + self.BB[6] * self.J0K1 + self.CC[6] * self.J0K2
                     self.SMM[1][9] = self.AA[7] * self.J1K1 + self.BB[7] * self.J1K2 + self.CC[7] * self.J1K3
-                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][6]
-                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][7]
-                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][8]
-                    if self.verbose: print "\t WVINT after 101 SMM() => %s" % self.SMM[1][9]
+                    if self.verbose: self._log("\t WVINT after 101 SMM() => %s" % self.SMM[1][6])
+                    if self.verbose: self._log("\t WVINT after 101 SMM() => %s" % self.SMM[1][7])
+                    if self.verbose: self._log("\t WVINT after 101 SMM() => %s" % self.SMM[1][8])
+                    if self.verbose: self._log("\t WVINT after 101 SMM() => %s" % self.SMM[1][9])
 
-                    if self.verbose: print ""
+                    if self.verbose: self._log("")
                     #}}}
 
                 else:
@@ -2815,18 +2847,18 @@ GREEN.1\n\
             #}}} INIT
 
             #     GET THE BESSEL'S FUNCTIONS +++++++++++++++++++++++++++++++>
-            if self.verbose: print ""
-            if self.verbose: print "***************** BESSEL FUNCTIONS *****************"
-            if self.verbose: print ""
+            if self.verbose: self._log("")
+            if self.verbose: self._log("***************** BESSEL FUNCTIONS *****************")
+            if self.verbose: self._log("")
 
-            if self.verbose: print "BESSEL FUNCTIONS: N22: %s" % self.N22
-            if self.verbose: print "BESSEL FUNCTIONS: ICN: %s" % self.ICN
-            if self.verbose: print "BESSEL FUNCTIONS: NNN1: %s" % self.NNN1
-            if self.verbose: print "BESSEL FUNCTIONS: IBLOCK: %s" % self.IBLOCK
+            if self.verbose: self._log("BESSEL FUNCTIONS: N22: %s" % self.N22)
+            if self.verbose: self._log("BESSEL FUNCTIONS: ICN: %s" % self.ICN)
+            if self.verbose: self._log("BESSEL FUNCTIONS: NNN1: %s" % self.NNN1)
+            if self.verbose: self._log("BESSEL FUNCTIONS: IBLOCK: %s" % self.IBLOCK)
             #{{{
             if self.N22 < self.ICN:
                 for J in range(self.NNN1-1,self.IBLOCK):
-                    #if self.verbose: print "BESSEL FUNCTIONS: 1st J: %s" % J
+                    #if self.verbose: self._log("BESSEL FUNCTIONS: 1st J: %s" % J)
                     Z = self.WVNO[J].real * self.DISTANCE
                     X = (Z/3.0) * (Z/3.0)
                     AJ0 = 1.0-X*(2.2499997-X*(1.2656208-X*(.3163866-X*( .0444479-X*(.0039444-X*(.0002100))))))
@@ -2835,22 +2867,22 @@ GREEN.1\n\
                     self.J2[J] = 2.0 * AJ1 / Z - AJ0
                     self.J1[J] = AJ1
                     self.J0[J] = AJ0
-                    #if self.verbose: print "\t BESSEL FUNCTIONS: NNN1: %s" % self.NNN1
-                    #if self.verbose: print "\t BESSEL FUNCTIONS: IBLOCK: %s" % self.IBLOCK
-                    #if self.verbose: print "\t BESSEL FUNCTIONS: J: %s" % J
-                    #if self.verbose: print "\t BESSEL FUNCTIONS: WVNO[J]: %s" % self.WVNO[J]
-                    #if self.verbose: print "\t BESSEL FUNCTIONS: Z: %s" % Z
-                    #if self.verbose: print "\t BESSEL FUNCTIONS: X: %s" % X
-                    #if self.verbose: print "\t BESSEL FUNCTIONS: AJ0: %s" % AJ0
-                    #if self.verbose: print "\t BESSEL FUNCTIONS: AJ1: %s" % AJ1
-                    if self.verbose: print "\t BESSEL FUNCTIONS: J: %s" % J
-                    if self.verbose: print "\t BESSEL FUNCTIONS: J2[J]: %s" % self.J2[J]
-                    if self.verbose: print "\t BESSEL FUNCTIONS: J1[J]: %s" % self.J1[J]
-                    if self.verbose: print "\t BESSEL FUNCTIONS: J0[J]: %s" % self.J0[J]
+                    #if self.verbose: self._log("\t BESSEL FUNCTIONS: NNN1: %s" % self.NNN1)
+                    #if self.verbose: self._log("\t BESSEL FUNCTIONS: IBLOCK: %s" % self.IBLOCK)
+                    #if self.verbose: self._log("\t BESSEL FUNCTIONS: J: %s" % J)
+                    #if self.verbose: self._log("\t BESSEL FUNCTIONS: WVNO[J]: %s" % self.WVNO[J])
+                    #if self.verbose: self._log("\t BESSEL FUNCTIONS: Z: %s" % Z)
+                    #if self.verbose: self._log("\t BESSEL FUNCTIONS: X: %s" % X)
+                    #if self.verbose: self._log("\t BESSEL FUNCTIONS: AJ0: %s" % AJ0)
+                    #if self.verbose: self._log("\t BESSEL FUNCTIONS: AJ1: %s" % AJ1)
+                    if self.verbose: self._log("\t BESSEL FUNCTIONS: J: %s" % J)
+                    if self.verbose: self._log("\t BESSEL FUNCTIONS: J2[J]: %s" % self.J2[J])
+                    if self.verbose: self._log("\t BESSEL FUNCTIONS: J1[J]: %s" % self.J1[J])
+                    if self.verbose: self._log("\t BESSEL FUNCTIONS: J0[J]: %s" % self.J0[J])
                     #exit()
 
 
-            if self.verbose: print "BESSEL FUNCTIONS: N11: %s" % self.N11
+            if self.verbose: self._log("BESSEL FUNCTIONS: N11: %s" % self.N11)
             if self.N11 > self.ICN:
                 for J in range(self.NNN1-1,self.IBLOCK):
                     Z = self.WVNO[J].real * self.DISTANCE
@@ -2865,16 +2897,16 @@ GREEN.1\n\
                     self.J2[J]= 2.0 * AJ1 / Z - AJ0
                     self.J1[J]= AJ1
                     self.J0[J]= AJ0
-                    #if self.verbose: print "\t BESSEL FUNCTIONS: J: %s" % J
-                    if self.verbose: print "\t BESSEL FUNCTIONS: J2[J]: %s" % self.J2[J]
-                    if self.verbose: print "\t BESSEL FUNCTIONS: J1[J]: %s" % self.J1[J]
-                    if self.verbose: print "\t BESSEL FUNCTIONS: J0[J]: %s" % self.J0[J]
+                    #if self.verbose: self._log("\t BESSEL FUNCTIONS: J: %s" % J)
+                    if self.verbose: self._log("\t BESSEL FUNCTIONS: J2[J]: %s" % self.J2[J])
+                    if self.verbose: self._log("\t BESSEL FUNCTIONS: J1[J]: %s" % self.J1[J])
+                    if self.verbose: self._log("\t BESSEL FUNCTIONS: J0[J]: %s" % self.J0[J])
 
             if self.N22 > self.ICN and self.N11 < self.ICN: 
                 self.IM = self.ICN - self.N11 + 1
-                #if self.verbose: print "BESSEL FUNCTIONS: IM: %s" % self.IM
+                #if self.verbose: self._log("BESSEL FUNCTIONS: IM: %s" % self.IM)
                 for J in range(self.NNN1-1,self.IM):
-                    #if self.verbose: print "BESSEL FUNCTIONS: 3rd J: %s" % J
+                    #if self.verbose: self._log("BESSEL FUNCTIONS: 3rd J: %s" % J)
                     Z = self.WVNO[J].real * self.DISTANCE
                     X = (Z/3.0)*(Z/3.0)
                     AJ0 = 1.0-X*(2.2499997-X*(1.2656208-X*(0.3163866-X*(0.0444479-X*(0.0039444-X*(0.0002100))))))
@@ -2883,14 +2915,14 @@ GREEN.1\n\
                     self.J2[J] = 2.0 * AJ1 / Z - AJ0
                     self.J1[J] = AJ1
                     self.J0[J] = AJ0
-                    #if self.verbose: print "\t BESSEL FUNCTIONS: J: %s" % J
-                    if self.verbose: print "\t BESSEL FUNCTIONS: J2[J]: %s" % self.J2[J]
-                    if self.verbose: print "\t BESSEL FUNCTIONS: J1[J]: %s" % self.J1[J]
-                    if self.verbose: print "\t BESSEL FUNCTIONS: J0[J]: %s" % self.J0[J]
+                    #if self.verbose: self._log("\t BESSEL FUNCTIONS: J: %s" % J)
+                    if self.verbose: self._log("\t BESSEL FUNCTIONS: J2[J]: %s" % self.J2[J])
+                    if self.verbose: self._log("\t BESSEL FUNCTIONS: J1[J]: %s" % self.J1[J])
+                    if self.verbose: self._log("\t BESSEL FUNCTIONS: J0[J]: %s" % self.J0[J])
                     #exit()
 
                 for J in range(self.IM+1,self.IBLOCK):
-                    #if self.verbose: print "BESSEL FUNCTIONS: 4th J: %s" % J
+                    #if self.verbose: self._log("BESSEL FUNCTIONS: 4th J: %s" % J)
                     Z = self.WVNO[J].real * self.DISTANCE
                     X = 3.0 / Z
                     FAC = 1.0 / sqrt(Z)
@@ -2903,21 +2935,21 @@ GREEN.1\n\
                     self.J2[J] = 2.0 * AJ1 / Z - AJ0
                     self.J1[J] = AJ1
                     self.J0[J] = AJ0
-                    if self.verbose: print "\t BESSEL FUNCTIONS: J2[J]: %s" % self.J2[J]
-                    if self.verbose: print "\t BESSEL FUNCTIONS: J1[J]: %s" % self.J1[J]
-                    if self.verbose: print "\t BESSEL FUNCTIONS: J0[J]: %s" % self.J0[J]
+                    if self.verbose: self._log("\t BESSEL FUNCTIONS: J2[J]: %s" % self.J2[J])
+                    if self.verbose: self._log("\t BESSEL FUNCTIONS: J1[J]: %s" % self.J1[J])
+                    if self.verbose: self._log("\t BESSEL FUNCTIONS: J0[J]: %s" % self.J0[J])
                     #exit()
 
-            if self.verbose: print "BESSEL FUNCTIONS:   J2 => %s" % self.J2
-            if self.verbose: print "BESSEL FUNCTIONS:   J1 => %s" % self.J1
-            if self.verbose: print "BESSEL FUNCTIONS:   J0 => %s" % self.J0
+            if self.verbose: self._log("BESSEL FUNCTIONS:   J2 => %s" % self.J2)
+            if self.verbose: self._log("BESSEL FUNCTIONS:   J1 => %s" % self.J1)
+            if self.verbose: self._log("BESSEL FUNCTIONS:   J0 => %s" % self.J0)
             #}}}
 
             #     GET THE PHASE VELOCITY FILTER  +++++++++++++++++++++++++>
             #{{{
-            if self.verbose: print ''
-            if self.verbose: print '############### PHASE VELOCITY FILTER ##############'
-            if self.verbose: print ''
+            if self.verbose: self._log('')
+            if self.verbose: self._log('############### PHASE VELOCITY FILTER ##############')
+            if self.verbose: self._log('')
 
             if self.CMAX >= 0.0:
                 for J in range(self.NNN1-1,self.IBLOCK):
@@ -2930,14 +2962,14 @@ GREEN.1\n\
                     if self.WVN > self.WVC2 and self.WVN < self.WVCN:
                         self.FACT[J] = (1.0 - cos(self.PI * (self.WVN - self.WVCN) / (self.WVC2 - self.WVCN))).real / 2.0
 
-                    if self.verbose: print ' PHASE VELOCITY FILTER:    FACT[J] => %s' % self.FACT[J]
+                    if self.verbose: self._log(' PHASE VELOCITY FILTER:    FACT[J] => %s' % self.FACT[J])
             #}}}
 
             #     REMOVAL OF ASYMPTOTIC TREND FROM THE INTEGRAND
             #{{{
-            if self.verbose: print ''
-            if self.verbose: print '############### ASYMP TREND REMOVAL ##############'
-            if self.verbose: print ''
+            if self.verbose: self._log('')
+            if self.verbose: self._log('############### ASYMP TREND REMOVAL ##############')
+            if self.verbose: self._log('')
 
             if self.IASYMP:
                 for K in range(10):
@@ -2946,16 +2978,16 @@ GREEN.1\n\
                             self.AK = self.WVNO[J].real
                             self.EX = exp(-self.AK * self.DEPTH)
                             self.ASM = self.EX * (self.AA[K] + self.AK * (self.BB[K] + self.AK * self.CC[K]))
-                            if self.verbose: print "    RM ASYMP TREND  10:    AK => %s  " % self.AK
-                            if self.verbose: print "    RM ASYMP TREND  10:    H => %s  " % self.DEPTH
-                            if self.verbose: print "    RM ASYMP TREND  10:    EX => %s  " % self.EX
-                            if self.verbose: print "    RM ASYMP TREND  10:    AA[K] => %s  " % self.AA[K]
-                            if self.verbose: print "    RM ASYMP TREND  10:    BB[K] => %s  " % self.BB[K]
-                            if self.verbose: print "    RM ASYMP TREND  10:    CC[K] => %s  " % self.CC[K]
-                            if self.verbose: print "    RM ASYMP TREND  10:    ASM => %s  " % self.ASM
-                            if self.verbose: print "    RM ASYMP TREND  10:    S1[J] => %s  " % self.G1[J]
-                            if self.verbose: print "    RM ASYMP TREND  10:    K => %s  " % K
-                            if self.verbose: print "    RM ASYMP TREND  10:    J => %s  " % J
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    AK => %s  " % self.AK)
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    H => %s  " % self.DEPTH)
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    EX => %s  " % self.EX)
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    AA[K] => %s  " % self.AA[K])
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    BB[K] => %s  " % self.BB[K])
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    CC[K] => %s  " % self.CC[K])
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    ASM => %s  " % self.ASM)
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    S1[J] => %s  " % self.G1[J])
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    K => %s  " % K)
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    J => %s  " % J)
                             if K == 0: self.S1[J] = self.G1[J] - self.ASM
                             if K == 1: self.S2[J] = self.G2[J] - self.ASM
                             if K == 2: self.S3[J] = self.G3[J] - self.ASM
@@ -2966,26 +2998,26 @@ GREEN.1\n\
                             if K == 7: self.S8[J] = self.G8[J] - self.ASM
                             if K == 8: self.S9[J] = self.G9[J] - self.ASM
                             if K == 9: self.S10[J] = self.G10[J] - self.ASM
-                            if self.verbose: print "    RM ASYMP TREND  10:    G1[J] =>  %s " % self.S1[J]
-                            if self.verbose: print "    RM ASYMP TREND  10:    G2[J] =>  %s " % self.S2[J]
-                            if self.verbose: print "    RM ASYMP TREND  10:    G3[J] =>  %s " % self.S3[J]
-                            if self.verbose: print "    RM ASYMP TREND  10:    G4[J] =>  %s " % self.S4[J]
-                            if self.verbose: print "    RM ASYMP TREND  10:    G5[J] =>  %s " % self.S5[J]
-                            if self.verbose: print "    RM ASYMP TREND  10:    G6[J] =>  %s " % self.S6[J]
-                            if self.verbose: print "    RM ASYMP TREND  10:    G7[J] =>  %s " % self.S7[J]
-                            if self.verbose: print "    RM ASYMP TREND  10:    G8[J] =>  %s " % self.S8[J]
-                            if self.verbose: print "    RM ASYMP TREND  10:    G9[J] =>  %s " % self.S9[J]
-                            if self.verbose: print "    RM ASYMP TREND  10:    G10[J] => %s  " % self.S10[J]
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    G1[J] =>  %s " % self.S1[J])
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    G2[J] =>  %s " % self.S2[J])
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    G3[J] =>  %s " % self.S3[J])
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    G4[J] =>  %s " % self.S4[J])
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    G5[J] =>  %s " % self.S5[J])
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    G6[J] =>  %s " % self.S6[J])
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    G7[J] =>  %s " % self.S7[J])
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    G8[J] =>  %s " % self.S8[J])
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    G9[J] =>  %s " % self.S9[J])
+                            if self.verbose: self._log("    RM ASYMP TREND  10:    G10[J] => %s  " % self.S10[J])
 
             if self.NBLK == self.NBLOCK:
                 if self.IASYMP:
                     for K in range(10):
                         if self.ISRC[K] == 1:
-                            #print "    ############ WVNO => %s  " % self.WVNO
-                            #print "    ############ len(WVNO) => %s  " % len(self.WVNO)
-                            #print "    ############ IBLOCK => %s  " % self.IBLOCK
-                            #print "    ############ NK => %s  " % self.NK
-                            #print "    ############ IB => %s  " % self.IB
+                            #self._log("    ############ WVNO => %s  " % self.WVNO)
+                            #self._log("    ############ len(WVNO) => %s  " % len(self.WVNO))
+                            #self._log("    ############ IBLOCK => %s  " % self.IBLOCK)
+                            #self._log("    ############ NK => %s  " % self.NK)
+                            #self._log("    ############ IB => %s  " % self.IB)
                             self.AK = self.WVNO[self.IBLOCK].real
                             self.EX = exp(-self.AK )* self.DEPTH
                             self.ASM = self.EX * ( self.AA[K] + self.AK * (self.BB[K] + self.AK * self.CC[K]) )
@@ -2999,16 +3031,16 @@ GREEN.1\n\
                             if K == 7: self.S8[self.IBLOCK] = self.S8[self.IBLOCK] - self.ASM
                             if K == 8: self.S9[self.IBLOCK] = self.S9[self.IBLOCK] - self.ASM
                             if K == 9: self.S10[self.IBLOCK] = self.S10[self.IBLOCK] - self.ASM
-                            if self.verbose: print "    RM ASYMP TREND  666:    G1[J] =>  %s " % self.S1[1]
-                            if self.verbose: print "    RM ASYMP TREND  666:    G2[J] =>  %s " % self.S2[1]
-                            if self.verbose: print "    RM ASYMP TREND  666:    G3[J] =>  %s " % self.S3[1]
-                            if self.verbose: print "    RM ASYMP TREND  666:    G4[J] =>  %s " % self.S4[1]
-                            if self.verbose: print "    RM ASYMP TREND  666:    G5[J] =>  %s " % self.S5[1]
-                            if self.verbose: print "    RM ASYMP TREND  666:    G6[J] =>  %s " % self.S6[1]
-                            if self.verbose: print "    RM ASYMP TREND  666:    G7[J] =>  %s " % self.S7[1]
-                            if self.verbose: print "    RM ASYMP TREND  666:    G8[J] =>  %s " % self.S8[1]
-                            if self.verbose: print "    RM ASYMP TREND  666:    G9[J] =>  %s " % self.S9[1]
-                            if self.verbose: print "    RM ASYMP TREND  666:    G10[J] => %s  " % self.S10[1]
+                            if self.verbose: self._log("    RM ASYMP TREND  666:    G1[J] =>  %s " % self.S1[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  666:    G2[J] =>  %s " % self.S2[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  666:    G3[J] =>  %s " % self.S3[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  666:    G4[J] =>  %s " % self.S4[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  666:    G5[J] =>  %s " % self.S5[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  666:    G6[J] =>  %s " % self.S6[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  666:    G7[J] =>  %s " % self.S7[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  666:    G8[J] =>  %s " % self.S8[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  666:    G9[J] =>  %s " % self.S9[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  666:    G10[J] => %s  " % self.S10[1])
 
             if not self.IASYMP:
                 for K in range(10):
@@ -3024,32 +3056,32 @@ GREEN.1\n\
                             if K == 7: self.S8[J] = self.G8[J]
                             if K == 8: self.S9[J] = self.G9[J]
                             if K == 9: self.S10[J] = self.G10[J]
-                            if self.verbose: print "    RM ASYMP TREND  777:    G1[J] =>  %s " % self.S1[1]
-                            if self.verbose: print "    RM ASYMP TREND  777:    G2[J] =>  %s " % self.S2[1]
-                            if self.verbose: print "    RM ASYMP TREND  777:    G3[J] =>  %s " % self.S3[1]
-                            if self.verbose: print "    RM ASYMP TREND  777:    G4[J] =>  %s " % self.S4[1]
-                            if self.verbose: print "    RM ASYMP TREND  777:    G5[J] =>  %s " % self.S5[1]
-                            if self.verbose: print "    RM ASYMP TREND  777:    G6[J] =>  %s " % self.S6[1]
-                            if self.verbose: print "    RM ASYMP TREND  777:    G7[J] =>  %s " % self.S7[1]
-                            if self.verbose: print "    RM ASYMP TREND  777:    G8[J] =>  %s " % self.S8[1]
-                            if self.verbose: print "    RM ASYMP TREND  777:    G9[J] =>  %s " % self.S9[1]
-                            if self.verbose: print "    RM ASYMP TREND  777:    G10[J] => %s  " % self.S10[1]
+                            if self.verbose: self._log("    RM ASYMP TREND  777:    G1[J] =>  %s " % self.S1[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  777:    G2[J] =>  %s " % self.S2[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  777:    G3[J] =>  %s " % self.S3[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  777:    G4[J] =>  %s " % self.S4[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  777:    G5[J] =>  %s " % self.S5[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  777:    G6[J] =>  %s " % self.S6[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  777:    G7[J] =>  %s " % self.S7[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  777:    G8[J] =>  %s " % self.S8[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  777:    G9[J] =>  %s " % self.S9[1])
+                            if self.verbose: self._log("    RM ASYMP TREND  777:    G10[J] => %s  " % self.S10[1])
 
 
-            if self.verbose: print "    RM ASYMP TREND  13:    ISRC => %s  " %  self.ISRC
+            if self.verbose: self._log("    RM ASYMP TREND  13:    ISRC => %s  " %  self.ISRC)
 
             if self.ISRC[0] == 1:
-                #if self.verbose: print "    RM ASYMP TREND  13:    IBL => %s  " %  self.IBLOCK
-                #if self.verbose: print "    RM ASYMP TREND  13:    N1 => %s  " %  self.NNN1
+                #if self.verbose: self._log("    RM ASYMP TREND  13:    IBL => %s  " %  self.IBLOCK)
+                #if self.verbose: self._log("    RM ASYMP TREND  13:    N1 => %s  " %  self.NNN1)
                 for J in range(self.IBLOCK-1,self.NNN1-2,-1):
                     self.SUMD = self.FACT[J] * self.S1[J] * self.J0[J]
                     self.SMM[1][0] = self.SMM[1][0] + self.SUMD
-                    #if self.verbose: print "    RM ASYMP TREND  13:    J => %s  " %  J
-                    #if self.verbose: print "    RM ASYMP TREND  13:    FACT[J] => %s  " % self.FACT[J]
-                    #if self.verbose: print "    RM ASYMP TREND  13:    G1[J] => %s  " % self.S1[J]
-                    #if self.verbose: print "    RM ASYMP TREND  13:    J0[J] => %s  " % self.J0[J]
-                    #if self.verbose: print "    RM ASYMP TREND  13:    SUMD => %s  " % self.SUMD
-                    if self.verbose: print "    RM ASYMP TREND  13:    SMM[1][0] => %s  " % self.SMM[1][0]
+                    #if self.verbose: self._log("    RM ASYMP TREND  13:    J => %s  " %  J)
+                    #if self.verbose: self._log("    RM ASYMP TREND  13:    FACT[J] => %s  " % self.FACT[J])
+                    #if self.verbose: self._log("    RM ASYMP TREND  13:    G1[J] => %s  " % self.S1[J])
+                    #if self.verbose: self._log("    RM ASYMP TREND  13:    J0[J] => %s  " % self.J0[J])
+                    #if self.verbose: self._log("    RM ASYMP TREND  13:    SUMD => %s  " % self.SUMD)
+                    if self.verbose: self._log("    RM ASYMP TREND  13:    SMM[1][0] => %s  " % self.SMM[1][0])
 
 
             if self.ISRC[1] == 1:
@@ -3057,16 +3089,16 @@ GREEN.1\n\
                     self.AK = self.WVNO[J].real
                     self.SUMD = self.FACT[J] * self.S2[J] * self.AK * self.J1[J]
                     self.SMM[1][1] = self.SMM[1][1] + self.SUMD
-                    #if self.verbose: print "    RM ASYMP TREND  13:    J => %s  " %  J
-                    #if self.verbose: print "    RM ASYMP TREND  13:    AK => %s  " % self.AK
-                    #if self.verbose: print "    RM ASYMP TREND  13:    SUMD => %s  " % self.SUMD
-                    if self.verbose: print "    RM ASYMP TREND  14:    SMM[1][1] => %s  " % self.SMM[1][1]
+                    #if self.verbose: self._log("    RM ASYMP TREND  13:    J => %s  " %  J)
+                    #if self.verbose: self._log("    RM ASYMP TREND  13:    AK => %s  " % self.AK)
+                    #if self.verbose: self._log("    RM ASYMP TREND  13:    SUMD => %s  " % self.SUMD)
+                    if self.verbose: self._log("    RM ASYMP TREND  14:    SMM[1][1] => %s  " % self.SMM[1][1])
 
             if self.ISRC[2] == 1: 
                 for J in range(self.NNN1-1,self.IBLOCK):
                     self.SUMD = self.FACT[J] * self.S3[J] * self.J1[J]
                     self.SMM[1][2] = self.SMM[1][2] + self.SUMD
-                    if self.verbose: print "    RM ASYMP TREND  15:    SMM[1][2] => %s  " % self.SMM[1][2]
+                    if self.verbose: self._log("    RM ASYMP TREND  15:    SMM[1][2] => %s  " % self.SMM[1][2])
             #}}}
 
             #     INCLUDE NEAR FIELD TERM IF BOTH SH AND P-SV ARE COMPUTED
@@ -3074,35 +3106,35 @@ GREEN.1\n\
             if self.ISRC[3] == 1 and self.ISRC[8] == 1:
                 for J in range(self.NNN1-1,self.IBLOCK):
                     self.SUMC[J] = (self.S4[J] + self.S9[J]) * self.J1[J]
-                #    if self.verbose: print "    RM ASYMP TREND  16:    J => %s  " % J
-                #    if self.verbose: print "    RM ASYMP TREND  16:    G4[J] => %s  " % self.S4[J]
-                #    if self.verbose: print "    RM ASYMP TREND  16:    G9[J] => %s  " % self.S9[J]
-                #    if self.verbose: print "    RM ASYMP TREND  16:    J1[J] => %s  " % self.J1[J]
-                    if self.verbose: print "    RM ASYMP TREND  16:    SUMC[J] => %s  " % self.SUMC[J]
-                #print ""
-                #print "\t\t\t G4 => %s " % self.S4
-                #print "\t\t\t G9 => %s " % self.S9
-                #print ""
+                #    if self.verbose: self._log("    RM ASYMP TREND  16:    J => %s  " % J)
+                #    if self.verbose: self._log("    RM ASYMP TREND  16:    G4[J] => %s  " % self.S4[J])
+                #    if self.verbose: self._log("    RM ASYMP TREND  16:    G9[J] => %s  " % self.S9[J])
+                #    if self.verbose: self._log("    RM ASYMP TREND  16:    J1[J] => %s  " % self.J1[J])
+                    if self.verbose: self._log("    RM ASYMP TREND  16:    SUMC[J] => %s  " % self.SUMC[J])
+                #self._log("")
+                #self._log("\t\t\t G4 => %s " % self.S4)
+                #self._log("\t\t\t G9 => %s " % self.S9)
+                #self._log("")
 
             if self.ISRC[3] == 1:
                 for J in range(self.NNN1-1, self.IBLOCK):
                     self.AK= self.WVNO[J].real
                     self.SUMD = self.S4[J] * self.AK * self.J0[J]
                     self.SMM[1][3] = self.SMM[1][3] + (self.SUMD - self.SUMC[J] / self.DISTANCE) * self.FACT[J]
-                    if self.verbose: print "    RM ASYMP TREND  17:    SMM[1][3] => %s  " % self.SMM[1][3]
+                    if self.verbose: self._log("    RM ASYMP TREND  17:    SMM[1][3] => %s  " % self.SMM[1][3])
 
             if self.ISRC[8] == 1:
                 for J in range(self.NNN1-1,self.IBLOCK):
                     self.AK = self.WVNO[J].real
                     self.SUMD = self.S9[J] * self.AK * self.J0[J]
                     self.SMM[1][4] = self.SMM[1][4] + (self.SUMD - self.SUMC[J] / self.DISTANCE) * self.FACT[J]
-                    if self.verbose: print "   RM ASYMP TREND  18 :    SMM[1][4] => %s  " % self.SMM[1][4]
+                    if self.verbose: self._log("   RM ASYMP TREND  18 :    SMM[1][4] => %s  " % self.SMM[1][4])
 
             if self.ISRC[4] == 1:
                 for J in range(self.NNN1-1,self.IBLOCK):
                     self.SUMD = self.FACT[J] * self.S5[J] * self.J2[J]
                     self.SMM[1][5] = self.SMM[1][5] + self.SUMD
-                    if self.verbose: print "    RM ASYMP TREND  19:    SMM[1][5] => %s  " % self.SMM[1][5]
+                    if self.verbose: self._log("    RM ASYMP TREND  19:    SMM[1][5] => %s  " % self.SMM[1][5])
             #}}}
 
             #     NEAR FIELD TERM IF BOTH SH AND P-SV TERMS ARE COMPUTED
@@ -3110,38 +3142,38 @@ GREEN.1\n\
             if self.ISRC[5] == 1 and self.ISRC[9] == 1:
                 for J in range(self.NNN1-1,self.IBLOCK):
                     self.SUME[J] = (self.S6[J] + self.S10[J]) * self.J2[J]
-                    if self.verbose: print "    RM ASYMP TREND  20:    SUME[J] => %s  " % self.SUME[J]
+                    if self.verbose: self._log("    RM ASYMP TREND  20:    SUME[J] => %s  " % self.SUME[J])
 
             if self.ISRC[5] == 1:
                 for J in range(self.NNN1-1,self.IBLOCK):
                     self.AK = self.WVNO[J].real
                     self.SUMD = self.S6[J] * self.AK * self.J1[J]
                     self.SMM[1][6] = self.SMM[1][6] + (self.SUMD - 2.0 * self.SUME[J] /self.DISTANCE) * self.FACT[J]
-                    if self.verbose: print "     RM ASYMP TREND  21:    SMM[1][6] => %s  " % self.SMM[1][6]
+                    if self.verbose: self._log("     RM ASYMP TREND  21:    SMM[1][6] => %s  " % self.SMM[1][6])
 
             if self.ISRC[9] == 1:
                 for J in range(self.IBLOCK-1,self.NNN1-2,-1):
                     self.AK = self.WVNO[J].real
                     self.SUMD = self.S10[J] * self.AK * self.J1[J]
                     self.SMM[1][7] = self.SMM[1][7] + (self.SUMD - 2.0 * self.SUME[J] / self.DISTANCE) * self.FACT[J]
-                    if self.verbose: print "     RM ASYMP TREND  22:    SMM[1][7] => %s  " % self.SMM[1][7]
+                    if self.verbose: self._log("     RM ASYMP TREND  22:    SMM[1][7] => %s  " % self.SMM[1][7])
 
             if self.ISRC[6] == 1:
                 for J in range(self.NNN1-1,self.IBLOCK):
                     self.SUMD = self.FACT[J] * self.S7[J] * self.J0[J]
                     self.SMM[1][8] = self.SMM[1][8] + self.SUMD
-                    if self.verbose: print "     RM ASYMP TREND  23:    SMM[1][8] => %s  " % self.SMM[1][8]
+                    if self.verbose: self._log("     RM ASYMP TREND  23:    SMM[1][8] => %s  " % self.SMM[1][8])
 
             if self.ISRC[7] == 1:
                 for J in range(self.NNN1-1,self.IBLOCK):
                     self.AK = self.WVNO[J].real
                     self.SUMD = self.FACT[J] * self.S8[J] * self.AK * self.J1[J]
                     self.SMM[1][9] = self.SMM[1][9] + self.SUMD
-                    if self.verbose: print "     RM ASYMP TREND  24:    SMM[1][9] => %s  " % self.SMM[1][9]
+                    if self.verbose: self._log("     RM ASYMP TREND  24:    SMM[1][9] => %s  " % self.SMM[1][9])
 
-            if self.verbose: print ""
-            if self.verbose: print " END"
-            if self.verbose: print ""
+            if self.verbose: self._log("")
+            if self.verbose: self._log(" END")
+            if self.verbose: self._log("")
 
             #}}}
 
@@ -3153,7 +3185,7 @@ GREEN.1\n\
 
         #}}} A
 
-        #print ' verbose: T0 = %s' % self.T0
+        #self._log(' verbose: T0 = %s' % self.T0)
         #{{{ B
         self.T0X = self.T0[1] + self.DISTANCE / 8
         self.FAT = self.OMEGA * self.T0X
@@ -3169,81 +3201,213 @@ GREEN.1\n\
         for J in range(10):
             if self.ISRC[J] != 1: break
             self.GG[1][J] = self.SMM[1][J] * complex(self.XR,self.XI)
-            if self.verbose: print "%s" % self.GG[1][J]
+            if self.verbose: self._log("%s" % self.GG[1][J])
         #}}} B
 
-        if self.verbose: print "%s" % self.GG
+        if self.verbose: self._log("%s" % self.GG)
         #return self.GG 
 
 #}}}
 
     def _solu300(self,Y1,Y2,X1,X2,J):
         #{{{
-        if self.verbose: print ""
-        if self.verbose: print "&&&&&&&&&&&&&&&&&&& SOLU &&&&&&&&&&&&&&&"
+        if self.verbose: self._log("")
+        if self.verbose: self._log("&&&&&&&&&&&&&&&&&&& SOLU &&&&&&&&&&&&&&&")
         self.CC[J] = complex(0.0,0.0)
         U1 = X1 * self.DEPTH
         U2 = X2 * self.DEPTH
         DET = X2 - X1
-        if self.verbose: print "SOLU 300: U1 =%s" % U1
-        if self.verbose: print "SOLU 300: U2 =%s" % U2
-        if self.verbose: print "SOLU 300: DET =%s" % DET
+        if self.verbose: self._log("SOLU 300: U1 =%s" % U1)
+        if self.verbose: self._log("SOLU 300: U2 =%s" % U2)
+        if self.verbose: self._log("SOLU 300: DET =%s" % DET)
         self.AA[J] = complex(0.0,0.0)
-        if self.verbose: print "^^^^^^^^ SOLU 300: X1 => %s" % X1
-        if self.verbose: print "^^^^^^^^ SOLU 300: X2 => %s" % X2
-        if self.verbose: print "^^^^^^^^ SOLU 300: Y1 => %s" % Y1
-        if self.verbose: print "^^^^^^^^ SOLU 300: Y2 => %s" % Y2
-        if self.verbose: print "^^^^^^^^ SOLU 300: U1 => %s" % U1
-        if self.verbose: print "^^^^^^^^ SOLU 300: U2 => %s" % U2
+        if self.verbose: self._log("^^^^^^^^ SOLU 300: X1 => %s" % X1)
+        if self.verbose: self._log("^^^^^^^^ SOLU 300: X2 => %s" % X2)
+        if self.verbose: self._log("^^^^^^^^ SOLU 300: Y1 => %s" % Y1)
+        if self.verbose: self._log("^^^^^^^^ SOLU 300: Y2 => %s" % Y2)
+        if self.verbose: self._log("^^^^^^^^ SOLU 300: U1 => %s" % U1)
+        if self.verbose: self._log("^^^^^^^^ SOLU 300: U2 => %s" % U2)
 
         self.BB[J] = X2 * Y1 * exp(U1) / X1
-        if self.verbose: print "^^^^^^^^ SOLU 300: BB[%s]:%s" % (J,self.BB[J])
+        if self.verbose: self._log("^^^^^^^^ SOLU 300: BB[%s]:%s" % (J,self.BB[J]))
         self.BB[J] = X1 * Y2 * exp(U2) / X2
-        if self.verbose: print "^^^^^^^^ SOLU 300: BB[%s]:%s" % (J,self.BB[J])
+        if self.verbose: self._log("^^^^^^^^ SOLU 300: BB[%s]:%s" % (J,self.BB[J]))
 
         self.BB[J] = X2 * Y1 * exp(U1) / X1 - X1 * Y2 * exp(U2) / X2
         self.BB[J] = self.BB[J] / DET
         self.CC[J] = Y2 * exp(U2) / X2 - Y1 * exp(U1) / X1
         self.CC[J] = self.CC[J] / DET
-        if self.verbose: print "SOLU 300: AA[%s]:%s" % (J,self.AA[J])
-        if self.verbose: print "SOLU 300: BB[%s]:%s" % (J,self.BB[J])
-        if self.verbose: print "SOLU 300: CC[%s]:%s" % (J,self.CC[J])
-        if self.verbose: print ""
+        if self.verbose: self._log("SOLU 300: AA[%s]:%s" % (J,self.AA[J]))
+        if self.verbose: self._log("SOLU 300: BB[%s]:%s" % (J,self.BB[J]))
+        if self.verbose: self._log("SOLU 300: CC[%s]:%s" % (J,self.CC[J]))
+        if self.verbose: self._log("")
         #exit()
         #}}}
 
     def _solu200(self,Y1,Y2,X1,X2,J):
         #{{{
-        if self.verbose: print ""
-        if self.verbose: print "&&&&&&&&&&&&&&&&&&& SOLU &&&&&&&&&&&&&&&"
+        if self.verbose: self._log("")
+        if self.verbose: self._log("&&&&&&&&&&&&&&&&&&& SOLU &&&&&&&&&&&&&&&")
         self.CC[J] = complex(0.0,0.0)
         U1 = X1 * self.DEPTH
         U2 = X2 * self.DEPTH
         DET = X2 - X1
-        if self.verbose: print "SOLU 200: U1 =%s" % U1
-        if self.verbose: print "SOLU 200: U2 =%s" % U2
-        if self.verbose: print "SOLU 200: DET =%s" % DET
+        if self.verbose: self._log("SOLU 200: U1 =%s" % U1)
+        if self.verbose: self._log("SOLU 200: U2 =%s" % U2)
+        if self.verbose: self._log("SOLU 200: DET =%s" % DET)
         self.AA[J] = X2 * Y1 * exp(U1) - X1 * Y2 * exp(U2)
         self.AA[J] = self.AA[J] / DET
         self.BB[J] = Y2 * exp(U2) - Y1 * exp(U1)
         self.BB[J] = self.BB[J] / DET
-        if self.verbose: print "SOLU 200: AA[%s]:%s" % (J,self.AA[J])
-        if self.verbose: print "SOLU 200: BB[%s]:%s" % (J,self.BB[J])
-        if self.verbose: print ""
+        if self.verbose: self._log("SOLU 200: AA[%s]:%s" % (J,self.AA[J]))
+        if self.verbose: self._log("SOLU 200: BB[%s]:%s" % (J,self.BB[J]))
+        if self.verbose: self._log("")
         #}}}
+
+    def _reformat(self):
+#{{{
+        for l in range(10):
+
+            self._log("NOW: %s" % l)
+            TEMPDATA = self.DATA[l]
+            if l == 0:
+                #self.ZDD = [x * -1 for x in self.TEMPDATA ]
+                if not 'ZDD' in self.ELEMENTS: self.ELEMENTS['ZDD'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['ZDD']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['ZDD']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['ZDD']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['ZDD']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['ZDD']['data'] = [ x * 10000000 for x in self.ELEMENTS['ZDD']['data'] ] # convert from cm/s to nm/s
+                self._log("\tZDD: %s" % len(self.ELEMENTS['ZDD']['data']))
+                #self.ELEMENTS['ZDD']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['ZDD']['data'].extend( [x * -1 for x in self.TEMPDATA ])
+
+            elif l == 1:
+                #self.XDD = [x for x in self.TEMPDATA]
+                if not 'XDD' in self.ELEMENTS: self.ELEMENTS['XDD'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['XDD']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['XDD']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['XDD']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['XDD']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['XDD']['data'] = [ x * 10000000 for x in self.ELEMENTS['XDD']['data'] ] # convert from cm/s to nm/s
+                self._log("\tXDD: %s" % len(self.ELEMENTS['XDD']['data']))
+                #self.ELEMENTS['XDD']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['XDD']['data'].extend( [x for x in self.TEMPDATA ])
+
+            elif l == 2:
+                #self.ZDS = [x for x in self.TEMPDATA]
+                if not 'ZDS' in self.ELEMENTS: self.ELEMENTS['ZDS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['ZDS']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['ZDS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['ZDS']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['ZDS']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['ZDS']['data'] = [ x * 10000000 for x in self.ELEMENTS['ZDS']['data'] ] # convert from cm/s to nm/s
+                self._log("\tZDS: %s" % len(self.ELEMENTS['ZDS']['data']))
+                #self.ELEMENTS['ZDS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['ZDS']['data'].extend( [x for x in self.TEMPDATA ])
+
+            elif l == 3:
+                #self.XDS = [x * -1 for x in self.TEMPDATA ]
+                if not 'XDS' in self.ELEMENTS: self.ELEMENTS['XDS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['XDS']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['XDS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['XDS']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['XDS']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['XDS']['data'] = [ x * 10000000 for x in self.ELEMENTS['XDS']['data'] ] # convert from cm/s to nm/s
+                self._log("\tXDS: %s" % len(self.ELEMENTS['XDS']['data']))
+                #self.ELEMENTS['XDS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['XDS']['data'].extend( [x * -1 for x in self.TEMPDATA ])
+
+            elif l == 4:
+                #self.TDS = [x for x in self.TEMPDATA]
+                if not 'TDS' in self.ELEMENTS: self.ELEMENTS['TDS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['TDS']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['TDS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['TDS']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['TDS']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['TDS']['data'] = [ x * 10000000 for x in self.ELEMENTS['TDS']['data'] ] # convert from cm/s to nm/s
+                self._log("\tTDS: %s" % len(self.ELEMENTS['TDS']['data']))
+                #self.ELEMENTS['TDS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['TDS']['data'].extend( [x for x in self.TEMPDATA ])
+
+            elif l == 5:
+                #self.ZSS = [x * -1 for x in self.TEMPDATA ]
+                if not 'ZSS' in self.ELEMENTS: self.ELEMENTS['ZSS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['ZSS']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['ZSS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['ZSS']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['ZSS']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['ZSS']['data'] = [ x * 10000000 for x in self.ELEMENTS['ZSS']['data'] ] # convert from cm/s to nm/s
+                self._log("\tZSS: %s" % len(self.ELEMENTS['ZSS']['data']))
+                #self.ELEMENTS['ZSS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['ZSS']['data'].extend( [x * -1 for x in self.TEMPDATA ])
+
+            elif l == 6:
+                #self.XSS = [x for x in self.TEMPDATA]
+                if not 'XSS' in self.ELEMENTS: self.ELEMENTS['XSS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['XSS']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['XSS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['XSS']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['XSS']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['XSS']['data'] = [ x * 10000000 for x in self.ELEMENTS['XSS']['data'] ] # convert from cm/s to nm/s
+                self._log("\tXSS: %s" % len(self.ELEMENTS['XSS']['data']))
+                #self.ELEMENTS['XSS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['XSS']['data'].extend( [x for x in self.TEMPDATA ])
+
+            elif l == 7:
+                #self.TSS = [x * -1 for x in self.TEMPDATA ]
+                if not 'TSS' in self.ELEMENTS: self.ELEMENTS['TSS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['TSS']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['TSS']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['TSS']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['TSS']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['TSS']['data'] = [ x * 10000000 for x in self.ELEMENTS['TSS']['data'] ] # convert from cm/s to nm/s
+                self._log("\tTSS: %s" % len(self.ELEMENTS['TSS']['data']))
+                #self.ELEMENTS['TSS']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['TSS']['data'].extend( [x * -1 for x in self.TEMPDATA ])
+
+            elif l == 8:
+                #self.REX = [x for x in self.TEMPDATA]
+                if not 'REX' in self.ELEMENTS: self.ELEMENTS['REX'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['REX']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['REX']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['REX']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['REX']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['REX']['data'] = [ x * 10000000 for x in self.ELEMENTS['REX']['data'] ] # convert from cm/s to nm/s
+                self._log("\tREX: %s" % len(self.ELEMENTS['REX']['data']))
+                #self.ELEMENTS['REX']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['REX']['data'].extend( [x for x in self.TEMPDATA ])
+
+            elif l == 9:
+                #self.ZEX = [x for x in self.TEMPDATA]
+                if not 'ZEX' in self.ELEMENTS: self.ELEMENTS['ZEX'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
+                #self.ELEMENTS['ZEX']['data'] = TEMPDATA.values()
+                #self.ELEMENTS['ZEX']['data'] = [TEMPDATA[0] for x in TEMPDATA ]
+                self.ELEMENTS['ZEX']['data'] = [0 for x in TEMPDATA ]
+                self.ELEMENTS['ZEX']['data'].extend( TEMPDATA.values() )
+                self.ELEMENTS['ZEX']['data'] = [ x * 10000000 for x in self.ELEMENTS['ZEX']['data'] ] # convert from cm/s to nm/s
+                self._log("\tZEX: %s" % len(self.ELEMENTS['ZEX']['data']))
+                #self.ELEMENTS['ZEX']['data'] = [self.TEMPDATA[0] for x in self.TEMPDATA ]
+                #self.ELEMENTS['ZEX']['data'].extend( [x for x in self.TEMPDATA ])
+            else:
+                raise SystemExit('\n\nERROR: GreenFunctions(): generate(): Too many elements\n\n')
+
+
+        self._save_to_db()
+#}}}
 
     def _wvint9(self):
 #{{{
-        if self.verbose: print 'N2:  %s' % self.N2
+        if self.verbose: self._log('N2:  %s' % self.N2)
 
         for i in range(self.N2):
-            if self.verbose: print 'OMEGA(%s):   %s' % ( i, self.ALLOMEGA[i])
+            if self.verbose: self._log('OMEGA(%s):   %s' % ( i, self.ALLOMEGA[i]))
             for k in range(10):
                 try:
-                    if self.verbose: print 'DATA(%s,%s,%s):   %s' % ( 1, i, k, self.DATA[i][k])
+                    if self.verbose: self._log('DATA(%s,%s,%s):   %s' % ( 1, i, k, self.DATA[i][k]))
                 except Exception,e:
                     self.DATA[i][k] = complex(0.0,0.0)
-                    if self.verbose: print 'DATA(%s,%s,%s):   %s' % ( 1, i, k, Exception)
+                    if self.verbose: self._log('DATA(%s,%s,%s):   %s' % ( 1, i, k, Exception))
 
         self.REP = 'n'
 
@@ -3269,10 +3433,10 @@ GREEN.1\n\
         T0X = self.DISTANCE/8.0
         yr = 0.0
 
-        if self.verbose: print "range=%s yr=%s depth=%s" % (self.DISTANCE,yr,self.DEPTH)
-        if self.verbose: print "npoint=%s t0x=%s dt=%s tau=%s" % (self.N,T0X,self.DT,self.TAU)
+        if self.verbose: self._log("range=%s yr=%s depth=%s" % (self.DISTANCE,yr,self.DEPTH))
+        if self.verbose: self._log("npoint=%s t0x=%s dt=%s tau=%s" % (self.N,T0X,self.DT,self.TAU))
 
-        if self.verbose: print "range=%s yr=%s depth=%s npoint=%s t0x=%s dt=%s tau=%s" % (self.DISTANCE,yr,self.DEPTH,self.N,T0X,self.DT,self.TAU)
+        if self.verbose: self._log("range=%s yr=%s depth=%s npoint=%s t0x=%s dt=%s tau=%s" % (self.DISTANCE,yr,self.DEPTH,self.N,T0X,self.DT,self.TAU))
         for l in range(10):
 
             self.TEMPDATA = defaultdict(complex)
@@ -3281,16 +3445,16 @@ GREEN.1\n\
             if self.ISRC[l] != 1:
                 for j in range(self.N):
                     self.TEMPDATA[j] = complex(0.0,0.0)
-                    #print "TEST 1: TEMPDATA[j] => %s" % self.TEMPDATA[j]
+                    #self._log("TEST 1: TEMPDATA[j] => %s" % self.TEMPDATA[j])
             else:
 
                 for j in range(self.NYQ):
 
                     if j < self.N2:
-                        #print "self.DATA= %s" % self.DATA
-                        #print "j = %s l = %s" % (j,l)
+                        #self._log("self.DATA= %s" % self.DATA)
+                        #self._log("j = %s l = %s" % (j,l))
                         self.TEMPDATA[j]=self.DATA[j][l]
-                        #print "TEMPDATA[%s] = %s" % (j,self.TEMPDATA[j])
+                        #self._log("TEMPDATA[%s] = %s" % (j,self.TEMPDATA[j]))
                         #self.TEMPDATA[self.N2-1-j]=self.DATA[nd][j][l].conjugate()
 
                     else:
@@ -3298,8 +3462,8 @@ GREEN.1\n\
                         #self.TEMPDATA[self.N2-1-j] = complex(0.0,0.0).conjugate()
 
                 for j in range(self.NYQ):
-                    #print "TEMPTDATA:[%s]" % self.TEMPDATA
-                    #print "TEMPTDATA[%s]:[%s]" % (j,self.TEMPDATA[j])
+                    #self._log("TEMPTDATA:[%s]" % self.TEMPDATA)
+                    #self._log("TEMPTDATA[%s]:[%s]" % (j,self.TEMPDATA[j]))
                     temp[self.NYQ-j] =  self.TEMPDATA[j].conjugate() 
 
                 for j in range(self.NYQ):
@@ -3400,7 +3564,7 @@ GREEN.1\n\
             if not self.ELEMENTS[trace]['data']:
                 raise SystemExit('\n\nERROR: GreenFunctions(): Problems while integration(): no data for %s\n\n' % trace)
 
-            if self.verbose: print 'GreenFunctions(): integrat(%s)' % trace
+            if self.verbose: self._log('GreenFunctions(): integrat(%s)' % trace)
             self.ELEMENTS[trace]['data'] = cumtrapz(self.ELEMENTS[trace]['data'])
 
 #}}}
@@ -3484,25 +3648,26 @@ GREEN.1\n\
                 raise SystemExit('Wrong name of element. (%s)\n'% i)
 #}}}
 
+#}}}
 
 """
 If we call this script directly, then output help.
 """
 if __name__ == "__main__":
 #{{{
-    print "Green's Functions Library:"
-    print "\t1) Import the library.  "
-    print "\t\timport moment_tensor.fkrprog as fkr"
-    print "\t2) Build object for GF's.  "
-    print "\t\tgf = GreenFunctions(modle.pf)"
-    print "\t3) Build for [distance,depth]"
-    print "\t\tgf.build(depth=8,distance=1)"
-    print "\t3) Get GF's matrix with elements"
-    print "\t\tdata=gf.ALL"
+    self._log("Green's Functions Library:")
+    self._log("\t1) Import the library.  ")
+    self._log("\t\timport moment_tensor.fkrprog as fkr")
+    self._log("\t2) Build object for GF's.  ")
+    self._log("\t\tgf = GreenFunctions(modle.pf)")
+    self._log("\t3) Build for [distance,depth]")
+    self._log("\t\tgf.build(depth=8,distance=1)")
+    self._log("\t3) Get GF's matrix with elements")
+    self._log("\t\tdata=gf.ALL")
 
-    print "\n\n"
-    print "No BRTT support."
-    print "Juan Reyes <reyes@ucsd.edu>"
-    print "Rob Newman <rlnewman@ucsd.edu>"
+    self._log("\n\n")
+    self._log("No BRTT support.")
+    self._log("Juan Reyes <reyes@ucsd.edu>")
+    self._log("Rob Newman <rlnewman@ucsd.edu>")
 
 #}}}

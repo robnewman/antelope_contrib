@@ -1,5 +1,6 @@
 BIN = run_fkrprog_wrapper \
       fortran_fkrprog \
+      wvint9 \
       dbmoment
 
 PF = dbmoment.pf \
@@ -9,8 +10,11 @@ PF = dbmoment.pf \
 MAN1 = dbmoment.1
 
 DATADIR = python/moment_tensor
-DATA = __init__.py\
-       fkrprog.py
+
+DATA = __init__.py \
+       fkrprog.py \
+       get_data.py \
+       inversion.py
 
 #CLEAN = *.py
 #UNINSTALL = $(ANTELOPE)/data/$(DATADIR)/*.pyc

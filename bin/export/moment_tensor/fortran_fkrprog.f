@@ -26,7 +26,7 @@ C     ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
       LOGICAL PRNTA,IXST3
    59 FORMAT(' ',A)
    60 FORMAT(A)
-      PRNTA=.TRUE.
+      PRNTA=.FALSE.
       READ(LIN,'(L3)') PRNTA
       READ(LIN,21) M1,M2
       READ(LIN,18)NAME2
@@ -50,8 +50,34 @@ C  20 FORMAT(2F10.4,3I5,F10.4,I5)
       READ(LIN,25) NRANGE,CMAX,C1,C2,CMIN
    25 FORMAT(I5,4F10.4)
       DO 2 I=1,NRANGE
-    2 READ(LIN,26) RANGE(I), T0(I), VRED(I)
+      READ(LIN,26) RANGE(I), T0(I), VRED(I)
+    2 WRITE(*,*) 'RANGE=',RANGE(I), ' T0=',T0(I),' VRED=',VRED(I)
    26 FORMAT(3F10.4)
+C
+C
+C     ADD PRINTING OF VALUES FROM MODEL
+C
+C
+      WRITE(*,*) 'DECAY = ', DECAY
+      WRITE(*,*) 'DEPTH = ', DEPTH
+      WRITE(*,*) 'N1 = ', N1
+      WRITE(*,*) 'N2 = ', N2
+      WRITE(*,*) 'N = ', N
+      WRITE(*,*) 'DT = ', DT
+      WRITE(*,*) 'MMAX = ', MMAX
+      WRITE(*,*) 'NSKIP = ',NSKIP
+      WRITE(*,*) 'ISRC = ',ISRC
+      WRITE(*,*) 'JBDRY = ',JBDRY
+      WRITE(*,*) 'LMAX = ',LMAX
+      WRITE(*,*) 'XLENG = ',XLENG
+      WRITE(*,*) 'XFAC = ',XFAC
+      WRITE(*,*) 'NRANGE = ',NRANGE
+      WRITE(*,*) 'CMAX = ',CMAX
+      WRITE(*,*) 'C1 = ',C1
+      WRITE(*,*) 'C2 = ',C2
+      WRITE(*,*) 'CMIN = ',CMIN
+C
+C
 C
       IF(CMAX.NE.0.0) CMAX=1./CMAX
       C1=1./C1
@@ -117,11 +143,22 @@ C
    27 FORMAT(6E11.4)
       WRITE(LOT,102)
 C
-      !OPEN(UNIT=12,FILE=NAME2,ACCESS='SEQUENTIAL',FORM='UNFORMATTED')
-      !WRITE(12) ALPHA,DEPTH,FL,FU,DT,N1,N2,DF,NYQ,NRANGE,NSKIP
-      !WRITE(12) ISRC
-      !WRITE(12) D,A,B,RHO,MMAX,QA,QB
-      !WRITE(12) RANGE,VRED,T0
+      INQUIRE(FILE=NAME2,EXIST=IXST3)
+      IF(IXST3)THEN
+            ISTAT3 = 'OLD'
+      ELSE
+            ISTAT3 = 'NEW'
+      ENDIF
+      OPEN(UNIT=12,FILE=NAME2,STATUS=ISTAT3,ACCESS='SEQUENTIAL',
+     $          FORM='UNFORMATTED')
+      IF(.NOT.IXST3) THEN
+          WRITE(12) ALPHA,DEPTH,FL,FU,DT,N1,N2,DF,NYQ,NRANGE,NSKIP
+          WRITE(12) ISRC
+          WRITE(12) D,A,B,RHO,MMAX,QA,QB
+          WRITE(12) RANGE,VRED,T0
+      ELSE
+          CALL RESET3(IFREQ,ISRC,NRANGE,N1,N2)
+      ENDIF
       IF(IFREQ.GT.N1) N1=IFREQ+1
 C
       DO 1000 I = N1,N2,NSKIP
@@ -135,26 +172,26 @@ C
       WVCN=OMEGA*CMIN
 C
       CALL EXCIT(OMEGA,ISRC,LMAX,RANGE,NRANGE,NBLK,IBLK)
-      !WRITE(LOT,111) I,FREQ,NBLK,IBLK
-      !CALL FLUSH(LOT)
-      DO 1001 J=1,NRANGE
-      !WRITE(LOT,*) ' DIST =>   ',J
-      DO 1002 K=1,10
-      WRITE(LOT,8889), I,J,K,DBLE(GG(J,K)),DIMAG(GG(J,K))
-      !print*, '(',DBLE(GG(I,J)),',',DIMAG(GG(I,J)),')'
-      !WRITE(LOT,8889) GG(J,K)
-      !print*, GG(J,K)
-      !8889 FORMAT(10X,E16.9,4X,E16.9)
- 8889 FORMAT('GG[',I3,'][',I3,'][',I3,']=complex(',E16.9,',',E16.9,')')
- 1002 CONTINUE
- 1001 CONTINUE
+      WRITE(LOT,111) I,FREQ,NBLK,IBLK
+      CALL FLUSH(LOT)
+      IF(I.GE.M1.AND.I.LE.M2) THEN
+       IF(PRNTA) THEN
+            DO 1001 J=1,NRANGE
+            WRITE(LOT,*) ' DIST =>   ',J
+            DO 1002 K=1,10
+            WRITE(LOT,8889) GG(J,K)
+ 8889       FORMAT(10X,E16.9,4X,E16.9)
+ 1002       CONTINUE
+ 1001       CONTINUE
+       ENDIF
+      ENDIF
 C
  1000 CONTINUE
   111 FORMAT(10X,I5,'  F =  ',E12.4,' NBLOCK =  ',I5,' IBLOCK= ',I3)
       XX=-999.0
       T0X=0.0
-      !WRITE(12) XX,T0X
-      !CLOSE(12)
+      WRITE(12) XX,T0X
+      CLOSE(12)
       GO TO 9888
  9999 WRITE(LIN,*) ' CHECK TWO PARAMETERS <+> LMAX AND DEPTH'
  9888 CONTINUE
@@ -308,10 +345,7 @@ C
 C
       IF(CMAX.GE.0.0) MM=(WVCN/DK)+2
       IF(NK.GT.MM) NK=MM
-      !print*, 'self.OMEGA.append(',OMEGA,')'
-      WRITE(6,4545)OMEGA
- 4545 FORMAT('self.OMEGA.append(',F10.5,')')
-      !WRITE(12) OMEGA,NK
+      WRITE(12) OMEGA,NK
 C
 C     DETERMINE INDEX FOR INTEGRATION  I.E., WHEN KR IS GT. 3.0
 C
@@ -1022,8 +1056,7 @@ C
       DO 603 J=1,10
       IF(ISRC(J).NE.1) GO TO 603
       GG(I,J)=SMM(I,J)*DCMPLX(DBLE(XR),DBLE(XI))
-      !WRITE(12) DBLE(GG(I,J)),DIMAG(GG(I,J))
-      !print*, '(',DBLE(GG(I,J)),',',DIMAG(GG(I,J)),')'
+      WRITE(12) DBLE(GG(I,J)),DIMAG(GG(I,J))
   603 CONTINUE
   601 CONTINUE
       RETURN
