@@ -1,0 +1,492 @@
+#ANSI 6429 constants:
+black      30
+red        31
+green      32
+yellow     33
+blue       34
+magenta    35
+cyan       36
+white      37
+normal     00
+brighten   01
+underline  04
+blink      05
+background 07
+
+escapes &Tbl{
+	red        &red 
+	green      &green &brighten &background : &normal &green
+	blue       &blue &brighten : &normal &blue
+	magenta    &magenta
+	cyan       &cyan &brighten : &normal &cyan
+}
+
+default_expressions make
+
+make &Arr{
+   red &Tbl{							# Serious problems
+	^[[:space:]]*\\*\\*\\* Error code
+	^.* error:
+	^[[:space:]]*Error:
+	^[[:space:]]*SyntaxError:
+	^.*undefined symbol:
+	^.*: Failed
+	^[[:space:]]*Failed
+	^[[:space:]]*cc: assembler failed
+	^.*Permission denied
+	^.*does not exist
+	^.*syntax error
+	^.*cannot recover
+	^.*cannot create
+	^.*cannot open
+	^.*[cC]annot find .* include file
+	^.*cannot find -l
+	^[[:space:]]*mex:.*failed\\.
+	^.*No such file or directory
+	^[[:space:]]*gcc: language.*not recognized
+	^.*: acomp failed
+	^.*line [[:digit:]]+: return value type mismatch
+	^[[:space:]]*g?make(\\[[[:digit:]]+\\])?:.*Error
+	^[[:space:]]*g?make(\\[[[:digit:]]+\\])?:.*Fatal error
+	^[[:space:]]*g?make(\\[[[:digit:]]+\\])?:.*Command not found
+	^[[:space:]]*rm: Unable to remove
+	^[[:space:]]*ld: fatal:
+	^.*ld: can't locate file for:
+	^.*ld returned [1-9] exit status
+	^.*libtool: can't locate file for:
+	^.*libtool:.*not allowed in library
+	^.*java.*cannot resolve symbol
+	^[[:space:]]*[[:digit:]]+ errors$
+	^[[:space:]]*format_type can't format
+	^[[:space:]]*parse_function doesn't understand 
+	^[[:space:]]*localmake_config:.*is not defined
+	^[[:space:]]*localmake_config:.*Test failed
+	^[[:space:]]*localmake_config:.*Stopping compilation
+	^.*Can.t locate
+	^[1-9][[:digit:]]* total failures
+	^.*\\*command failed\\*
+	^[[:digit:]]+[[:space:]]+failures
+	^[[:space:]]*Invalid.*license code
+	^.*No rule to make target
+	^.*corrupt archive
+	^[[:space:]]*fatal: The remote end hung up unexpectedly
+   }
+   green &Tbl{							# Directory navigation
+	^\\+[[:space:]]+[^[:space:]]+
+	^\\+(\\*\\*)[^[:space:]]+
+	^g?make.*: Entering directory
+	^g?make.*: Leaving directory
+	^_[[:space:]]
+	^(Darwin|Linux|SunOS)[[:space:]]
+   }
+   magenta &Tbl{						# Warning and potential problems
+	^[[:space:]]*Problem: [^[:space:]]+\\.[[:digit:]][[:alpha:]]? :
+	^[[:space:]]*Problem:
+	^[[:space:]]*Files are old:
+	^.*(gcc|g\\+\\+).*: unrecognized option
+	^.*gcc.*: linker input file unused
+	^.*cycle in data
+	^.*improper member use
+	^.*not found
+	^.*undefined struct\\/union member
+	^.*incomplete struct\\/union\\/enum 
+	^.*declaration hides parameter
+	^.*cannot dereference non-pointer type
+	^.*non-constant initializer
+	^.*member cannot be function
+	^.*function cannot return function
+	^.*parameter redeclared
+	^.*zero-sized struct\\/union
+	^.*Please specify prototyping behavior
+	^.*unrecognized compile argument
+	^.*Dropping empty section
+	^[[:space:]]*Unrecognized argument.*ignored
+	^[[:space:]]*declaration[[:space:]]*:
+	^[[:space:]]*parameter[[:space:]]*:
+	^[[:space:]]*prototype[[:space:]]*:
+	^[[:space:]]*argument[[:space:]]*:
+	^[[:space:]]*pointer to.*=.*pointer to
+	^[[:space:]]*[[:digit:]]+ Warning\\(s\\) detected\\.
+	^.*ld: warning
+	^.*: warning,
+	^.*Warning
+	^.*[[:space:]]*warning:    
+	^[[:space:]]*Undefined[[:space:]]+first referenced
+	^[[:space:]]symbol[[:space:]]+in file
+	^.*WARNING:
+	^[[:space:]]*Unsupported system
+	^.*localmake_config:.*pf_revision_time.*
+	^.*but program requires date after.*
+	^[[:space:]]*localmake_config:.*appears out of date
+	^[[:space:]]*You may be missing features
+	^[[:space:]]*Downloading
+	^[[:space:]]*no previously-included directories found
+	^[[:space:]]*No file
+	^[[:digit:]]+ warnings generated.
+	^[[:digit:]]+ warnings in
+	^[[:digit:]]+ make problems
+	^[[:digit:]]+ priority warnings
+	^[[:space:]]*Use of uninitialized value
+	^[[:space:]]*no lint on
+	^.*\\(ignored\\)$
+	^.*Bad link in
+	^.*has a funny extension
+	^.*truncating cmdlist
+	^[[:space:]]*Can.t figure out suffix
+	^[[:space:]]*nm: no name list
+	^[[:space:]]*Library name conflict:
+	^.*found in both.*
+	^[[:space:]]*[[:digit:]]+ bad html links
+	^.*file type.*unknown
+	^.*ranlib.*has no symbols
+   }
+   cyan &Tbl{							# Routine command output
+	^---+
+	^->[[:space:]]+[[:upper:]]+[[:space:]]+=[[:space:]]
+	^->[[:space:]]+[[:upper:]] flags: 
+	^->[[:space:]]+Link flags:
+	^-> mexopts.sh
+	^[[:space:]]+[[:upper:]]+[[:space:]]+=[[:space:]]
+	^[[:space:]]+arguments[[:space:]]+=[[:space:]]
+	^->[[:space:]]+[[:upper:]]+ flags:
+	^.*troff2html
+	^tsort:
+	^a -
+	^r -
+	^[[:space:]]+-e[[:space:]]
+	^[[:space:]]+-L\\/[a-z]
+	^ar: creating
+	^ar: writing
+	^ar: adding
+	^gcc:[[:space:]]
+	^C compiler:
+	^amakelocal:
+	^localmake_config:.*marked as disabled
+	^localmake:
+	^Run localmake_config
+	^to enable and configure
+	^to configure
+	^Extracted
+	^Manifying
+	^Making 
+	^Skipping:
+	^g?make: Nothing to be done
+	^libtool: compile:
+	^libtool: link:
+	^libtool: install:
+	^[[:alnum:]_]+\\.[fF]:$
+	^[[:space:]]*MAIN:$
+	^[[:space:]]+MAIN [[:alnum:]_]+:$
+	^[[:space:]]+[[:alnum:]_]+:$
+	^[[:space:]]+entry[[:space:]]+[[:alnum:]_]+:$
+	^: [^[:space:]]*\\/?lib[^[:space:]]+\\.a
+	^[[:space:]]*[[:alnum:]_]+.o$
+	^g?make\\[[[:digit:]]+\\]: Nothing to be done for
+	^.*is up to date
+	^making[[:space:]]
+	^created directory[[:space:]]
+	^NOTICE:
+	^Current working directory
+	^.*Optimizing from Makefile
+	^Instrumenting:
+	^Purify engine:
+	^Purify.*Copyright
+	^.*Linking
+	^In file included from
+	^[[:space:]]+from [^[:space:]]+:[[:digit:]]+[:,]
+	^.*In function [`'].*':    
+	^.*: At top level:$
+	^[[:space:]]*[aA]dding[[:space:]]
+	^[[:space:]]*[aA]ppending[[:space:]]
+	^[[:space:]]*[bB]uilding[[:space:]]
+	^[[:space:]]*[bB]yte-compiling[[:space:]]
+	^[[:space:]]*[cC]hanging[[:space:]]
+	^[[:space:]]*[cC]hecking[[:space:]]
+	^[[:space:]]*[cC]ompiling[[:space:]]
+	^[[:space:]]*[cC]opying[[:space:]]
+	^[[:space:]]*[cC]reating[[:space:]]
+	^[[:space:]]*[eE]xtracting[[:space:]]
+	^[[:space:]]*[fF]inding[[:space:]]
+	^[[:space:]]*[gG]enerating[[:space:]]
+	^[[:space:]]*[iI]gnoring[[:space:]]
+	^[[:space:]]*[iI]nstalling[[:space:]]
+	^[[:space:]]*[lL]isting[[:space:]]
+	^[[:space:]]*[iI]ncluding[[:space:]]
+	^[[:space:]]*[mM]aking[[:space:]]
+	^[[:space:]]*[pP]rocessing[[:space:]]
+	^[[:space:]]*[rR]eading[[:space:]]
+	^[[:space:]]*[rR]emoving[[:space:]]
+	^[[:space:]]*[rR]unning[[:space:]]
+	^[[:space:]]*[sS]earching[[:space:]]
+	^[[:space:]]*[sS]kipping[[:space:]]
+	^[[:space:]]*[wW]riting[[:space:]]
+	^[[:space:]]*[uU]pdating[[:space:]]
+	^[[:space:]]*[uU]sing[[:space:]]
+	^[[:space:]]*Skip[[:space:]]
+	^[[:space:]]*Test Compiling[[:space:]]
+	^[[:space:]]*AutoSplitting[[:space:]]
+	^x[[:space:]]
+	^Tests in
+	^Looks good
+	^Files found in blib\\/arch: 
+	^LD_RUN_PATH=
+	^name=
+	^input=
+	^output=
+	^uninstalling
+	^Installed
+	^Finished
+	^Configuring
+	^Configured
+	^Best match
+	^.*is already the active version
+	^configure: creating
+	^configure: checking for
+	^config.status: creating
+	^config.status: executing
+	^config.status: linking
+	^.*installing alias
+	^.*removing
+	^linking
+	^Certification tests
+	^.*cpu time discrepancy:
+	^.*elapsed time discrepancy:
+	^Not adding source directory to path
+	^[[:space:]]*Directories:
+	^[[:space:]]*ANTELOPE:
+	^[[:space:]]*Variety:
+	^[[:space:]]*Date:
+	^Passed.*of.*tests
+	^0 total failures
+   	^[[:space:]]*No optimization specified in Makefile
+	^mdirmake:
+	^waiting$
+	^[[:space:]]*->[[:space:]].*&$
+	^.*running makedepend[[:space:]]
+	^tcmakewhatis:
+	^Fixing uses
+	^Elapsed time:
+	^At line \#
+	^[[:space:]]+--> last directory
+	^[[:space:]]+_[[:space:]]
+	^.*skipping Library.*is also named
+	^No problems.
+	^Source code status summary
+	^[[:space:]]*check for[[:space:]]
+	^[[:space:]]*checked [[:digit:]]+ distinct man pages
+	^[[:space:]]*[<>] git (pull|push|status)
+   }
+   blue &Tbl{							# Commands executed
+	^[[:space:]]*[[:alnum:]\\/]*ar[[:space:]]
+	^[[:space:]]*strip[[:space:]]
+	^[[:space:]]*git[[:space:]]
+	^\\/usr\\/ccs\\/bin\\/ar[[:space:]]
+	^[[:space:]]*awk[[:space:]]
+	^[[:space:]]*env[[:space:]]
+	^[[:space:]]*cat
+	^[[:space:]]*cc[[:space:]]
+	^[[:space:]]*m4[[:space:]]
+	^[[:space:]]*clang[[:space:]]
+	^\\/opt\\/SUNWspro\\/bin\\/cc[[:space:]]
+	^[[:space:]]*CC[[:space:]]
+	^-> cc[[:space:]]
+	^[[:space:]]*f77[[:space:]]
+	^[[:space:]]*f90[[:space:]]
+	^[[:space:]]*gfortran[[:space:]]
+	^[[:space:]]*gcc[[:space:]]
+	^[[:space:]]*g\\+\\+[[:space:]]
+	^-> gcc([-.0-9]*)?[[:space:]]
+	^[[:space:]]*dsymutil[[:space:]]
+	^[[:space:]]*mktimestamp[[:space:]]
+	^[[:space:]]*mkjson_index
+	^[[:space:]]*mkswtags
+	^[[:space:]]*ldlibs[[:space:]]
+	^[[:space:]]*[( ]*cd[[:space:]]
+	^[[:space:]]*chmod[[:space:]]
+	^[[:space:]]*compile[[:space:]]
+	^[[:space:]]*purify[[:space:]]
+	^[[:space:]]*cp[[:space:]]
+	^[[:space:]]*deposit[[:space:]]
+	^[[:space:]]*getid[[:space:]]
+	^[[:space:]]*tclindex[[:space:]]
+	^[[:space:]]*find[[:space:]]
+	^[[:alnum:]\\/]*:?[[:space:]]?\\/opt\\/antelope\\/[[:digit:].p-]+\\/bin\\/deposit[[:space:]]
+	^[[:alnum:]\\/]*:?[[:space:]]?\\/opt\\/antelope\\/[[:digit:].p-]+\\/bin\\/getid[[:space:]]
+	^[[:alnum:]\\/]*:?[[:space:]]?\\/opt\\/antelope\\/[[:digit:].p-]+\\/bin\\/certify[[:space:]]
+	^[[:alnum:]\\/]*:?[[:space:]]?\\/opt\\/antelope\\/[[:digit:].p-]+\\/bin\\/dbwebproject:[[:space:]].*\\/?deposit[[:space:]]
+	^[[:space:]]*done
+	^[[:space:]]*echo[[:space:]]
+	^[[:space:]]*flex[[:space:]]
+	^[[:space:]]*for[[:space:]]
+	^[[:space:]]*mkxref
+	^[[:space:]]*gunzip[[:space:]]
+	^[[:space:]]*bunzip2[[:space:]]
+	^[[:space:]]*tar[[:space:]]
+	^[[:space:]]*if[[:space:]]
+	^[[:space:]]*[[:alnum:]\\/]*install[[:space:]]
+	^[[:space:]]*[[:alnum:]\\/]*installman[[:space:]]
+	^[[:space:]]*[[:alnum:]\\/]*cpp[[:space:]]
+	^[[:space:]]*[[:alnum:]\\/]*g\\+\\+[[:space:]]
+	^[[:space:]]*else[[:space:]]
+	^[[:space:]]*then[[:space:]]
+	^[[:space:]]*fi$
+	^[[:space:]]*fi[[:space:]][^[:space:]]
+	^[[:space:]]*javac[[:space:]]
+	^[[:space:]]*ln[[:space:]]
+	^[[:alnum:]\\/]*ld[[:space:]]
+	^[[:space:]]*matdoc2dotm[[:space:]]
+	^[[:space:]]*matdoc2html[[:space:]]
+	^[[:space:]]*matdoc_htmlwrap[[:space:]]
+	^[[:space:]]*\\/bin\\/sh[[:space:]]
+	^[[:space:]]*\\/bin\\/bash[[:space:]]
+	^[[:space:]]*config\\/install-sh[[:space:]]
+	^[[:space:]]*g?make[[:space:]]
+	^[[:space:]]*mkdir[[:space:]]
+	^[[:space:]]*[[:alnum:]._\\/]*mex[[:space:]]
+	^[[:space:]]*[[:alnum:]._\\/]*matlab[[:space:]]
+	^[[:space:]]*mv[[:space:]]
+	^[[:space:]]*[[:alnum:]\\/.]*perl[[:space:]]
+	^[[:space:]]*sh[[:space:]]
+	^[[:space:]]*nawk[[:space:]]
+	^[[:space:].\\/]*miniperl
+	^[[:space:]]*([\\/\\.[:alnum:]]+)?libtool[[:space:]]
+	^\\/opt\\/antelope\\/[[:digit:].p-]+\\/bin\\/perl[[:space:]]
+	^\\/opt\\/antelope\\/perl[[:digit:].p-]+\\/bin\\/perl[[:space:]]
+	^\\/opt\\/antelope\\/perl[[:digit:].p-]+\\/lib\\/
+	^(\\/opt\\/[[:alpha:]]+\\/[[:digit:].p-]+|\\$[A-Z]+)\\/bin\\/python[[:space:]]
+	^[[:space:]]*produce[[:space:]]
+	^(\\.\\/)?runmake[[:space:]]
+	^[[:space:]]*ranlib:?[[:space:]]
+	^[[:space:]]*refguide[[:space:]]
+	^[[:space:]]*rm[[:space:]]
+	^[[:space:]]*rmdir[[:space:]]
+	^[[:space:]]*sed[[:space:]]
+	^[[:space:]]*test[[:space:]]
+	^[[:space:]]*then[[:space:]]
+	^[[:space:]]*touch[[:space:]]
+	^[[:space:]]*tsort[[:space:]]
+	^[[:space:]]*unix_rm[[:space:]]
+	^[[:space:]]*case.*in
+	^[[:space:]]*esac
+	^[[:space:]]*SunOS\\)
+	^[[:space:]]*Linux\\)
+	^[[:space:]]*Darwin\\)
+	^[[:space:]]*\\*\\)
+	^exit$
+	.*py_compile.compile
+	^[[:space:]]*pf2screen
+	^.\\/Build$
+	^ExtUtils::Mkbootstrap::Mkbootstrap
+   }
+}
+
+cvs &Arr{
+   red &Tbl{		# Problem, needs manual intervention
+	^C[[:space:]]
+   }
+   green &Tbl{		# Notable differences, not necessarily a problem
+	^M[[:space:]]
+   }
+   blue &Tbl{		# Notable changes, results OK
+	^P[[:space:]]
+	^G[[:space:]]
+	^W[[:space:]]
+	^A[[:space:]]
+	^R[[:space:]]
+   }
+   magenta &Tbl{	# Alerts, could be problems
+	^\\?[[:space:]]
+	cvs update: warning
+	cvs update:.*skipping CVS directory
+   }
+   cyan &Tbl{		# Standard operations and results
+	cvs update: Updating
+	^U[[:space:]]
+   }
+}
+
+ia2orb &Arr{
+   red &Tbl{
+	.*Failed to list contents
+	.*Failed to open.*orbserver
+	.*Shutting down
+	.*Connection closed by remote host
+	.*Permission denied
+	.*Connection refused
+	.*MSD not found
+	.*ia2orb.*fatal
+   }
+   green &Tbl{
+   	.*Program started
+   	.*Program terminated
+   }
+   blue &Tbl{
+   	.*Executing
+   	.*Acquiring file
+	.*Launching thread
+	.*Retrieving state information
+	.*Opened.*orb
+	.*Configuring acquisition threads
+	.*Received command packet
+	.*Issued acquisition-request
+	.*Deleted.*entries
+   }
+   magenta &Tbl{
+   	.*harmless--continuing
+	.*Attempted but failed to resurrect
+	.*Failed to reposition
+	.*Ignoring
+	.*No such file or directory
+	.*Failed to acquire
+	.*Failure parsing ia_network array row
+	.*Acquisition mode.*not understood
+	.*disappeared from ia_network array
+	.*Failed to upload.*to orbserver
+	.*Failed to exhume state information
+	.*Failed to reposition command-orb
+	.*miniseed2orb: Couldn.*open
+	.*Interrupted system call
+   }
+   cyan &Tbl{
+	.*command returned empty string
+	^.*[[:digit:]]+.[[:digit:]]+.MSD
+	.*stations in the ia_network
+	.*Resurrected
+	.*Watching
+	.*orbseek to
+	.*orbafter returns packet
+	.*Initiated state tracking
+	.*Sleeping.*seconds
+	.*miniseed2orb.*notify
+	.*miniseed2orb: wrote
+	.*miniseed2orb:.*blocks.*from 
+	.*from.*files in
+	.*blocks.second
+	.*Mbyte.sec
+	.*Re-configuring acquisition threads
+	.*Cancelling acquisition thread
+	.*successfully cancelled
+	.*Command.*results
+	.*Continuing.*in response to resurrection request
+	.*Repositioned command-orb
+	.*Advancing acquisition point
+	.*No new files
+	^command[[:space:]]
+	^time[[:space:]]
+	^start[[:space:]]
+	^end[[:space:]]
+   }
+}
+
+template &Arr{
+   red &Tbl{
+   }
+   green &Tbl{
+   }
+   blue &Tbl{
+   }
+   magenta &Tbl{
+   }
+   cyan &Tbl{
+   }
+}
