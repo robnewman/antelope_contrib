@@ -488,7 +488,7 @@ class Event():
             'facecolor': 'b', 
             'edgecolor': 'k', 
             'bgcolor': 'w', 
-            'alpha': 1.0, 
+            'alpha': 1, 
             'xy': (0, 0),
             'width': 200, 
             'format': None, 

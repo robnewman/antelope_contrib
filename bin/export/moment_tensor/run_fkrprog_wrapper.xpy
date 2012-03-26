@@ -12,9 +12,14 @@ except Exception,e:
     sys.exit("Antelope Import Error: [%s] => [%s]" % (Exception,e))
 
 # Needed for fkrprog.py
-from scipy.integrate import cumtrapz
-from numpy.fft  import ifft
+import matplotlib as mpl
+mpl.use('tkagg')
+import pylab as pylab
+from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 import matplotlib.pyplot as plt
+from numpy.fft  import ifft
+from numpy import trapz
+
 from math import exp, log, sqrt, acos, asin, cos, sin
 from cmath import log as clog
 from cmath import sqrt as csqrt

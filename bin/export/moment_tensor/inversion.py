@@ -127,15 +127,15 @@ class MomentTensor():
              a = gf
              b = data
         """
-        xcor = np.correlate(a, b, 'full')
-        #xcor = np.correlate(a, b, 'valid')
+        xcor = pylab.correlate(a, b, 'full')
+        #xcor = pylab.correlate(a, b, 'valid')
         #xcor = xcor[xcor.size/2:]
         #xcor = self._normalize(xcor)
-        maxval = np.amax(xcor)
-        #maxshift = np.argmax(xcor)
-        maxshift = np.argmax(xcor) - xcor.size/2
-        #maxshift = np.argmax(xcor) - (len(a) + len(b))/2
-        #maxshift = np.argmax(xcor) - len(b)
+        maxval = pylab.amax(xcor)
+        #maxshift = pylab.argmax(xcor)
+        maxshift = pylab.argmax(xcor) - xcor.size/2
+        #maxshift = pylab.argmax(xcor) - (len(a) + len(b))/2
+        #maxshift = pylab.argmax(xcor) - len(b)
         if self.verbose: 
             self._log('cross_cor(): maxval: %s timeshift: %s' % (maxval, maxshift))
             #self.plot_cross_cor(list(a), list(b), maxshift, maxval, xcor)
@@ -403,7 +403,7 @@ class MomentTensor():
         """
         if self.verbose:
             self._log(' - Compute the dyadic matrix of vector v')
-        tmp = np.matrix([[0., 0., 0.], [0., 0., 0.], [0., 0., 0.]])
+        tmp = pylab.matrix([[0., 0., 0.], [0., 0., 0.], [0., 0., 0.]])
         for i in range(3):
             for j in range(3):
                 tmp[i,j] = v[i, n1]*v[j, n2]*c
@@ -463,9 +463,9 @@ class MomentTensor():
                     for l in range(1):
                         dict_B[h][l] -= dict_B[icol][l]*dum
         if self.isoflag == 6:
-            M = np.matrix([[dict_B[0][0], dict_B[2][0], dict_B[3][0]], [dict_B[2][0], dict_B[1][0], dict_B[4][0]], [dict_B[3][0], dict_B[4][0], dict_B[5][0]]])
+            M = pylab.matrix([[dict_B[0][0], dict_B[2][0], dict_B[3][0]], [dict_B[2][0], dict_B[1][0], dict_B[4][0]], [dict_B[3][0], dict_B[4][0], dict_B[5][0]]])
         if self.isoflag == 5:
-            M = np.matrix([[dict_B[0][0], dict_B[2][0], dict_B[3][0]], [dict_B[2][0], dict_B[1][0], dict_B[4][0]], [dict_B[3][0], dict_B[4][0], -(dict_B[0][0]+dict_B[1][0])]])
+            M = pylab.matrix([[dict_B[0][0], dict_B[2][0], dict_B[3][0]], [dict_B[2][0], dict_B[1][0], dict_B[4][0]], [dict_B[3][0], dict_B[4][0], -(dict_B[0][0]+dict_B[1][0])]])
         
         """
         # Coded in the original code by Doug Dreger, however, AIV is not used further in the program, so not needed???
@@ -507,8 +507,8 @@ class MomentTensor():
         
         for i in range(3):
             matrix_M[i,i] -= trace
-        miso = np.matrix([[trace, 0, 0], [0, trace, 0], [0, 0, trace]])
-        eval, evec = np.linalg.eig(matrix_M)
+        miso = pylab.matrix([[trace, 0, 0], [0, trace, 0], [0, 0, trace]])
+        eval, evec = pylab.linalg.eig(matrix_M)
         
         for i in (0,1):
             k = i
@@ -594,8 +594,8 @@ class MomentTensor():
         for i in range(3):
             tmp1.append(con*(t[i]+p[i]))
             tmp2.append(con*(t[i]-p[i]))
-        u  = np.matrix([[tmp1[0],tmp1[1],tmp1[2]],[tmp2[0],tmp2[1],tmp2[2]]])
-        nu = np.matrix([[tmp2[0],tmp2[1],tmp2[2]],[tmp1[0],tmp1[1],tmp1[2]]])
+        u  = pylab.matrix([[tmp1[0],tmp1[1],tmp1[2]],[tmp2[0],tmp2[1],tmp2[2]]])
+        nu = pylab.matrix([[tmp2[0],tmp2[1],tmp2[2]],[tmp1[0],tmp1[1],tmp1[2]]])
         
         dip = []
         slip = []

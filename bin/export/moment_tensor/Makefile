@@ -16,12 +16,16 @@ DATA = __init__.py \
        get_data.py \
        inversion.py
 
-#CLEAN = *.py
-#UNINSTALL = $(ANTELOPE)/data/$(DATADIR)/*.pyc
+CLEAN = *.pyc
 
-ANTELOPEMAKELOCAL = $(ANTELOPE)/local/include/antelopemake.local
+UNINSTALL = $(ANTELOPE)/data/$(DATADIR)/*
 
-SUBDIR=/local
+
 
 include $(ANTELOPEMAKE)
-include $(ANTELOPEMAKELOCAL)
+
+
+
+
+
+

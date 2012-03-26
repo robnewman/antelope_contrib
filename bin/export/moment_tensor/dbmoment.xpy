@@ -6,6 +6,7 @@ dbmoment.py
     pre-constructed wfdisc table in a database or generated and stored in a database wfdisc table. 
     It relies significantly on the  Antelope  Python Interface (Datascope and Stock), NumPy, 
     Matplotlib, ObsPy and SciPy.
+    UPDATE: Antelope 5.2-64 contains the library PyLab. 
 
         dbmoment [-vV] [-p pfname] orid
 
@@ -47,29 +48,17 @@ try:
 except Exception,e:
     sys.exit("Import Error: [%s] Do you have PIL installed correctly?" % e)
 
-# NUMPY
-try:
-    import numpy as np
-except Exception,e:
-    sys.exit("Import Error: [%s] Do you have NumPy installed correctly?" % e)
-
-# MATPLOTLIB
+# pylab
 try:
     import matplotlib as mpl
-except Exception,e:
-    sys.exit("Import Error: [%s] Do you have MatplotLib installed correctly?" % e)
-else:
     mpl.use('tkagg')
-    import matplotlib.pyplot as plt
+    import pylab as pylab
     from matplotlib.ticker import MultipleLocator, FormatStrFormatter
-
-# PYLAB
-"""
-try:
-    from pylab import *
-except ImportError:
-    print "Import Error: Do you have Pylab installed correctly?"
-"""
+    import matplotlib.pyplot as plt
+    from numpy.fft  import ifft
+    from numpy import trapz
+except Exception,e:
+    sys.exit("Import Error: [%s] Do you have pylab installed correctly?" % e)
 
 # OBSPY
 try:
@@ -77,10 +66,7 @@ try:
 except Exception,e:
     sys.exit("Import Error: [%s] Do you have ObsPy installed correctly?" % e)
 
-# Needed for fkrprog.py
-from scipy.integrate import cumtrapz
-from numpy.fft  import ifft
-import matplotlib.pyplot as plt
+
 from math import exp, log, sqrt, acos, asin, cos, sin
 from cmath import log as clog
 from cmath import sqrt as csqrt
