@@ -777,11 +777,14 @@ class Event():
             if not records:
                 self._log('Adding new focal mechanism to moment_tensor_images table with orid (%s)[%s,%s,%s,%s]' % (self.orid,'test',int(self.orid),mt_images_dir,final_file))
                 try:
+                    # print 'sta:', 'test ', '\norid:', int(self.orid), '\ndir:', mt_images_dir, '\ndfile:', final_file
+                    # print mtimages_dbptr
                     mtimages_dbptr.addv(
                         'sta', 'test',
                         'orid', int(self.orid),
                         'dir', mt_images_dir,
                         'dfile', final_file )
+                    # print mtimages_dbptr
                     self._log('Successfully added record with orid (%s) to moment_tensor_images table' % self.orid)
 
                 except Exception, e:
