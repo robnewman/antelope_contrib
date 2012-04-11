@@ -101,7 +101,7 @@ class GreenFunctions():
         """ Open database and keep pointer in db object"""
         try: 
             db = datascope.dbopen( os.path.normpath(self.gf_db_path + '/' + self.gf_db), "r+" )
-            db.lookup( table='wfdisc' )
+            db = db.lookup( table='wfdisc' )
 
         except Exception, e:
             raise SystemExit('\n\nERROR: dbopen() %s => %s\n\n' % (Exception,e))
@@ -503,7 +503,7 @@ class GreenFunctions():
         """ Subset for distance and depth. """
 
         try: 
-            db.subset('sta =~ /%s/ && chan =~ /%s_.*/' % (distance,depth))
+            db = db.subset('sta =~ /%s/ && chan =~ /%s_.*/' % (distance,depth))
             records = db.query(datascope.dbRECORD_COUNT)
         except: 
             records = 0
@@ -723,7 +723,7 @@ class GreenFunctions():
         #""" Subset for distance and depth. """
 
         #try: 
-        #    db.subset('sta =~ /%s/ && chan =~ /%s_.*/' % (distance,depth)
+        #    db = db.subset('sta =~ /%s/ && chan =~ /%s_.*/' % (distance,depth)
         #    records = db.query(datascope.dbRECORD_COUNT)
         #except: 
         #    records = 0
@@ -3584,11 +3584,14 @@ GREEN.1\n\
         now = 0
         for trace in self.ELEMENTS:
 
-            now += 1
-            plt.subplot(5,2,now)
-            data = self.ELEMENTS[trace]['data']
-            plt.plot(data[start:end])
-            plt.legend([trace])
+            try:
+                now += 1
+                plt.subplot(5,2,now)
+                data = self.ELEMENTS[trace]['data']
+                plt.plot(data[start:end])
+                plt.legend([trace])
+            except Exception,e:
+                sys.exit('ERROR: problem plotting green functions.[%s => %s]' % (Exception,e) )
 
         plt.suptitle("Green Functions: depth:%s distance:%s" % (self.DEPTH,self.DISTANCE))
         plt.show()

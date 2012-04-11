@@ -574,12 +574,15 @@ if __name__ == '__main__':
     if options.veryverbose: options.debug = True
     if options.debug: options.verbose = True
 
+
     try: 
-        options.pf = stock.pffiles(options.pf)[0]
+        options.pf = stock.pffiles(options.pf)[-1]
     except Exception,e:
         sys.exit('ERROR: problem loading pf(%s) class.[%s => %s]' % (options.pf,Exception,e) )
 
     if options.verbose: log("Parameter file to use [%s]" % options.pf)
+
+    if not os.path.isfile(options.pf): sys.exit('ERROR: Cannot find pf(%s)' % options.pf )
 
     try:
         dbmnt = DbMoment(options.pf,options.verbose,options.debug)

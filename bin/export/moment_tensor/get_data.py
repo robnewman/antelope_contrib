@@ -52,14 +52,14 @@ class Event():
             # For events from event table
             if self.debug: self._log('open event table and join with origin ')
             try:
-                evdb.lookup(table='event')
-                evdb.join('origin')
+                evdb = evdb.lookup(table='event')
+                evdb = evdb.join('origin')
             except Exception, e:
                 sys.exit('Could not open(event)/join(origin) for (%s). Exception: %s' % (event_db, e))
 
             if self.debug: self._log('subset(event==%s' % orid)
             try:
-                evdb.subset('evid == %s' % orid)
+                evdb = evdb.subset('evid == %s' % orid)
             except Exception, e:
                 sys.exit('Could not subset(evid == %s). Exception: %s' % (orid, e))
 
@@ -71,13 +71,13 @@ class Event():
             if self.debug: self._log('open origin')
             try:
                 if self.debug: self._log('open origin table')
-                evdb.lookup(table='origin')
+                evdb = evdb.lookup(table='origin')
             except Exception, e:
                 sys.exit('Could not open(origin) for (%s). Exception: %s' % (event_db, e))
 
             if self.debug: self._log('subset(orid==%s' % orid)
             try:
-                evdb.subset('orid == %s' % orid)
+                evdb = evdb.subset('orid == %s' % orid)
             except Exception, e:
                 sys.exit('Could not subset(orid == %s). Exception: %s' % (orid, e))
 
@@ -87,7 +87,7 @@ class Event():
         # Join with netmag table
         if self.debug: self._log('join(netmag,outer=True)')
         try: 
-            evdb.join('netmag', outer=True)
+            evdb = evdb.join('netmag', outer=True)
         except Exception, e:
             sys.exit('Could not join(netmag,outer=True). Exception: %s' % e)
 
@@ -99,7 +99,7 @@ class Event():
             evdb[3] = 0 # Force to first record
             magid = evdb.getv('magid') 
             self._log('Subset to get unique entry. Using magid (%s).' % magid)
-            evdb.subset('magid == %d' % magid)
+            evdb = evdb.subset('magid == %d' % magid)
 
         evdb[3] = 0 # Should only be one record now
         self.evparams = {} # Prep variable
@@ -117,11 +117,11 @@ class Event():
 
         if self.debug: self._log('join(assoc,arrival,site), sort(delta), subset(iphase=~P)')
         try:
-            evdb.join('assoc')
-            evdb.join('arrival')
-            evdb.join('site')
-            evdb.sort('delta')
-            evdb.subset('iphase=~/.*P.*|.*p.*/')
+            evdb = evdb.join('assoc')
+            evdb = evdb.join('arrival')
+            evdb = evdb.join('site')
+            evdb = evdb.sort('delta')
+            evdb = evdb.subset('iphase=~/.*P.*|.*p.*/')
         except Exception, e:
             sys.exit('in join (assoc,arrival,site) sort(delta), subset(iphase=~P). Exception: %s' % (f,orid,e))
 
@@ -129,7 +129,7 @@ class Event():
         if select:
             if self.debug: self._log('subset(sta =~ ==%s' % select)
             try:
-                evdb.subset('sta =~ /%s/' % select)
+                evdb = evdb.subset('sta =~ /%s/' % select)
             except Exception, e:
                 sys.exit('Could not subset(sta =~/%s/). Exception: %s' % (select, e))
 
@@ -137,7 +137,7 @@ class Event():
         if reject:
             if self.debug: self._log('subset(sta !~ ==%s' % reject)
             try:
-                evdb.subset('sta !~ /%s/' % reject)
+                evdb = evdb.subset('sta !~ /%s/' % reject)
             except Exception, e:
                 sys.exit('Could not subset(sta !~/%s/). Exception: %s' % (reject, e))
 
@@ -151,7 +151,7 @@ class Event():
         '''
         if self.debug: self._log('subset(delta>=1 && delta < 10)')
         try:
-            evdb.subset('delta >= 1 && delta < 10') # REGIONAL moment tensor,
+            evdb = evdb.subset('delta >= 1 && delta < 10') # REGIONAL moment tensor,
         except Exception, e:
             sys.exit('subset(delta>=1 && delta < 10). Exception: %s' % (f,orid,e))
 
@@ -280,8 +280,8 @@ class Event():
 
         # subset for wfdisc and station
         try: 
-            wvdb.lookup(table='wfdisc')
-            wvdb.subset('sta =~ /%s/' % stacode)
+            wvdb = wvdb.lookup(table='wfdisc')
+            wvdb = wvdb.subset('sta =~ /%s/' % stacode)
         except Exception, e:
             sys.exit('Could not subset wfdisc for %s [%s]' % (stacode, e))
 
@@ -313,7 +313,7 @@ class Event():
 
         try:
             if self.verbose: self._log('Retrieve %s data with time range (%s, %s)' % (stacode, st, et))
-            wvdb.subset('sta=~/^%s$/ && chan=~/%s/' % (stacode, self.chan_to_use))
+            wvdb = wvdb.subset('sta=~/^%s$/ && chan=~/%s/' % (stacode, self.chan_to_use))
             trace = wvdb.load_css(st, et)
             trace.apply_calib()
             trace.splice() # Join all segments together
@@ -390,17 +390,17 @@ class Event():
             self._log(' - MT for orid %s strike => %s' % (self.orid, strike))
             self._log(' - MT for orid %s dip => %s' % (self.orid, dip))
             self._log(' - MT for orid %s rake => %s' % (self.orid, rake))
-        moment_dbptr = datascope.dbopen(self.event_db, 'r+')
+        mptr = datascope.dbopen(self.event_db, 'r+')
         try:
-            moment_dbptr.lookup(table='moment')
+            mptr = mptr.lookup(table='moment')
         except Exception, e:
             sys.exit('update_moment_tbl error: Error in lookup: %s' % e)
         else:
-            orid_subset = datascope.dbsubset(moment_dbptr, 'orid == %s' % self.orid)
+            orid_subset = datascope.dbsubset(mptr, 'orid == %s' % self.orid)
             if orid_subset.query('dbRECORD_COUNT') == 0:
                 self._log('Adding new moment tensor to moment table with orid (%s)' % self.orid)
                 try:
-                    moment_dbptr.addv(
+                    mptr.addv(
                         'orid', int(self.orid),
                         'str1', math.degrees(strike[0]),
                         'dip1', math.degrees(dip[0]),
@@ -415,10 +415,10 @@ class Event():
                     self._log('Successfully added record with orid (%s) to moment table' % self.orid)
             else:
                 self._log('Updating moment tensor to moment table with orid (%s). Deleting current record and rewriting.' % self.orid)
-                for i in range(moment_dbptr.query('dbRECORD_COUNT')):
-                    moment_dbptr[3] = i
+                for i in range(mptr.query('dbRECORD_COUNT')):
+                    mptr[3] = i
                     try:
-                        moment_dbptr.putv(
+                        mptr.putv(
                             'orid', int(self.orid),
                             'str1', math.degrees(strike[0]),
                             'dip1', math.degrees(dip[0]),
@@ -432,8 +432,8 @@ class Event():
                     else:
                         self._log('Successfully updated record with orid (%s) in moment table' % self.orid)
             orid_subset.free()
-            moment_dbptr.free()
-            moment_dbptr.close()
+            mptr.free()
+            mptr.close()
             return True
 #}}}
 
@@ -761,14 +761,14 @@ class Event():
         else:
             # Update the database table
             try:
-                mtimages_dbptr = datascope.dbopen(self.event_db, 'r+')
-                mtimages_dbptr.lookup(table='moment_tensor_images')
+                imagesdb = datascope.dbopen(self.event_db, 'r+')
+                imagesdb = imagesdb.lookup(table='moment_tensor_images')
             except Exception, e:
                 sys.exit("Cannot open table 'moment_tensor_images'. Do you have the schema extension correctly installed? Error: %s" % e)
 
             try:
-                mtimages_dbptr.subset('orid == %s' % self.orid)
-                records = mtimages_dbptr.query('dbRECORD_COUNT')
+                imagesdb = imagesdb.subset('orid == %s' % self.orid)
+                records = imagesdb.query('dbRECORD_COUNT')
                 self._log('Subset moment_tensor_images table for orid == %s => [%s]' % (self.orid,records))
             except Exception,e:
                 self._log('Subset moment_tensor_images table for orid == %s :  %s=>[%s]' % (self.orid,Exception,e))
@@ -777,7 +777,7 @@ class Event():
             if not records:
                 self._log('Adding new focal mechanism to moment_tensor_images table with orid (%s)[%s,%s,%s,%s]' % (self.orid,'test',int(self.orid),mt_images_dir,final_file))
                 try:
-                    mtimages_dbptr.addv(
+                    imagesdb.addv(
                         'sta', 'test',
                         'orid', int(self.orid),
                         'dir', mt_images_dir,
@@ -790,9 +790,9 @@ class Event():
             else:
                 self._log('Updating focal mechanism to moment_tensor_images table with orid (%s). Deleting current record and rewriting.' % self.orid)
                 for i in range(records):
-                    mtimages_dbptr[3] = i
+                    imagesdb[3] = i
                     try:
-                        mtimages_dbptr.putv(
+                        imagesdb.putv(
                             'sta', 'test',
                             'orid', int(self.orid),
                             'dir', mt_images_dir,
@@ -801,7 +801,7 @@ class Event():
                     except Exception, e:
                         sys.exit('Update record in moment_tensor_images table unknown error: %s' % e)
 
-            mtimages_dbptr.close()
+            imagesdb.close()
 
         return True
 #}}}
