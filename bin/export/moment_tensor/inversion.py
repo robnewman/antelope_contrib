@@ -18,12 +18,18 @@ class MomentTensor():
 #}}}
 
     def _log(self,message):
+        """Global function to handle 
+        log output. Prints messages 
+        with a timestamp.  
+        """
     #{{{
-        """Global function to handle log output. Prints messages with a timestamp.  """
+
+        if not self.verbose: return
 
         curtime = stock.epoch2str( time(), '%m/%d/%Y %H:%M:%S')
             
         print '%s dbmoment: \tMomentTensor() => %s' % (curtime,message)
+
     #}}}
 
     def construct_data_matrix(self, stachan_traces):
@@ -73,7 +79,7 @@ class MomentTensor():
             a = gf
             b = data
         """
-        fig = plt.figure()
+        fig = pyplot.figure()
         fig.subplots_adjust(left=0.04, right=0.96, hspace=0.3)
         if len(xcor):
             ax = fig.add_subplot(311)
@@ -82,7 +88,7 @@ class MomentTensor():
         ax.set_title("%s %s maxval=%s  shift=%s" % (a_name,b_name,maxval,shift))
         ax.plot(self._normalize(a), 'b-')
         ax.plot(self._normalize(b), 'g-')
-        plt.setp(ax.get_yticklabels(), visible=False)
+        pyplot.setp(ax.get_yticklabels(), visible=False)
         ax.legend(('Data','GreenFunc',), 'upper right', prop={'size':'10'})
         # Print shifted time series
         if len(xcor):
@@ -105,16 +111,16 @@ class MomentTensor():
                 print b
         bx.plot(self._normalize(a), 'b-')
         bx.plot(self._normalize(b), 'g-')
-        plt.setp(bx.get_yticklabels(), visible=False)
+        pyplot.setp(bx.get_yticklabels(), visible=False)
         bx.legend(('Data','GreenFunc'), 'upper right', prop={'size':'10'})
         if len(xcor):
             # Print xcor
             cx = fig.add_subplot(313)
             cx.set_title('Cross correlation results')
             cx.plot(xcor)
-            plt.setp(cx.get_yticklabels(), visible=False)
+            pyplot.setp(cx.get_yticklabels(), visible=False)
             cx.set_ylabel('X-cor.')
-        plt.show()
+        pyplot.show()
         return True
  #}}}
 
@@ -320,19 +326,22 @@ class MomentTensor():
                   RLN & MK (2012-02-07)
         '''
 
-        AIV = defaultdict(dict) 
+        log('Build AIV matrix and B matrix')
+        AIV = zeros((self.isoflag,self.isoflag), float)
+        B = zeros((self.isoflag,1), float)
+        #AIV = defaultdict(dict) 
+        #for i in range(self.isoflag):
+        #    for j in range(self.isoflag):
+        #        AIV[i][j] = 0.0
+        # Compute AtA
         for i in range(self.isoflag):
             for j in range(self.isoflag):
-                AIV[i][j] = 0.0
-        # Compute AtA
-        for i in range(5):
-            for j in range(5):
                 for k in range(cnt3):
                     AIV[i][j] += AJ[i][k] * AJ[j][k]
 
-        B = defaultdict(dict) 
-        for i in range(self.isoflag):
-            B[i][0] = 0.0
+        #B = defaultdict(dict) 
+        #for i in range(self.isoflag):
+        #    B[i][0] = 0.0
 
         cnt1 = cnt2 = cnt3 = 0
         tmp = defaultdict(dict) 
@@ -410,76 +419,43 @@ class MomentTensor():
         return tmp
 #}}}
 
-    def determine_solution_vector(self, dict_AIV, dict_B):
-#{{{
+    def determine_solution_vector(self, AA, BB):
         """Determine the solution vector
         Solve the inversion problem, 
-        returning the moment tensor
-        From Dreger:
-            Call Bobs MT decomposition routines
-            The minus one is needed to map Helmbergers convention into Aki's
-            Jost and Hermann (1989) state that AKI's convention is -1*LANGSTONS
+        returning the moment tensor.
+        """
+#{{{
+        log( "" )
+        log( "---------------------------------------" )
+        log( "INVERSION.PY: determine_solution_vector()" )
 
-        !!! NOTE: Matt thinks we can replace this with a library in SciPy
-            RLN (2012-02-07)
-        """
-        if self.verbose:
-            self._log('Solve the inversion problem and return the moment tensor')
-        ipiv = defaultdict(dict)
-        for i in range(self.isoflag):
-            ipiv[i] = 0
-        for i in range(self.isoflag):
-            big = 0.0
-            for j in range(self.isoflag):
-                if ipiv[j] != 1:
-                    for k in range(self.isoflag):
-                        if ipiv[k] == 0:
-                            if abs(dict_AIV[j][k]) >= big:
-                                    big = abs(dict_AIV[j][k])
-                                    irow = j
-                                    icol = k
-                        elif ipiv[k] > 1:
-                            sys.exit('determine_solution_vector(): ERROR... 1')
-            ipiv[icol] += 1
-            if not irow == icol:
-                for l in range(self.isoflag):
-                    (dict_AIV[irow][l],dict_AIV[icol][l]) = swap(dict_AIV[irow][l],dict_AIV[icol][l])
-                for l in range(1):
-                    (dict_B[irow][l],dict_B[icol][l]) = swap(dict_B[irow][l],dict_B[icol][l])
-            if dict_AIV[icol][icol] == 0.0:
-                sys.exit('determine_solution_vector(): ERROR... 2')
-            pivinv = 1.0/dict_AIV[icol][icol]
-            dict_AIV[icol][icol] = 1.0
-            for l in range(self.isoflag):
-                dict_AIV[icol][l] *= pivinv
-            for l in range(1):
-                dict_B[icol][l] *= pivinv
-            for h in range(self.isoflag):
-                if h != icol:
-                    dum = dict_AIV[h][icol]
-                    dict_AIV[h][icol] = 0.0
-                    for l in range(self.isoflag):
-                        dict_AIV[h][l] -= dict_AIV[icol][l]*dum
-                    for l in range(1):
-                        dict_B[h][l] -= dict_B[icol][l]*dum
+        #AA = zeros((len(AIV),len(AIV)), float)
+        #for key1, row in AIV.iteritems():
+        #    for key2, value in row.iteritems():
+        #        AA[key1][key2] = value 
+
+        log( "AA: %s" % AA )
+
+        #BB = zeros((len(B),1), float)
+        #for key1, row in B.iteritems():
+        #    for key2, value in row.iteritems():
+        #        BB[key1][key2] = value 
+
+        log( "BB: %s" % BB )
+
+        temp =  linalg.solve(AA,BB)
+        log( "temp: %s" % temp )
+
+        self._log( "isoflag %s" % self.isoflag )
+
         if self.isoflag == 6:
-            M = pylab.matrix([[dict_B[0][0], dict_B[2][0], dict_B[3][0]], [dict_B[2][0], dict_B[1][0], dict_B[4][0]], [dict_B[3][0], dict_B[4][0], dict_B[5][0]]])
+            M = pylab.matrix([[temp[0][0], temp[2][0], temp[3][0]], [temp[2][0], temp[1][0], temp[4][0]], [temp[3][0], temp[4][0], temp[5][0]]])
         if self.isoflag == 5:
-            M = pylab.matrix([[dict_B[0][0], dict_B[2][0], dict_B[3][0]], [dict_B[2][0], dict_B[1][0], dict_B[4][0]], [dict_B[3][0], dict_B[4][0], -(dict_B[0][0]+dict_B[1][0])]])
+            M = pylab.matrix([[temp[0][0], temp[2][0], temp[3][0]], [temp[2][0], temp[1][0], temp[4][0]], [temp[3][0], temp[4][0], -(temp[0][0]+temp[1][0])]])
         
-        """
-        # Coded in the original code by Doug Dreger, however, AIV is not used further in the program, so not needed???
-        indc = defaultdict(dict)
-        indr = defaultdict(dict)
-        for i in range(self.isoflag-1,0,-1):
-            if indr[i] != indc[i]:
-                for j in range(self.isoflag):
-                    (dict_AIV[j][indr[i]],dict_AIV[j][indxc[i]]) = swap(dict_AIV[j][indr[i]],dict_AIV[j][indxc[i]])
-        """
-        if len(M) != 3:
-            sys.exit('Wrong dimension returned for matrix M after inversion')
-        elif self.verbose:
-            self._log(' - Moment tensor matrix M[3,3] created')
+        log( "M: %s" % M )
+        log( "---------------------------------------" )
+
         return M
 #}}}
 
@@ -499,8 +475,10 @@ class MomentTensor():
         """
         if self.verbose:
             self._log('Decompose moment tensor into eigenvector/values')
+
         matrix_M *= -1.0e+20
         trace = 0
+
         for i in range(3):
             trace += matrix_M[i,i]
         trace /= 3

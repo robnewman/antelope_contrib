@@ -1,5 +1,4 @@
-BIN = run_fkrprog_wrapper \
-      fortran_fkrprog \
+BIN = fortran_fkrprog \
       wvint9 \
       dbmoment
 

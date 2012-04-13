@@ -461,8 +461,10 @@ class Event():
                   focal_mechanism = [Mxx, Myy, Mzz, Mxy, Mxz, Myz]
                   Allow both. RLN (2011-12-02)
         '''
-        if len(matrix_M) < 1:
-            focal_mechanism = [strike[0], dip[0], rake[0]]
+
+        #if len(matrix_M) < 1:
+        if strike[0] and dip[0] and rake[0]:
+            focal_mechanism = [math.degrees(strike[0]), math.degrees(dip[0]), math.degrees(rake[0])]
         else:
             focal_mechanism = [ matrix_M[0, 0], 
                                 matrix_M[1, 1],  
@@ -471,9 +473,12 @@ class Event():
                                 matrix_M[0, 2],
                                 matrix_M[1, 2]
                               ]
+        self._log('Selected focal mechanism: %s' % focal_mechanism)
+        #self._log('Try to plot focal mechanism: [%s]' % matrix_M)
+        #self._log('Try to plot focal mechanism: strike[%s] dip[%s] rake[%s]' % (strike, dip, rake))
 
-        if self.verbose:
-            self._log('Try to plot focal mechanism: %s' % focal_mechanism)
+        #if self.verbose:
+        #    self._log('Try to plot focal mechanism: %s' % focal_mechanism)
 
         beachball_vals = {}
         '''
@@ -483,12 +488,12 @@ class Event():
                   updates. RLN (2011-12-06)
         '''
         beachball_defaults = { 
-            'size': 200, 
-            'linewidth': 2, 
+            'size': 300, 
+            'linewidth': 1, 
             'facecolor': 'b', 
             'edgecolor': 'k', 
             'bgcolor': 'w', 
-            'alpha': 1, 
+            'alpha': 1.0, 
             'xy': (0, 0),
             'width': 200, 
             'format': None, 
@@ -516,19 +521,33 @@ class Event():
 
         try:
             Beachball(focal_mechanism, 
-                size = beachball_vals['size'],
-                linewidth = beachball_vals['linewidth'], 
-                facecolor = beachball_vals['facecolor'],
-                edgecolor = beachball_vals['edgecolor'],
-                bgcolor = beachball_vals['bgcolor'],
-                alpha = beachball_vals['alpha'],
-                xy = beachball_vals['xy'],
-                width = beachball_vals['width'],
+                size = 250,
+                linewidth = 1,
+                facecolor = 'y',
+                edgecolor = 'k',
+                bgcolor = 'w',
+                alpha = 1.0,
+                xy = (0,0),
+                width = 200,
                 outfile = my_outpath,
-                format = beachball_vals['format'],
-                nofill = beachball_vals['nofill'],
-                fig = beachball_vals['fig']
+                format = None,
+                nofill = False,
+                fig = None
             )
+            #Beachball(focal_mechanism, 
+            #    size = beachball_vals['size'],
+            #    linewidth = beachball_vals['linewidth'], 
+            #    facecolor = beachball_vals['facecolor'],
+            #    edgecolor = beachball_vals['edgecolor'],
+            #    bgcolor = beachball_vals['bgcolor'],
+            #    alpha = beachball_vals['alpha'],
+            #    xy = beachball_vals['xy'],
+            #    width = beachball_vals['width'],
+            #    outfile = my_outpath,
+            #    format = beachball_vals['format'],
+            #    nofill = beachball_vals['nofill'],
+            #    fig = beachball_vals['fig']
+            #)
         except Exception,e:
             sys.exit('Error creating Beachball() %s: %s' % (Exception, e))
             return False
@@ -638,7 +657,7 @@ class Event():
             self._log('Create plots of data vs. synthetics')
 
         # Init figure
-        my_plot = plt.figure(figsize=(9, len(ev2sta)+0.5), dpi=100)
+        my_plot = pyplot.figure(figsize=(9, len(ev2sta)+0.5), dpi=100)
         my_plot.subplots_adjust(hspace=0.05, wspace=0.02,
                                 bottom=0.02, top=0.96,
                                 left=0.07, right=0.98)
@@ -677,7 +696,7 @@ class Event():
                     real_start = ev2sta[i][3]
                     synthetic_list = synthetic_vals[0:len(mod_gg[s][rc])]
                 real_end = real_start + size
-                ax = plt.subplot(len(ev2sta), len(rotated_components), axis_num)
+                ax = pyplot.subplot(len(ev2sta), len(rotated_components), axis_num)
 
                 try:
                     data_scale_factor = self.normalize_coefficient(ss[i][rc][real_start:real_end])
@@ -699,7 +718,7 @@ class Event():
                     print "\n\n  - NEW SYNTHETICS LIST:"
                     pprint(new_synthetic_list)
                 '''
-                plt.plot(new_data_list, 'b', new_synthetic_list, 'g')
+                pyplot.plot(new_data_list, 'b', new_synthetic_list, 'g')
                 ax.set_yticklabels([])
                 ax.set_xticklabels([])
                 if j == 0:
@@ -748,8 +767,11 @@ class Event():
         draw = ImageDraw.Draw(composite)
         position = (1000, 20)
         incr = 0
+
+        log("MOMENT TENSOR:")
         for anno in img_anno:
             new_position = (position[0], position[1] + (incr*25))
+            #log('%s = %s' % (anno[0] anno[1]) )
             complete_anno = '%s = %s' % (anno[0], anno[1])
             draw.text(new_position, complete_anno, font=myfont, fill='black')
             incr += 1
