@@ -247,10 +247,10 @@ class GreenFunctions():
 
         self.MMAX = len(self.D) - 1
 
-        log("FKRPROG.PY: generate()  -  LMAX = %s" % self.LMAX)
-        log("FKRPROG.PY: generate()  -  MMAX = %s" % self.MMAX)
-        log("FKRPROG.PY: generate()  -  DEPTH = %s" % self.DEPTH)
-        log("FKRPROG.PY: generate()  -  RANGE = %s" % self.RANGE)
+        #log("FKRPROG.PY: generate()  -  LMAX = %s" % self.LMAX)
+        #log("FKRPROG.PY: generate()  -  MMAX = %s" % self.MMAX)
+        #log("FKRPROG.PY: generate()  -  DEPTH = %s" % self.DEPTH)
+        #log("FKRPROG.PY: generate()  -  RANGE = %s" % self.DISTANCE)
 
 
         fortran_gg = defaultdict(lambda: defaultdict(dict))
@@ -281,13 +281,13 @@ class GreenFunctions():
             raise SystemExit('\n\nERROR: Cannot open temp file .greens_funcs %s %s\n'% (Exception,e))
 #}}}
 
-        log("FKRPROG.PY: generate()  -  MODEL: \n%s" % model)
+        log("FKRPROG.PY: generate()  -  MODEL: \n%s" % model,1)
 
         log("FKRPROG.PY: generate()  -  Running: fortran_fkrprog < ./greens_func")
         p = os.popen('fortran_fkrprog < ./.greens_funcs',"r")
         while 1:
             line = p.readline()
-            self._log(line)
+            log(line)
             if not line: break
 
         p.close()

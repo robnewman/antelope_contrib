@@ -36,6 +36,9 @@ clip_values &Arr{
     min    -1.6**23
 }
 
+# Min value for valid correlation 
+min_xcor 20
+
 # Trim value to get rid of edge effects after filtering/decimation 
 trim_value 0.2
 

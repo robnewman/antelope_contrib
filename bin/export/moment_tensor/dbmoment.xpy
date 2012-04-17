@@ -69,14 +69,14 @@ except Exception,e:
 
 #}}}
 
-def log(message):
+def log(message,force=False):
     """Global function to handle 
     log output. Prints messages 
     with a timestamp.  
     """
 #{{{
 
-    if not options.verbose: return
+    if not options.verbose and not force: return
     curtime = stock.epoch2str( time(), '%m/%d/%Y %H:%M:%S')
 
     print '%s dbmoment: %s' % (curtime,message)
@@ -120,7 +120,7 @@ class DbMoment():
         and assign to vars that will be
         used throughout the script
         """
-#{{{
+#{{
 
         log( "---------------------------------------" )
         log( "DBMOMENT.PY: parse parameter file(%s)" % (self.pf) )
@@ -155,6 +155,9 @@ class DbMoment():
 
         self.model_type = stock.pfget_string(self.pf, 'model_type')
         log('\tmodel_type => %s' % self.model_type)
+
+        self.min_xcor = stock.pfget_int(self.pf,'min_xcor')
+        log('\tmin_xcor => %s' % self.min_xcor)
 
         self.statmax = stock.pfget_int(self.pf,'statmax')
         log('\tstatmax => %s' % self.statmax)
@@ -272,18 +275,18 @@ class DbMoment():
             good_cross_corr_stations = 0
 
             if not len(sta_list[grp]):
-                print "\nERROR: No stations for quadrant[%s].\n" % grp
+                log("\t\t****** ERROR: No stations for quadrant[%s]. *****\n" % grp,1)
                 continue
 
             #
             # Start loop over each station in the quadrant
             #
-            log("\t\tStart loop over quadrant [%s]." % grp)
+            log("\t\tStart loop over quadrant [%s]." % grp,1)
             for sta in sta_list[grp]:
             #{{{
-                log("\t\t\tWorking on sta (%s) already(%s) " % (sta,good_cross_corr_stations))
+                log("\t\t\tWorking on sta (%s) already(%s) " % (sta,good_cross_corr_stations),1)
                 if good_cross_corr_stations >= stations_per_group:
-                    log("\t\t\tFound enough good matches for quadrant (%s)" % grp)
+                    log("\t\t\tFound enough good matches for quadrant (%s)" % grp,1)
                     break
                 else:
                     stacode, esaz, depth, distance, arrival_time = sta
@@ -293,6 +296,8 @@ class DbMoment():
                     depth = int(depth)
                     distance = int(distance)
                     log("\t\t\tGenerate GF for this depth (%s km) & distance (%s km)" % (depth, distance))
+                    # Instantiate Classes
+                    green = gf_lib.GreenFunctions(self.model_name)
                     green.build(depth, distance, 1, 'v', my_event.filter_string)
                     synthetics = green.ALL
                     '''
@@ -352,11 +357,11 @@ class DbMoment():
                     delta = int(arrival_time - my_event.event_time)
                     max_xcor, timeshift = my_inv.get_time_shift(real_data, synthetics, delta)
                     
-                    if max_xcor < 25: 
-                        log("\t\t\tREJECT: %s max-correlation:[%s] and timeshift:[%s]" % (stacode,max_xcor,timeshift))
+                    if max_xcor < self.min_xcor: 
+                        log("\t\t\tREJECT: %s max-correlation:[%s] and timeshift:[%s]" % (stacode,max_xcor,timeshift),1)
                         continue
 
-                    log("\t\t\tUSE: %s max-correlation:[%s] and timeshift:[%s]" % (stacode,max_xcor,timeshift))
+                    log("\t\t\tUSE: %s max-correlation:[%s] and timeshift:[%s]" % (stacode,max_xcor,timeshift),1)
 
                     ss.append(real_data)
                     gg.append(synthetics)
@@ -387,10 +392,14 @@ class DbMoment():
 
         AIV, B = my_inv.matrix_AIV_B(ss, gg, ev2sta, nl)
 
+        #log('AIV = pylab.array(%s)' %  AIV, 1)
+        #log('B = pylab.array(%s)' %  B, 1)
         M = my_inv.determine_solution_vector(AIV, B)
 
-        gfscale = -1.0e+20
-        gfscale = -1.0
+        #log('M = pylab.array(%s)' %  M, 1)
+
+        #gfscale = -1.0e+20
+        #gfscale = -1.0
         strike = []
         dip = []
         rake = []
@@ -416,11 +425,11 @@ class DbMoment():
         '''
         my_event.update_moment_tbl(strike, dip, rake)
 
-        print 'my_event.create_focal_mechanism()'
+        log('my_event.create_focal_mechanism()')
         #focalmech_img = my_event.create_focal_mechanism(self.obspy_beachball, self.mt_images_dir, M, False, False, False)
         focalmech_img = my_event.create_focal_mechanism(self.obspy_beachball, self.mt_images_dir, M, strike, dip, rake)
 
-        print 'build image_annotations'
+        log('build image_annotations')
         # !!! NOTE: Use a list of tuples as order is important. RLN (2011-11-28)
         image_annotations = [ ('orid', '%s' % orid), 
                             ('time', '%s' % stock.epoch2str(my_event.event_time,'%m/%d/%Y %H:%M:%S')), 
@@ -444,7 +453,7 @@ class DbMoment():
                             ('VR', '%0.3E' % VR), 
                             ('VAR', '%0.3E' % VAR)
                             ]
-        print 'my_event.calculate_synthetics_to_plot()'
+        log('my_event.calculate_synthetics_to_plot()')
         # !!! FIX: CREATE DATA vs. SYNTHETICS PLOTS - DONE. RLN (2011-11-03)
         #mod_gg = my_event.calculate_synthetics_to_plot(cleaned_gg, cleaned_ev2sta, M, nl)
         mod_gg = my_event.calculate_synthetics_to_plot(gg, ev2sta, M, nl)

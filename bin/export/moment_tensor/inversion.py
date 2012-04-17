@@ -17,20 +17,6 @@ class MomentTensor():
         self.debug = debug
 #}}}
 
-    def _log(self,message):
-        """Global function to handle 
-        log output. Prints messages 
-        with a timestamp.  
-        """
-    #{{{
-
-        if not self.verbose: return
-
-        curtime = stock.epoch2str( time(), '%m/%d/%Y %H:%M:%S')
-            
-        print '%s dbmoment: \tMomentTensor() => %s' % (curtime,message)
-
-    #}}}
 
     def construct_data_matrix(self, stachan_traces):
     #{{{
@@ -41,15 +27,14 @@ class MomentTensor():
         """
         this_dict = defaultdict(lambda: defaultdict(defaultdict))
 
-        if self.verbose:
-            self._log('Constructing data matrix from trace objects')
+        log('Constructing data matrix from trace objects')
         numsta = 0
         numchan = 0
         for stachan, tr in sorted(stachan_traces.items()):
             sta, chan = stachan.split('_')
 
             if self.distance_weighting == True:
-                self._log('Apply distance weighting')
+                log('Apply distance weighting',1)
 
             if chan == 'R':
                 numchan += 1
@@ -101,14 +86,14 @@ class MomentTensor():
             try:
                 [a.insert(0, 0) for x in range(abs(shift))]
             except Exception, e:
-                self._log("plot_cross_cor(): Could not insert values at start of real data. Error: %s" % e)
-                print a
+                log("plot_cross_cor(): Could not insert values at start of real data. Error: %s" % e, 1)
+                log( a, 1 )
         elif shift > 0:
             try:
                 [b.insert(0, 0) for x in range(abs(shift))]
             except Exception, e:
-                self._log("plot_cross_cor(): Could not insert values at start of synthetic data. Error: %s" % e)
-                print b
+                log("plot_cross_cor(): Could not insert values at start of synthetic data. Error: %s" % e,1)
+                log(b,1)
         bx.plot(self._normalize(a), 'b-')
         bx.plot(self._normalize(b), 'g-')
         pyplot.setp(bx.get_yticklabels(), visible=False)
@@ -142,9 +127,8 @@ class MomentTensor():
         maxshift = pylab.argmax(xcor) - xcor.size/2
         #maxshift = pylab.argmax(xcor) - (len(a) + len(b))/2
         #maxshift = pylab.argmax(xcor) - len(b)
-        if self.verbose: 
-            self._log('cross_cor(): maxval: %s timeshift: %s' % (maxval, maxshift))
-            #self.plot_cross_cor(list(a), list(b), maxshift, maxval, xcor)
+        log('cross_cor(): maxval: %s timeshift: %s' % (maxval, maxshift))
+        #self.plot_cross_cor(list(a), list(b), maxshift, maxval, xcor)
         return maxval, maxshift, xcor
 #}}}
 
@@ -161,7 +145,7 @@ class MomentTensor():
                   size for a successful cross 
                   correlation
         """
-        if self.verbose: self._log('Get the time shift & return the max cross-cor and shift [%s]' % delta)
+        log('Get the time shift & return the max cross-cor and shift [%s]' % delta)
         '''
         !!! NOTE: Loop over each stations data points.
                   Remember that the Green's Function 
@@ -210,7 +194,7 @@ class MomentTensor():
                     max_val = this_val
                     max_shift = this_shift
 
-        if self.verbose: self._log('c-c: %s, timeshift: %s' % (max_val, max_shift))
+        log('c-c: %s, timeshift: %s' % (max_val, max_shift))
         return max_val, max_shift
 #}}}
 
@@ -223,10 +207,9 @@ class MomentTensor():
         try:
             normalizer = max([abs(x) for x in data_as_list])
         except Exception, e:
-            self._log("  - Exception encountered: %s" % e)
+            log("  - Exception encountered: %s" % e,1)
 
-        if self.verbose:
-            self._log("Normalization factor: %s" % normalizer)
+        log("Normalization factor: %s" % normalizer)
         return [x / normalizer for x in data_as_list]
 #}}}
 
@@ -239,22 +222,19 @@ class MomentTensor():
         Return AIV and B for further processing 
         This is to normalize the two signals
         """
-        if self.verbose:
-            self._log('INVERSION ROUTINE: Construct matrices AIV and B using the data and Greens function matrices')
+        log('INVERSION ROUTINE: Construct matrices AIV and B using the data and Greens function matrices')
 
         AJ = defaultdict(dict)
         trim = 0
         cnt1 = cnt2 = cnt3 = 0
 
-        if self.verbose:
-            # self._log(' - Timeshift: %s' % timeshift)
-            # self._log(' - Azimuthal distances tuple: %s' % list_az)
-            self._log(' - Number of stations used in calculation: %s' % len(dict_s))
+        #log(' - Timeshift: %s' % timeshift)
+        #log(' - Azimuthal distances tuple: %s' % list_az)
+        log(' - Number of stations used in calculation: %s' % len(dict_s), 1)
 
         # Iterate over number of stations
         for i in range(len(ev2sta)):
-            if self.verbose:
-                self._log('  - Working on inversion for station (%s)' % ev2sta[i][0])
+            log('  - Working on inversion for station (%s)' % ev2sta[i][0])
             # Allocate the dictionary space for each section
             cnt1 = cnt2 = cnt3
             cnt2 += size - trim
@@ -312,10 +292,9 @@ class MomentTensor():
                 cnt1 += 1
                 cnt2 += 1
                 cnt3 += 1
-        if self.verbose:
-            self._log(' - Created matrix AJ with length: %s' % len(AJ))
-            self._log(' - Final counts: cnt1=%s, cnt2=%s, cnt3=%s' % (cnt1, cnt2, cnt3))
-            self._log(' - Now apply the timeshift if needed')
+        log(' - Created matrix AJ with length: %s' % len(AJ))
+        log(' - Final counts: cnt1=%s, cnt2=%s, cnt3=%s' % (cnt1, cnt2, cnt3))
+        log(' - Now apply the timeshift if needed')
 
         '''
         !!! NOTE: Make placeholder AIV 
@@ -329,27 +308,19 @@ class MomentTensor():
         log('Build AIV matrix and B matrix')
         AIV = zeros((self.isoflag,self.isoflag), float)
         B = zeros((self.isoflag,1), float)
-        #AIV = defaultdict(dict) 
-        #for i in range(self.isoflag):
-        #    for j in range(self.isoflag):
-        #        AIV[i][j] = 0.0
-        # Compute AtA
+
         for i in range(self.isoflag):
             for j in range(self.isoflag):
                 for k in range(cnt3):
                     AIV[i][j] += AJ[i][k] * AJ[j][k]
 
-        #B = defaultdict(dict) 
-        #for i in range(self.isoflag):
-        #    B[i][0] = 0.0
 
         cnt1 = cnt2 = cnt3 = 0
         tmp = defaultdict(dict) 
 
         # Iterate over the number of stations
         for i in range(len(ev2sta)):
-            if self.verbose:
-                self._log('  - Applying timeshift to station (%s): Trim: %s, timeshift: %s' % (ev2sta[i][0], trim, ev2sta[i][3]))
+            log('  - Applying timeshift to station (%s): Trim: %s, timeshift: %s' % (ev2sta[i][0], trim, ev2sta[i][3]))
             '''
             !!! FIX: Direct copy of Dregers code - don't need to do this
                      RLN (2011-12-08)
@@ -365,17 +336,17 @@ class MomentTensor():
                 try:
                     tmp[cnt1] = dict_s[i]['T'][correction_iter]
                 except KeyError as k:
-                    self._log('KeyError (%s) for station: %s with index: %s' % (k, ev2sta[i][0], correction_iter))
+                    log('KeyError (%s) for station: %s with index: %s' % (k, ev2sta[i][0], correction_iter),1)
                     pprint(dict_s[i]['T'])
                 try:
                     tmp[cnt2] = dict_s[i]['R'][correction_iter]
                 except KeyError as k:
-                    self._log('KeyError (%s) for station: %s with index: %s' % (k, ev2sta[i][0], correction_iter))
+                    log('KeyError (%s) for station: %s with index: %s' % (k, ev2sta[i][0], correction_iter),1)
                     pprint(dict_s[i]['R'])
                 try:
                     tmp[cnt3] = dict_s[i]['Z'][correction_iter]
                 except KeyError as k:
-                    self._log('KeyError (%s) for station: %s at index: %s' % (k, ev2sta[i][0], correction_iter))
+                    log('KeyError (%s) for station: %s at index: %s' % (k, ev2sta[i][0], correction_iter),1)
                     pprint(dict_s[i]['Z'])
                 cnt1 += 1
                 cnt2 += 1
@@ -390,8 +361,8 @@ class MomentTensor():
             sys.exit('Matrix AIV has dimension [%s,%s] should be [%s,%s]' % (len(AIV), len(AIV), self.isoflag, self.isoflag))
         elif len(B) != self.isoflag:
             sys.exit('Matrix AIV has dimension [%s,i%s] should be [%s,1]' % (len(B), len(B[0]), self.isoflag))
-        elif self.verbose:
-            self._log('Matrices AIV and B created and have correct dimensions')
+
+        log('Matrices AIV and B created and have correct dimensions')
 
         return AIV, B
 #}}}
@@ -410,8 +381,7 @@ class MomentTensor():
         """Calculate the dyadic 
         matrix of eigenvectors v
         """
-        if self.verbose:
-            self._log(' - Compute the dyadic matrix of vector v')
+        log(' - Compute the dyadic matrix of vector v')
         tmp = pylab.matrix([[0., 0., 0.], [0., 0., 0.], [0., 0., 0.]])
         for i in range(3):
             for j in range(3):
@@ -429,24 +399,15 @@ class MomentTensor():
         log( "---------------------------------------" )
         log( "INVERSION.PY: determine_solution_vector()" )
 
-        #AA = zeros((len(AIV),len(AIV)), float)
-        #for key1, row in AIV.iteritems():
-        #    for key2, value in row.iteritems():
-        #        AA[key1][key2] = value 
 
         log( "AA: %s" % AA )
-
-        #BB = zeros((len(B),1), float)
-        #for key1, row in B.iteritems():
-        #    for key2, value in row.iteritems():
-        #        BB[key1][key2] = value 
 
         log( "BB: %s" % BB )
 
         temp =  linalg.solve(AA,BB)
         log( "temp: %s" % temp )
 
-        self._log( "isoflag %s" % self.isoflag )
+        log( "isoflag %s" % self.isoflag )
 
         if self.isoflag == 6:
             M = pylab.matrix([[temp[0][0], temp[2][0], temp[3][0]], [temp[2][0], temp[1][0], temp[4][0]], [temp[3][0], temp[4][0], temp[5][0]]])
@@ -473,9 +434,9 @@ class MomentTensor():
         Myz = matrix_M[1, 2]
         Mzz = matrix_M[2, 2]
         """
-        if self.verbose:
-            self._log('Decompose moment tensor into eigenvector/values')
+        log('Decompose moment tensor into eigenvector/values')
 
+        #log('mtrix_M = pylab.array(%s)' %  matrix_M, 1)
         matrix_M *= -1.0e+20
         trace = 0
 
@@ -487,6 +448,9 @@ class MomentTensor():
             matrix_M[i,i] -= trace
         miso = pylab.matrix([[trace, 0, 0], [0, trace, 0], [0, 0, trace]])
         eval, evec = pylab.linalg.eig(matrix_M)
+
+        #log('eval = pylab.array(%s)' %  eval, 1)
+        #log('evec = pylab.array(%s)' %  evec, 1)
         
         for i in (0,1):
             k = i
@@ -623,8 +587,7 @@ class MomentTensor():
         Mw = math.log10(m0)/1.5 - 10.7
         pciso = abs(miso[0,0])/m0
 
-        if self.verbose:
-            self._log(' - Decomposition of moment tensor succesful!')
+        log(' - Decomposition of moment tensor succesful!')
 
         return m0, Mw, strike, dip, slip, pcdc, pcclvd, pciso
 #}}}
@@ -635,8 +598,7 @@ class MomentTensor():
         variance reduction
         and flag bad stations
         """
-        if self.verbose:
-            self._log('Calculate the variance, variance reduction & flag bad stations')
+        log('Calculate the variance, variance reduction & flag bad stations')
         matrix_M /= -1.0e+20
         cnt = 0
         wsum = etot = var = dtot = dvar = 0
@@ -700,8 +662,7 @@ class MomentTensor():
         dvar /= wsum
         var /= dvar
         var = (1-var)*100
-        if self.verbose:
-            self._log('pvar=%s pvred=%s var=%s svar=%s, sdpower=%s' %(pvar,pvred,var,svar,sdpower))
+        log('pvar=%s pvred=%s var=%s svar=%s, sdpower=%s' %(pvar,pvred,var,svar,sdpower))
         return pvar, pvred, var, svar, sdpower
 #}}}
 
@@ -709,8 +670,7 @@ class MomentTensor():
 #{{{
         """Check the quality of the result """
 
-        if self.verbose:
-            self._log('Quality check')
+        log('Quality check')
 
         if vr < 100:
             qlt = 4
@@ -723,8 +683,7 @@ class MomentTensor():
         if vr < 20:
             qlt = 0
 
-        if self.verbose:
-            self._log('quality=%s' % qlt)
+        log('quality=%s' % qlt)
 
         return qlt
 #}}}

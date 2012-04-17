@@ -771,7 +771,6 @@ class Event():
         log("MOMENT TENSOR:")
         for anno in img_anno:
             new_position = (position[0], position[1] + (incr*25))
-            #log('%s = %s' % (anno[0] anno[1]) )
             complete_anno = '%s = %s' % (anno[0], anno[1])
             draw.text(new_position, complete_anno, font=myfont, fill='black')
             incr += 1
@@ -780,50 +779,56 @@ class Event():
             composite.save(path_to_file, 'PNG')
         except IOError as e:
             sys.exit('Cannot save file (%s). Error: %s' % (final_file, e))
-        else:
-            # Update the database table
+
+        try:
+            os.remove( synthetics_img )
+            os.remove( focalmech_img )
+        except Exception, e:
+            pass
+
+        # Update the database table
+        try:
+            imagesdb = datascope.dbopen(self.event_db, 'r+')
+            imagesdb = imagesdb.lookup(table='moment_tensor_images')
+        except Exception, e:
+            sys.exit("Cannot open table 'moment_tensor_images'. Do you have the schema extension correctly installed? Error: %s" % e)
+
+        try:
+            imagesdb = imagesdb.subset('orid == %s' % self.orid)
+            records = imagesdb.query('dbRECORD_COUNT')
+            #self._log('Subset moment_tensor_images table for orid == %s => [%s]' % (self.orid,records))
+        except Exception,e:
+            #self._log('Subset moment_tensor_images table for orid == %s :  %s=>[%s]' % (self.orid,Exception,e))
+            records = 0
+
+        if not records:
+            self._log('Adding new focal mechanism to moment_tensor_images table with orid (%s)[%s,%s,%s,%s]' % (self.orid,'test',int(self.orid),mt_images_dir,final_file))
             try:
-                imagesdb = datascope.dbopen(self.event_db, 'r+')
-                imagesdb = imagesdb.lookup(table='moment_tensor_images')
+                imagesdb.addv(
+                    'sta', 'test',
+                    'orid', int(self.orid),
+                    'dir', mt_images_dir,
+                    'dfile', final_file )
+                self._log('Successfully added record with orid (%s) to moment_tensor_images table' % self.orid)
+
             except Exception, e:
-                sys.exit("Cannot open table 'moment_tensor_images'. Do you have the schema extension correctly installed? Error: %s" % e)
+                sys.exit('Adding record to moment_tensor_images table unknown error: %s=>[%s]' % (Exception,e))
 
-            try:
-                imagesdb = imagesdb.subset('orid == %s' % self.orid)
-                records = imagesdb.query('dbRECORD_COUNT')
-                self._log('Subset moment_tensor_images table for orid == %s => [%s]' % (self.orid,records))
-            except Exception,e:
-                self._log('Subset moment_tensor_images table for orid == %s :  %s=>[%s]' % (self.orid,Exception,e))
-                records = 0
-
-            if not records:
-                self._log('Adding new focal mechanism to moment_tensor_images table with orid (%s)[%s,%s,%s,%s]' % (self.orid,'test',int(self.orid),mt_images_dir,final_file))
+        else:
+            self._log('Updating focal mechanism to moment_tensor_images table with orid (%s). Deleting current record and rewriting.' % self.orid)
+            for i in range(records):
+                imagesdb[3] = i
                 try:
-                    imagesdb.addv(
+                    imagesdb.putv(
                         'sta', 'test',
                         'orid', int(self.orid),
                         'dir', mt_images_dir,
-                        'dfile', final_file )
-                    self._log('Successfully added record with orid (%s) to moment_tensor_images table' % self.orid)
-
+                        'dfile', final_file)
+                    self._log('Successfully updated record with orid (%s) to moment_tensor_images table' % self.orid)
                 except Exception, e:
-                    sys.exit('Adding record to moment_tensor_images table unknown error: %s=>[%s]' % (Exception,e))
+                    sys.exit('Update record in moment_tensor_images table unknown error: %s' % e)
 
-            else:
-                self._log('Updating focal mechanism to moment_tensor_images table with orid (%s). Deleting current record and rewriting.' % self.orid)
-                for i in range(records):
-                    imagesdb[3] = i
-                    try:
-                        imagesdb.putv(
-                            'sta', 'test',
-                            'orid', int(self.orid),
-                            'dir', mt_images_dir,
-                            'dfile', final_file)
-                        self._log('Successfully updated record with orid (%s) to moment_tensor_images table' % self.orid)
-                    except Exception, e:
-                        sys.exit('Update record in moment_tensor_images table unknown error: %s' % e)
-
-            imagesdb.close()
+        imagesdb.close()
 
         return True
 #}}}
