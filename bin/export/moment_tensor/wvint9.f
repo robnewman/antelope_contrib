@@ -19,34 +19,34 @@ c
       read(12) d,a,b,rho,mmax,qa,qb
       read(12) range,vred,t0
 c
-      if(nskip.gt.1) open(13,file='GREEN.2',status='old',
-     $access='sequential',form='unformatted')
-      if(nskip.gt.2) open(14,file='GREEN.3',status='old',
-     $access='sequential',form='unformatted')
-      if(nskip.gt.3) open(15,file='GREEN.4',status='old',
-     $access='sequential',form='unformatted')
+      !if(nskip.gt.1) open(13,file='GREEN.2',status='old',
+     $!access='sequential',form='unformatted')
+      !if(nskip.gt.2) open(14,file='GREEN.3',status='old',
+     $!access='sequential',form='unformatted')
+      !if(nskip.gt.3) open(15,file='GREEN.4',status='old',
+     $!access='sequential',form='unformatted')
 c
-      open(11,file="junk",status='unknown',access='sequential'
-     $      ,form='unformatted')
+      !open(11,file="junk",status='unknown',access='sequential'
+     $!      ,form='unformatted')
 c
 c
-      if(nskip.gt.1) read(13) alpha,depth,fl,fu,dt,n1,n2,df,nyq,
-     $nrange,nskip
-      if(nskip.gt.1) read(13) isrc
-      if(nskip.gt.1) read(13) d,a,b,rho,mmax,qa,qb
-      if(nskip.gt.1) read(13) range,vred,t0
+      !if(nskip.gt.1) read(13) alpha,depth,fl,fu,dt,n1,n2,df,nyq,
+     $!nrange,nskip
+      !if(nskip.gt.1) read(13) isrc
+      !if(nskip.gt.1) read(13) d,a,b,rho,mmax,qa,qb
+      !if(nskip.gt.1) read(13) range,vred,t0
 c
-      if(nskip.gt.2) read(14) alpha,depth,fl,fu,dt,n1,n2,df,nyq,
-     $nrange,nskip
-      if(nskip.gt.2) read(14) isrc
-      if(nskip.gt.2) read(14) d,a,b,rho,mmax,qa,qb
-      if(nskip.gt.2) read(14) range,vred,t0
+      !if(nskip.gt.2) read(14) alpha,depth,fl,fu,dt,n1,n2,df,nyq,
+     $!nrange,nskip
+      !if(nskip.gt.2) read(14) isrc
+      !if(nskip.gt.2) read(14) d,a,b,rho,mmax,qa,qb
+      !if(nskip.gt.2) read(14) range,vred,t0
 c
-      if(nskip.gt.3) read(15) alpha,depth,fl,fu,dt,n1,n2,df,nyq,
-     $nrange,nskip
-      if(nskip.gt.3) read(15) isrc
-      if(nskip.gt.3) read(15) d,a,b,rho,mmax,qa,qb
-      if(nskip.gt.3) read(15) range,vred,t0
+      !if(nskip.gt.3) read(15) alpha,depth,fl,fu,dt,n1,n2,df,nyq,
+     $!nrange,nskip
+      !if(nskip.gt.3) read(15) isrc
+      !if(nskip.gt.3) read(15) d,a,b,rho,mmax,qa,qb
+      !if(nskip.gt.3) read(15) range,vred,t0
 c
       nm=n2
       rep='n'
@@ -105,7 +105,7 @@ c
       t0x=range(nd)/vred(nd)
       yr = 0.0
 c
-      write(11) range(nd),yr,depth,npoint,t0x,dt,tau
+      !write(11) range(nd),yr,depth,npoint,t0x,dt,tau
 c
       do 5 l=1,10
       if(isrc(l).ne.1) go to 444
