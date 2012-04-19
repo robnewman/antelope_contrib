@@ -5,7 +5,10 @@ DATA = \
 	calib_request \
 	dlcmd_cal \
 	dlevent \
+	moment_tensor_images \
+	moment_tensor_greensfuncs \
 	gsnspec \
+	commandqueue \
 	q330_calibration_weblog \
 	qctests \
 	qgrid \

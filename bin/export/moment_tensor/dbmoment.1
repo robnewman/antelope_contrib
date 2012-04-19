@@ -1,0 +1,130 @@
+.TH DBMOMENT 1
+.SH NAME
+dbmoment \- moment tensor calculation for given origin
+.SH SYNOPSIS
+.nf
+\fBdbmoment \fP[-vV] [-p \fIpfname\fP] \fIorid\fP
+.fi
+.SH SUPPORT
+Contributed: NO BRTT support -- please contact authors Rob Newman
+<robertlnewman@gmail.com> or Juan Reyes <jreyes1108@gmail.com>. We
+do not support any third-party modules or interfaces. If you have
+problems please speak to the respective authors. We maintain a webpage
+documenting everything related to dbmoment:
+http://eqinfo.ucsd.edu/~rnewman/howtos/antelope/moment_tensor/
+
+.SH DESCRIPTION
+The \fBdbmoment\fP application calculates the moment tensor for a given
+origin-id (\fIorid\fP) for a certain amount of stations (defined in the 
+parameter file). The accompanying
+Green's functions are either read from a pre-constructed wfdisc table in a database
+or generated and stored in a database wfdisc table. It relies 
+significantly on the Antelope Python Interface (Datascope and Stock), NumPy, Matplotlib, ObsPy
+and SciPy.
+
+.SH OPTIONS
+.IP -v
+Verbose output
+.IP -V
+More verbose output (debug)
+.IP "-p pfname"
+Override the default parameter-file \fBdbmoment\fP.pf
+.SH PARAMETER FILE
+An example \fBdbmoment\fP parameter file (as specified by \fIpfname\fP) is as follows:
+
+.nf
+chan_to_use LH.*
+clip_values &Arr{
+    max 1.6**23
+    min -1.6**23
+}
+distance_weighting  off
+event_db    /Users/rnewman/rtsystems/mt/db/mt
+green_db    /Users/rnewman/rtsystems/mt/greens_db
+isoflag 1
+mag_filters &Tbl{
+    2.0    4.0    120    BW_0.02_5_0.10_5
+    4.0    5.0    120    BW_0.02_5_0.05_5
+    5.0    6.0    120    BW_0.01_5_0.05_5
+    6.0    7.0    120    BW_0.01_5_0.07_5
+    7.0           120    BW_0.01_5_0.07_5
+}
+model_name  SOCAL_MODEL
+model_type  v
+mt_images_dir   /Users/rnewman/rtsystems/mt/mtimages
+obspy_beachball &Arr{
+    alpha   
+    bgcolor w
+    edgecolor   
+    facecolor   b
+    fig 
+    format  png
+    linewidth   2
+    nofill  
+    size    300
+    width   200
+    xy  
+}
+pf_revision_time    1328212187
+resp_db demo/resp
+statmax 24
+trim_value  0.2
+ttfont  /Library/Fonts/Verdana.ttf
+use_inc 0
+wave_db 
+.fi
+
+.IP \fImodel_type\fP
+Type of model which is ued in the inversion, v for
+velocity and d for displacement
+.IP \fIdistance_weighting\fP
+Switch distance weighting on/off
+.IP \fIchan_to_use\fP
+Channels which are used in the inversion. When using wildcards,
+the channels with sample-rate closest to 1 are used.
+.IP \fIstatmax\fP
+Integer describing the maximum number of stations to be used in the MT-inversion
+.IP \fIuse_inc\fP
+Use incidence angle in rotation if set to 1, otherwise incidence angle is ignored
+.IP \fItrim_value\fP
+Number between 0 and 1. After filtering, the number of samples
+is going to be trim_value * the number of samples of the input
+channels to take care of possible edge-effects
+.IP \fIisoflag\fP
+1 for isotropic moment tensor inversion and 0 for deviatoric moment tensor inversion
+.IP \fIevent_db\fP
+Path to database containing the event tables, required
+.IP \fIwave_db\fP
+Path to database containing the waveforms, defaults to event_db when not specified
+.IP \fIresp_db\fP
+Path to database containing the response information on the station being used in
+the inversion, defaults to event_db if not specified
+.IP \fIgreen_db\fP
+Path to database containing the Green's functions, required
+.IP \fImag_filters\fP
+Table describing the filters to be used for certain magnitude ranges.
+
+.SH EXAMPLE
+
+% \fB dbmoment\fP -v 1234
+
+Run moment tensor inversion for origid with \fIorid\fP = 1234. Using default parameter
+file pf/dbmoment.pf or $ANTELOPE/local/data/pf/dbmoment.pf. Verbosity level set to normal.
+
+% \fB dbmoment\fP -V -p pf/dbmoment 1234
+
+Run momenttensor inversion for origin with orid \fIorid\fP = 1234. Using local parameter
+file local_pf/local_dbmoment. Verbosity level set to high (debugging). This will output 
+the Green's functions graph for every distance and depth, and each station time-series vs.
+Green's function component cross-correlation result.
+
+.SH SEE ALSO
+pythondb(1), pythonstock(1)
+
+.SH AUTHORS
+.nf
+Matt Koes (PGC, Canada/UCSD)
+Rob Newman (UCSD)
+Juan Reyes (UCSD)
+Gert-Jan van den Hazel (Orfeus Data Center/UCSD)
+.fi

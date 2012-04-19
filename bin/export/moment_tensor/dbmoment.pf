@@ -1,0 +1,92 @@
+# parameter file for dbmoment
+
+
+# Name of the library to use
+# for Green'sFunction class
+gf_lib fkrprog
+
+# Name of the library to use
+# for Inversion class
+inv_lib inversion
+
+# Name of the library to use
+# for Event class
+data_lib get_data
+
+# channel to use in MT-inversion, default is LH. If higher sample rate channels are chosen, 
+# the data is downsampled to 1 Hz.
+chan_to_use LH.*
+
+# Name of the model parameter file
+model_name SOCAL_MODEL
+# Use displacement (d) or velocity (v) 
+model_type v
+
+# Turn on distance weighting, 
+distance_weighting off
+
+# Maximum number of stations to use in the inversion
+#     - Minimum of eight, one for each division 
+#       of the cardinal and intercardinal directions
+statmax 24
+
+# Clipped value, for Q330s: 2**23 * 80% = 1.6**23
+clip_values &Arr{
+    max    1.6**23
+    min    -1.6**23
+}
+
+# Min value for valid correlation 
+min_xcor 20
+
+# Trim value to get rid of edge effects after filtering/decimation 
+trim_value 0.2
+
+# Isoflag, 0 for deviatoric, 1 for isotropic
+isoflag 1
+
+# Use incidence angle in rotation, if set to 1, otherwise incidence angle is ignored
+use_inc 0
+
+# Event database
+event_db db/mt
+
+# Waveform database, defaults to event_db
+#wave_db  
+
+# Response database, defaults to event_db
+#resp_db demo/resp  
+
+# magnitude range vs filters
+mag_filters &Tbl{
+#   lowermag    highermag    filter
+    2.0    4.0    BW_0.01_5_0.02_5
+    4.0    5.0    BW_0.01_5_0.02_5
+    5.0    6.0    BW_0.01_5_0.02_5
+    6.0    7.0    BW_0.01_5_0.02_5
+    7.0           BW_0.01_5_0.02_5
+}
+
+# moment tensor images directory
+mt_images_dir    mtimages
+
+# Font path
+ttfont    /Library/Fonts/Verdana.ttf
+
+# ObsPy Beachball parameters
+# from: http://docs.obspy.org/packages/auto/obspy.imaging.beachball.Beachball.html
+# All of these have default values, you can override them here
+obspy_beachball &Arr{
+    # fm                # Focal mechanism - this is determined by the application. Listed here for completeness. Leave commented!
+    size          300   # Draw with this diameter
+    linewidth     2     # Width of the line
+    facecolor     b     # Color to use for quadrants of tension; can be a string, e.g. ‘r’, ‘b’ or three component color vector, [R G B]
+    edgecolor           # Color of the edges
+    bgcolor       w     # The background color, usually white
+    alpha               # The alpha level of the beach ball
+    xy                  # Origin position of the beach ball as tuple
+    width         200   # Symbol size of beach ball
+    format        png   # Symbol size of beach ball
+    nofill        # Do not fill the beach ball, but only plot the planes
+    fig           # Set zorder. Artists with lower zorder values are drawn first
+}
