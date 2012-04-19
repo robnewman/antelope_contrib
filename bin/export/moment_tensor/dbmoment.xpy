@@ -284,12 +284,12 @@ class DbMoment():
             log("\t\tStart loop over quadrant [%s]." % grp,1)
             for sta in sta_list[grp]:
             #{{{
-                log("\t\t\tWorking on sta (%s) already(%s) " % (sta,good_cross_corr_stations),1)
+                log("\t\t\tWorking on sta (%s) already(%s) " % (sta, good_cross_corr_stations),1)
                 if good_cross_corr_stations >= stations_per_group:
                     log("\t\t\tFound enough good matches for quadrant (%s)" % grp,1)
                     break
                 else:
-                    stacode, esaz, depth, distance, arrival_time = sta
+                    stacode, esaz, depth, distance, coords, arrival_time = sta
 
                     # Get new Green's Functions for this distance, depth
                     # Clean depth and distance to create clean green's functions
@@ -464,6 +464,9 @@ class DbMoment():
 
         # !!! NOTE: CREATE THE COMPOSITE (FINAL) IMAGE AND UPDATE DB. RLN (2011-11-28)
         my_event.create_composite_plot(self.ttfont, image_annotations, self.mt_images_dir, synthetics_img, focalmech_img)
+
+        log('my_event.create_map_plot()')
+        my_event.create_map_plot(self.mt_images_dir)
 
         #log("MOMENT TENSOR:")
         #log(M)

@@ -200,28 +200,28 @@ class Event():
             distance_deg = evdb.ex_eval('distance(%s, %s, %s, %s)' % (ev_lat, ev_lon, site_lat, site_lon))
             distance_km = evdb.ex_eval('deg2km(%s)' % (distance_deg))
             if esaz >= 0 and esaz < 45:
-                self.sta_list['NNE'].append((sta, esaz, depth, distance_km, at))
+                self.sta_list['NNE'].append((sta, esaz, depth, distance_km, (site_lat, site_lon), at))
                 log('Add station NNE [%s]' % sta)
             elif esaz >= 45 and esaz < 90:
-                self.sta_list['ENE'].append((sta, esaz, depth, distance_km, at))
+                self.sta_list['ENE'].append((sta, esaz, depth, distance_km, (site_lat, site_lon), at))
                 log('Add station ENE [%s]' % sta)
             elif esaz >= 90 and esaz < 135:
-                self.sta_list['ESE'].append((sta, esaz, depth, distance_km, at))
+                self.sta_list['ESE'].append((sta, esaz, depth, distance_km, (site_lat, site_lon), at))
                 log('Add station ESE [%s]' % sta)
             elif esaz >= 135 and esaz < 180:
-                self.sta_list['SSE'].append((sta, esaz, depth, distance_km, at))
+                self.sta_list['SSE'].append((sta, esaz, depth, distance_km, (site_lat, site_lon), at))
                 log('Add station SSE [%s]' % sta)
             elif esaz >= 180 and esaz < 225:
-                self.sta_list['SSW'].append((sta, esaz, depth, distance_km, at))
+                self.sta_list['SSW'].append((sta, esaz, depth, distance_km, (site_lat, site_lon), at))
                 log('Add station SSW [%s]' % sta)
             elif esaz >= 225 and esaz < 270:
-                self.sta_list['WSW'].append((sta, esaz, depth, distance_km, at))
+                self.sta_list['WSW'].append((sta, esaz, depth, distance_km, (site_lat, site_lon), at))
                 log('Add station WSW [%s]' % sta)
             elif esaz >= 270 and esaz < 315:
-                self.sta_list['WNW'].append((sta, esaz, depth, distance_km, at))
+                self.sta_list['WNW'].append((sta, esaz, depth, distance_km, (site_lat, site_lon), at))
                 log('Add station WNW [%s]' % sta)
             elif esaz >= 315 and esaz <= 360:
-                self.sta_list['NNW'].append((sta, esaz, depth, distance_km, at))
+                self.sta_list['NNW'].append((sta, esaz, depth, distance_km, (site_lat, site_lon), at))
                 log('Add station NNW [%s]' % sta)
 
         evdb.close()
@@ -515,7 +515,7 @@ class Event():
             Beachball(focal_mechanism, 
                 size = 250,
                 linewidth = 1,
-                facecolor = 'y',
+                facecolor = 'b',
                 edgecolor = 'k',
                 bgcolor = 'w',
                 alpha = 1.0,
@@ -715,6 +715,58 @@ class Event():
         return syn_plot_outfile
 #}}}
 
+    def create_map_plot(self, mt_images_dir):
+# {{{
+        # Holders
+        sta_lats = []
+        sta_lons = []
+        sta_labels = []
+
+        log('Create map plot of stations used in solution:')
+        my_map_plot = pyplot.figure()
+        mp = my_map_plot.add_subplot(111)
+
+        # Plot stations
+        for quad, qlist in (self.sta_list.iteritems()):
+            for sta in qlist:
+                sta_lats.append(sta[4][0])
+                sta_lons.append(sta[4][1])
+                sta_labels.append(sta[0])
+        mp.plot(sta_lons, sta_lats, 'b^', markersize=10)
+
+        # Plot event
+        mp.plot(self.evparams['lon'],
+                self.evparams['lat'],
+                'r*',
+                markersize=20
+        )
+
+        # Add event to list to allow label plotting
+        sta_lats.append(self.evparams['lat'])
+        sta_lons.append(self.evparams['lon'])
+        sta_labels.append(self.evparams['orid'])
+
+        # Iterate over locations and labels
+        for label, x, y in zip(sta_labels, sta_lons, sta_lats):
+            mp.annotate(
+                label,
+                xy=(x, y),
+                xytext=(0,-10),
+                textcoords = 'offset points',
+                ha='center',
+                va='top'
+            )
+
+        map_outfile = '%s/%s_map_plot.%s' % (mt_images_dir, self.orid, 'png')
+        my_map_plot.savefig(map_outfile)
+
+        if os.path.isfile(map_outfile) and self.verbose:
+            log('Successfully created map plot (%s)' % map_outfile)
+        elif not os.path.isfile(map_outfile):
+            sys.exit('Error creating map plot (%s)' % map_outfile)
+        return True
+# }}}
+
     def create_composite_plot(self, ttfont, img_anno, mt_images_dir, synthetics_img, focalmech_img):
 #{{{
         """
@@ -762,11 +814,13 @@ class Event():
         except IOError as e:
             sys.exit('Cannot save file (%s). Error: %s' % (final_file, e))
 
+        '''
         try:
             os.remove( synthetics_img )
             os.remove( focalmech_img )
         except Exception, e:
             pass
+        '''
 
         # Update the database table
         try:
