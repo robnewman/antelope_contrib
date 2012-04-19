@@ -120,7 +120,7 @@ class DbMoment():
         and assign to vars that will be
         used throughout the script
         """
-#{{
+#{{{
 
         log( "---------------------------------------" )
         log( "DBMOMENT.PY: parse parameter file(%s)" % (self.pf) )
@@ -356,7 +356,7 @@ class DbMoment():
                     # Get correlation from data to greenfuncs
                     delta = int(arrival_time - my_event.event_time)
                     max_xcor, timeshift = my_inv.get_time_shift(real_data, synthetics, delta)
-                    
+
                     if max_xcor < self.min_xcor: 
                         log("\t\t\tREJECT: %s max-correlation:[%s] and timeshift:[%s]" % (stacode,max_xcor,timeshift),1)
                         continue
