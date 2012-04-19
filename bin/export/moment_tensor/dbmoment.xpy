@@ -365,10 +365,12 @@ class DbMoment():
 
                     if timeshift > 0:
                         for trace in real_data:
+                            log("\t\t\tREAL [%s] timeshift:[%s]" % (trace,timeshift),1)
                             real_data[trace] = real_data[trace][timeshift:-1]
 
                     else:
                         for trace in synthetics:
+                            log("\t\t\tSYNTHETICS [%s] timeshift:[%s]" % (trace,timeshift),1)
                             synthetics[trace] = synthetics[trace][abs(timeshift):-1]
 
                     ss.append(real_data)
