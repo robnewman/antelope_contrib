@@ -356,16 +356,25 @@ class DbMoment():
                     # Get correlation from data to greenfuncs
                     delta = int(arrival_time - my_event.event_time)
                     max_xcor, timeshift = my_inv.get_time_shift(real_data, synthetics, delta)
-                    
+
                     if max_xcor < self.min_xcor: 
                         log("\t\t\tREJECT: %s max-correlation:[%s] and timeshift:[%s]" % (stacode,max_xcor,timeshift),1)
                         continue
 
                     log("\t\t\tUSE: %s max-correlation:[%s] and timeshift:[%s]" % (stacode,max_xcor,timeshift),1)
 
+                    if timeshift > 0:
+                        for trace in real_data:
+                            real_data[trace] = real_data[trace][timeshift:-1]
+
+                    else:
+                        for trace in synthetics:
+                            synthetics[trace] = synthetics[trace][abs(timeshift):-1]
+
                     ss.append(real_data)
                     gg.append(synthetics)
-                    ev2sta.append((stacode, esaz, distance, timeshift))
+                    #ev2sta.append((stacode, esaz, distance, timeshift))
+                    ev2sta.append((stacode, esaz, distance, 0))
                     good_cross_corr_stations += 1
                 #}}}
 

@@ -80,18 +80,19 @@ class MomentTensor():
             bx = fig.add_subplot(212)
         bx.set_title('Shifted time series')
 
-        if shift < 0:
-            try:
-                [a.insert(0, 0) for x in range(abs(shift))]
-            except Exception, e:
-                log("plot_cross_cor(): Could not insert values at start of real data. Error: %s" % e, 1)
-                log( a, 1 )
-        elif shift > 0:
-            try:
-                [b.insert(0, 0) for x in range(abs(shift))]
-            except Exception, e:
-                log("plot_cross_cor(): Could not insert values at start of synthetic data. Error: %s" % e,1)
-                log(b,1)
+        #if shift < 0:
+        #    try:
+        #        [a.insert(0, 0) for x in range(abs(shift))]
+        #    except Exception, e:
+        #        log("plot_cross_cor(): Could not insert values at start of real data. Error: %s" % e, 1)
+        #        log( a, 1 )
+        #elif shift > 0:
+        #    try:
+        #        [b.insert(0, 0) for x in range(abs(shift))]
+        #    except Exception, e:
+        #        log("plot_cross_cor(): Could not insert values at start of synthetic data. Error: %s" % e,1)
+        #        log(b,1)
+
         bx.plot(self._normalize(a), 'b-')
         bx.plot(self._normalize(b), 'g-')
         pyplot.setp(bx.get_yticklabels(), visible=False)
