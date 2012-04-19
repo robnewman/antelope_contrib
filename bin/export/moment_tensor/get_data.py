@@ -452,16 +452,23 @@ class Event():
         '''
 
         #if len(matrix_M) < 1:
-        if strike[0] and dip[0] and rake[0]:
-            focal_mechanism = [math.degrees(strike[0]), math.degrees(dip[0]), math.degrees(rake[0])]
-        else:
-            focal_mechanism = [ matrix_M[0, 0], 
-                                matrix_M[1, 1],  
-                                matrix_M[2, 2], 
-                                matrix_M[0, 1], 
-                                matrix_M[0, 2],
-                                matrix_M[1, 2]
-                              ]
+        #if strike[0] and dip[0] and rake[0]:
+        #    focal_mechanism = [math.degrees(strike[0]), math.degrees(dip[0]), math.degrees(rake[0])]
+        #else:
+        #    focal_mechanism = [ matrix_M[0, 0], 
+        #                        matrix_M[1, 1],  
+        #                        matrix_M[2, 2], 
+        #                        matrix_M[0, 1], 
+        #                        matrix_M[0, 2],
+        #                        matrix_M[1, 2]
+        #                      ]
+        focal_mechanism = [ matrix_M[0, 0], 
+                            matrix_M[1, 1],  
+                            matrix_M[2, 2], 
+                            matrix_M[0, 1], 
+                            matrix_M[0, 2],
+                            matrix_M[1, 2]
+                            ]
         log('Selected focal mechanism: %s' % focal_mechanism)
         #log('Try to plot focal mechanism: [%s]' % matrix_M)
         #log('Try to plot focal mechanism: strike[%s] dip[%s] rake[%s]' % (strike, dip, rake))
