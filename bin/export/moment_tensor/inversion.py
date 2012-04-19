@@ -80,18 +80,18 @@ class MomentTensor():
             bx = fig.add_subplot(212)
         bx.set_title('Shifted time series')
 
-        #if shift < 0:
-        #    try:
-        #        [a.insert(0, 0) for x in range(abs(shift))]
-        #    except Exception, e:
-        #        log("plot_cross_cor(): Could not insert values at start of real data. Error: %s" % e, 1)
-        #        log( a, 1 )
-        #elif shift > 0:
-        #    try:
-        #        [b.insert(0, 0) for x in range(abs(shift))]
-        #    except Exception, e:
-        #        log("plot_cross_cor(): Could not insert values at start of synthetic data. Error: %s" % e,1)
-        #        log(b,1)
+        if shift < 0:
+            try:
+                [a.insert(0, 0) for x in range(abs(shift))]
+            except Exception, e:
+                log("plot_cross_cor(): Could not insert values at start of real data. Error: %s" % e, 1)
+                log( a, 1 )
+        elif shift > 0:
+            try:
+                [b.insert(0, 0) for x in range(abs(shift))]
+            except Exception, e:
+                log("plot_cross_cor(): Could not insert values at start of synthetic data. Error: %s" % e,1)
+                log(b,1)
 
         bx.plot(self._normalize(a), 'b-')
         bx.plot(self._normalize(b), 'g-')
@@ -168,12 +168,6 @@ class MomentTensor():
             if c == 'REX' or c == 'ZEX':
                 continue
             else:
-                #if c[:1] == 'T':
-                #    data_key = 'T'
-                #elif c[:1] == 'X':
-                #    data_key = 'R'
-                #elif c[:1] == 'Z':
-                #    data_key = 'Z'
 
                 if re.match("T..", c):
                     k = 'T'
@@ -227,7 +221,6 @@ class MomentTensor():
         trim = 0
         cnt1 = cnt2 = cnt3 = 0
 
-        #log(' - Timeshift: %s' % timeshift)
         #log(' - Azimuthal distances tuple: %s' % list_az)
         log(' - Number of stations used in calculation: %s' % len(dict_s), 1)
 
@@ -293,7 +286,6 @@ class MomentTensor():
                 cnt3 += 1
         log(' - Created matrix AJ with length: %s' % len(AJ))
         log(' - Final counts: cnt1=%s, cnt2=%s, cnt3=%s' % (cnt1, cnt2, cnt3))
-        log(' - Now apply the timeshift if needed')
 
         '''
         !!! NOTE: Make placeholder AIV 
@@ -319,7 +311,7 @@ class MomentTensor():
 
         # Iterate over the number of stations
         for i in range(len(ev2sta)):
-            log('  - Applying timeshift to station (%s): Trim: %s, timeshift: %s' % (ev2sta[i][0], trim, ev2sta[i][3]))
+            log('  - Applying timeshift to station (%s): Trim: %s' % (ev2sta[i][0], trim))
             '''
             !!! FIX: Direct copy of Dregers code - don't need to do this
                      RLN (2011-12-08)
@@ -331,21 +323,20 @@ class MomentTensor():
             cnt2 += size - trim
             cnt3 += 2*size - 2*trim
             for j in range(size - trim):
-                correction_iter = j + ev2sta[i][3]
                 try:
-                    tmp[cnt1] = dict_s[i]['T'][correction_iter]
+                    tmp[cnt1] = dict_s[i]['T'][j]
                 except KeyError as k:
-                    log('KeyError (%s) for station: %s with index: %s' % (k, ev2sta[i][0], correction_iter),1)
+                    log('KeyError (%s) for station: %s with index: %s' % (k, ev2sta[i][0], j),1)
                     pprint(dict_s[i]['T'])
                 try:
-                    tmp[cnt2] = dict_s[i]['R'][correction_iter]
+                    tmp[cnt2] = dict_s[i]['R'][j]
                 except KeyError as k:
-                    log('KeyError (%s) for station: %s with index: %s' % (k, ev2sta[i][0], correction_iter),1)
+                    log('KeyError (%s) for station: %s with index: %s' % (k, ev2sta[i][0], j),1)
                     pprint(dict_s[i]['R'])
                 try:
-                    tmp[cnt3] = dict_s[i]['Z'][correction_iter]
+                    tmp[cnt3] = dict_s[i]['Z'][j]
                 except KeyError as k:
-                    log('KeyError (%s) for station: %s at index: %s' % (k, ev2sta[i][0], correction_iter),1)
+                    log('KeyError (%s) for station: %s at index: %s' % (k, ev2sta[i][0], j),1)
                     pprint(dict_s[i]['Z'])
                 cnt1 += 1
                 cnt2 += 1
@@ -607,10 +598,10 @@ class MomentTensor():
         for i in range(len(ev2sta)):
             dpower = 0
             e = 0
-            trimrange = int(int(size) * float(self.trim_value))
+            #trimrange = int(int(size) * float(self.trim_value))
+            trimrange = int(size)
             for j in range(trimrange):
-                correction_iter = j + ev2sta[i][3]
-                etmp  = dict_s[i]['T'][correction_iter] 
+                etmp  = dict_s[i]['T'][j] 
                 etmp -= matrix_M[0,0]*0.5*dict_g[i]['TSS'][j]*math.sin(2*ev2sta[i][1]) 
                 etmp += matrix_M[1,1]*0.5*dict_g[i]['TSS'][j]*math.sin(2*ev2sta[i][1]) 
                 etmp += matrix_M[0,1]*dict_g[i]['TSS'][j]*math.cos(2*ev2sta[i][1]) 
@@ -619,7 +610,7 @@ class MomentTensor():
                 
                 e += etmp*etmp
                 
-                etmp  = dict_s[i]['R'][correction_iter] 
+                etmp  = dict_s[i]['R'][j] 
                 etmp -= matrix_M[0,0]*(0.5*dict_g[i]['XDD'][j] - 0.5*dict_g[i]['XSS'][j]*math.cos(2*ev2sta[i][1]) + dict_g[i]['REX'][j]/3)
                 etmp -= matrix_M[1,1]*(0.5*dict_g[i]['XDD'][j] + 0.5*dict_g[i]['XSS'][j]*math.cos(2*ev2sta[i][1]) + dict_g[i]['REX'][j]/3)
                 etmp -= matrix_M[2,2]*dict_g[i]['REX'][j]/3 
@@ -629,7 +620,7 @@ class MomentTensor():
                 
                 e += etmp*etmp
                 
-                etmp  = dict_s[i]['Z'][correction_iter] 
+                etmp  = dict_s[i]['Z'][j] 
                 etmp -= matrix_M[0,0]*(0.5*dict_g[i]['ZDD'][j] - 0.5*dict_g[i]['ZSS'][j]*math.cos(2*ev2sta[i][1]) + dict_g[i]['ZEX'][j]/3)
                 etmp -= matrix_M[1,1]*(0.5*dict_g[i]['ZDD'][j] + 0.5*dict_g[i]['ZSS'][j]*math.cos(2*ev2sta[i][1]) + dict_g[i]['ZEX'][j]/3)
                 etmp -= matrix_M[2,2]*dict_g[i]['ZEX'][j]/3 
@@ -638,9 +629,9 @@ class MomentTensor():
                 etmp -= matrix_M[1,2]*dict_g[i]['ZDS'][j]*math.sin(ev2sta[i][1])
                 
                 e += etmp*etmp
-                dpower += dict_s[i]['T'][correction_iter]*dict_s[i]['T'][correction_iter]
-                dpower += dict_s[i]['R'][correction_iter]*dict_s[i]['R'][correction_iter]
-                dpower += dict_s[i]['Z'][correction_iter]*dict_s[i]['Z'][correction_iter]
+                dpower += dict_s[i]['T'][j]*dict_s[i]['T'][j]
+                dpower += dict_s[i]['R'][j]*dict_s[i]['R'][j]
+                dpower += dict_s[i]['Z'][j]*dict_s[i]['Z'][j]
                 cnt += 1
             
             # wsum += list_W[i]
@@ -682,7 +673,7 @@ class MomentTensor():
         if vr < 20:
             qlt = 0
 
-        log('quality=%s' % qlt)
+        log(' ******* quality=%s  ******* ' % qlt)
 
         return qlt
 #}}}

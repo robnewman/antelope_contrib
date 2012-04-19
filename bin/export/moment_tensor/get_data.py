@@ -567,7 +567,7 @@ class Event():
         mzz = matrix_M[2, 2]
 
         log('Calculating synthetics to plot (rotated) for orid: %s' % self.orid)
-        log('Size of synthetics: %s, Override size: %s' % (len(gg), size))
+        #log('Size of synthetics: %s, Override size: %s' % (len(gg), size))
 
         syn_plot_dict = defaultdict(lambda: defaultdict(defaultdict))
         rotated_comps = ['T', 'R', 'Z']
@@ -668,32 +668,36 @@ class Event():
             for j, rc in enumerate(rotated_components):
                 axis_num += 1
                 log(' - Processing (%s)' % rc)
-                log('  - ss[%s][%s], length:%s, timeshift: %s' % (i, rc, len(ss[i][rc]), ev2sta[i][3]))
+                log('  - ss[%s][%s], length:%s' % (i, rc, len(ss[i][rc])))
                 synthetic_vals = mod_gg[s][rc].values()
-                if ev2sta[i][3] < 0:
-                    real_start = 0
-                    syn_start = int(ev2sta[i][3]) * -1
-                    syn_end = len(mod_gg[s][rc])
-                    synthetic_list = synthetic_vals[syn_start:syn_end]
-                else:
-                    real_start = ev2sta[i][3]
-                    synthetic_list = synthetic_vals[0:len(mod_gg[s][rc])]
-                real_end = real_start + size
+                #if ev2sta[i][3] < 0:
+                #    real_start = 0
+                #    syn_start = int(ev2sta[i][3]) * -1
+                #    syn_end = len(mod_gg[s][rc])
+                #    synthetic_list = synthetic_vals[syn_start:syn_end]
+                #else:
+                #    real_start = ev2sta[i][3]
+                #    synthetic_list = synthetic_vals[0:len(mod_gg[s][rc])]
+                #real_end = real_start + size
                 ax = pyplot.subplot(len(ev2sta), len(rotated_components), axis_num)
 
                 try:
-                    data_scale_factor = self.normalize_coefficient(ss[i][rc][real_start:real_end])
+                    #data_scale_factor = self.normalize_coefficient(ss[i][rc][real_start:real_end])
+                    data_scale_factor = self.normalize_coefficient(ss[i][rc][0:size])
                 except ValueError, e:
                     log('  *** create_data_synthetics_plot(): Error: %s' % e)
                 else:
-                    new_data_list = [(v/data_scale_factor) for v in ss[i][rc][real_start:real_end]]
+                    #new_data_list = [(v/data_scale_factor) for v in ss[i][rc][real_start:real_end]]
+                    new_data_list = [(v/data_scale_factor) for v in ss[i][rc][0:size]]
 
                 try:
-                    syn_scale_factor = self.normalize_coefficient(synthetic_list)
+                    #syn_scale_factor = self.normalize_coefficient(synthetic_list)
+                    syn_scale_factor = self.normalize_coefficient(synthetic_vals[0:size])
                 except ValueError, e:
                     log('  *** create_data_synthetics_plot(): Error: %s' % e)
                 else:
-                    new_synthetic_list = [(v/syn_scale_factor) for v in synthetic_list]
+                    #new_synthetic_list = [(v/syn_scale_factor) for v in synthetic_list]
+                    new_synthetic_list = [(v/syn_scale_factor) for v in synthetic_vals[0:size]]
                 '''
                 if self.verbose:
                     print "\n\n  - NEW DATA LIST:"
@@ -776,14 +780,29 @@ class Event():
             sys.exit("Cannot open table 'moment_tensor_images'. Do you have the schema extension correctly installed? Error: %s" % e)
 
         try:
-            imagesdb = imagesdb.subset('orid == %s' % self.orid)
-            records = imagesdb.query('dbRECORD_COUNT')
-            #self._log('Subset moment_tensor_images table for orid == %s => [%s]' % (self.orid,records))
-        except Exception,e:
-            #self._log('Subset moment_tensor_images table for orid == %s :  %s=>[%s]' % (self.orid,Exception,e))
+            test = imagesdb.subset('orid == %s' % self.orid)
+            records = test.query('dbRECORD_COUNT')
+        except:
             records = 0
 
-        if not records:
+        if records: 
+            imagesdb = imagesdb.subset('orid == %s' % self.orid)
+            records = imagesdb.query('dbRECORD_COUNT')
+            for i in range(records):
+                log('Updating moment_tensor_images table with orid (%s). [%s] rewriting.' % (self.orid,i))
+                imagesdb[3] = i
+                try:
+                    imagesdb.putv(
+                        'sta', 'test',
+                        'orid', int(self.orid),
+                        'dir', mt_images_dir,
+                        'dfile', final_file)
+                    log('Successfully updated record with orid (%s) to moment_tensor_images table' % self.orid)
+                except Exception, e:
+                    sys.exit('Update record in moment_tensor_images table unknown error: %s' % e)
+
+
+        else:
             log('Adding new focal mechanism to moment_tensor_images table with orid (%s)[%s,%s,%s,%s]' % (self.orid,'test',int(self.orid),mt_images_dir,final_file))
             try:
                 imagesdb.addv(
@@ -796,19 +815,7 @@ class Event():
             except Exception, e:
                 sys.exit('Adding record to moment_tensor_images table unknown error: %s=>[%s]' % (Exception,e))
 
-        else:
-            log('Updating focal mechanism to moment_tensor_images table with orid (%s). Deleting current record and rewriting.' % self.orid)
-            for i in range(records):
-                imagesdb[3] = i
-                try:
-                    imagesdb.putv(
-                        'sta', 'test',
-                        'orid', int(self.orid),
-                        'dir', mt_images_dir,
-                        'dfile', final_file)
-                    log('Successfully updated record with orid (%s) to moment_tensor_images table' % self.orid)
-                except Exception, e:
-                    sys.exit('Update record in moment_tensor_images table unknown error: %s' % e)
+
 
         imagesdb.close()
 
