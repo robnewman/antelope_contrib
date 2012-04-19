@@ -7,14 +7,12 @@ class MomentTensor():
 
     """
 
-    def __init__(self, distance_weighting, isoflag, trim_value, verbose=False, debug=False):
+    def __init__(self, distance_weighting, isoflag, trim_value):
 #{{{
         """Initialize"""
         self.distance_weighting = distance_weighting
         self.isoflag = isoflag
         self.trim_value = trim_value
-        self.verbose = verbose
-        self.debug = debug
 #}}}
 
 
@@ -188,7 +186,7 @@ class MomentTensor():
                 else:
                     this_val, this_shift, xcor = self._cross_cor(self._normalize(data[k]), self._normalize(greens[c]))
 
-                if self.debug: self.plot_cross_cor(list(data[k]), list(greens[c]), this_shift, this_val, xcor, c, k)
+                if options.debug: self.plot_cross_cor(list(data[k]), list(greens[c]), this_shift, this_val, xcor, c, k)
 
                 if this_val > max_val:
                     max_val = this_val

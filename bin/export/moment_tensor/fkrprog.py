@@ -748,6 +748,12 @@ GREEN.1\n\
         tool.
 
         """
+        """NOTE: 
+        Some traces are plotting inverted to the 
+        real data. Experiment by getting a -1 in 
+        the conversion.
+
+        """
 #{{{
 
         log( "---------------------------------------" )
@@ -775,7 +781,7 @@ GREEN.1\n\
                 if not 'ZDS' in self.ELEMENTS: self.ELEMENTS['ZDS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
                 self.ELEMENTS['ZDS']['data'] = [0 for x in TEMPDATA ]
                 self.ELEMENTS['ZDS']['data'].extend( TEMPDATA.values() )
-                self.ELEMENTS['ZDS']['data'] = [ x * 10000000 for x in self.ELEMENTS['ZDS']['data'] ] # convert from cm/s to nm/s
+                self.ELEMENTS['ZDS']['data'] = [ x * -10000000 for x in self.ELEMENTS['ZDS']['data'] ] # convert from cm/s to nm/s
                 debug("\tZDS: %s" % len(self.ELEMENTS['ZDS']['data']))
 
             elif l == 3:
@@ -789,7 +795,7 @@ GREEN.1\n\
                 if not 'TDS' in self.ELEMENTS: self.ELEMENTS['TDS'] = {'data':[], 'samplerate':self.DT, 'filter':filter} 
                 self.ELEMENTS['TDS']['data'] = [0 for x in TEMPDATA ]
                 self.ELEMENTS['TDS']['data'].extend( TEMPDATA.values() )
-                self.ELEMENTS['TDS']['data'] = [ x * 10000000 for x in self.ELEMENTS['TDS']['data'] ] # convert from cm/s to nm/s
+                self.ELEMENTS['TDS']['data'] = [ x * -10000000 for x in self.ELEMENTS['TDS']['data'] ] # convert from cm/s to nm/s
                 debug("\tTDS: %s" % len(self.ELEMENTS['TDS']['data']))
 
             elif l == 5:
