@@ -17,6 +17,8 @@ DATA = \
 	rrdgraph \
 	rsyncbaler \
 	sitephotos \
+	stabaler \
+	staq330 \
 	wfoffset \
 	wfsrb
 

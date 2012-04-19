@@ -63,11 +63,11 @@ green_db /Users/rt/rtsystems/greens/db/green
 # magnitude range vs filters
 mag_filters &Tbl{
 #   lowermag    highermag    filter
-    2.0    4.0    BW_0.01_5_0.02_5
-    4.0    5.0    BW_0.01_5_0.02_5
-    5.0    6.0    BW_0.01_5_0.02_5
-    6.0    7.0    BW_0.01_5_0.02_5
-    7.0           BW_0.01_5_0.02_5
+    2.0    4.0    BW_0.01_6_0.02_6
+    4.0    5.0    BW_0.01_6_0.02_6
+    5.0    6.0    BW_0.01_6_0.02_6
+    6.0    7.0    BW_0.01_6_0.02_6
+    7.0           BW_0.01_6_0.02_6
 }
 
 # moment tensor images directory

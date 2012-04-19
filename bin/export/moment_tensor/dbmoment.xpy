@@ -65,7 +65,7 @@ except Exception,e:
 try:
     from obspy.imaging.beachball import Beachball
 except Exception,e:
-    sys.exit("Import Error: [%s] Do you have ObsPy installed correctly?" % e)
+    sys.exit("Import Error: [%s] Do you have ObsPy installed correctly? \n\t http://obspy.org/wiki/InstallationLinuxPrepackaged" % e)
 
 #}}}
 
@@ -357,15 +357,31 @@ class DbMoment():
                     delta = int(arrival_time - my_event.event_time)
                     max_xcor, timeshift = my_inv.get_time_shift(real_data, synthetics, delta)
 
-                    if max_xcor < self.min_xcor: 
+                    if max_xcor < self.min_xcor or timeshift > 100: 
                         log("\t\t\tREJECT: %s max-correlation:[%s] and timeshift:[%s]" % (stacode,max_xcor,timeshift),1)
                         continue
 
                     log("\t\t\tUSE: %s max-correlation:[%s] and timeshift:[%s]" % (stacode,max_xcor,timeshift),1)
 
+                    if timeshift > 0:
+                        for trace in real_data:
+                            log("\t\t\tREAL [%s] timeshift:[%s]" % (trace,timeshift))
+                            real_data[trace] = real_data[trace][timeshift:-1]
+                        #for trace in synthetics:
+                        #    log("\t\t\tSYNTHETICS [%s] trim:[%s]" % (trace,timeshift))
+                        #    synthetics[trace] = synthetics[trace][0:-timeshift]
+
+                    else:
+                        for trace in synthetics:
+                            log("\t\t\tSYNTHETICS [%s] timeshift:[%s]" % (trace,timeshift))
+                            synthetics[trace] = synthetics[trace][abs(timeshift):-1]
+                        #for trace in real_data:
+                        #    log("\t\t\tREAL [%s] trim:[%s]" % (trace,timeshift))
+                        #    real_data[trace] = real_data[trace][0:timeshift]
+
                     ss.append(real_data)
                     gg.append(synthetics)
-                    ev2sta.append((stacode, esaz, distance, timeshift))
+                    ev2sta.append((stacode, esaz, distance))
                     good_cross_corr_stations += 1
                 #}}}
 
@@ -392,11 +408,7 @@ class DbMoment():
 
         AIV, B = my_inv.matrix_AIV_B(ss, gg, ev2sta, nl)
 
-        #log('AIV = pylab.array(%s)' %  AIV, 1)
-        #log('B = pylab.array(%s)' %  B, 1)
         M = my_inv.determine_solution_vector(AIV, B)
-
-        #log('M = pylab.array(%s)' %  M, 1)
 
         #gfscale = -1.0e+20
         #gfscale = -1.0
@@ -406,10 +418,7 @@ class DbMoment():
 
         # !!! NOTE: DECOMPOSE MOMENT TENSOR INTO VARIOUS REPRESENTATIONS. RLN (2011-11-03)
         m0, Mw, strike, dip, rake, pcdc, pcclvd, pciso = my_inv.decompose_moment_tensor(M)
-        # E, VR, VAR, svar, sdpower = my_inv.fitcheck(gg, ss, W, M, m0, timeshift, ev2sta_azimuths, nl)
-        # E, VR, VAR, svar, sdpower = my_inv.fitcheck(cleaned_gg, cleaned_ss, W, M, m0, cleaned_ev2sta, nl)
-        #E, VR, VAR, svar, sdpower = my_inv.fitcheck(cleaned_gg, cleaned_ss, M, m0, cleaned_ev2sta, nl)
-        E, VR, VAR, svar, sdpower = my_inv.fitcheck(gg, ss, M, m0, ev2sta, 120)
+        E, VR, VAR, svar, sdpower = my_inv.fitcheck(gg, ss, M, m0, ev2sta, nl)
 
         qlt = my_inv.quality_check(VR)
 
