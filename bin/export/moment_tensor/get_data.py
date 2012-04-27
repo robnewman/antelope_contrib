@@ -719,12 +719,16 @@ class Event():
         return syn_plot_outfile
 #}}}
 
-    def create_map_plot(self, mt_images_dir):
+    def create_map_plot(self, ev2sta, mt_images_dir):
 # {{{
         # Holders
         sta_lats = []
         sta_lons = []
         sta_labels = []
+        stas_used = []
+
+        for i, tup in enumerate(ev2sta):
+            stas_used.append(tup[0])
 
         log('Create map plot of stations used in solution:')
         my_map_plot = pyplot.figure()
@@ -733,9 +737,10 @@ class Event():
         # Plot stations
         for quad, qlist in (self.sta_list.iteritems()):
             for sta in qlist:
-                sta_lats.append(sta[4][0])
-                sta_lons.append(sta[4][1])
-                sta_labels.append(sta[0])
+                if sta[0] in stas_used:
+                    sta_lats.append(sta[4][0])
+                    sta_lons.append(sta[4][1])
+                    sta_labels.append(sta[0])
         mp.plot(sta_lons, sta_lats, 'b^', markersize=10)
 
         # Plot event

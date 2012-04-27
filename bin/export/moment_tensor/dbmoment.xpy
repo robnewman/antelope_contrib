@@ -475,7 +475,7 @@ class DbMoment():
         my_event.create_composite_plot(self.ttfont, image_annotations, self.mt_images_dir, synthetics_img, focalmech_img)
 
         log('my_event.create_map_plot()')
-        my_event.create_map_plot(self.mt_images_dir)
+        my_event.create_map_plot(ev2sta, self.mt_images_dir)
 
         #log("MOMENT TENSOR:")
         #log(M)
